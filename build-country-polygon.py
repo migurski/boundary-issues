@@ -14,7 +14,7 @@ osgeo.gdal.UseExceptions()
 CONFIGS = {
     "IND": {
         "base": [
-            ["relation", 304716], # India
+            ["plus", "relation", 304716], # India
         ],
         "perspectives": {
             "IND": [
@@ -31,13 +31,13 @@ CONFIGS = {
     },
     "NPL": {
         "base": [
-            ["relation", 184633], # Nepal
+            ["plus", "relation", 184633], # Nepal
         ],
         "perspectives": {},
     },
     "PAK": {
         "base": [
-            ["relation", 307573], # Pakistan
+            ["plus", "relation", 307573], # Pakistan
         ],
         "perspectives": {
             "PAK": [
@@ -46,6 +46,30 @@ CONFIGS = {
             ],
             "IND": [
                 ["minus", "relation", 13414393], # Pakistani-Administered Kashmir
+            ],
+        },
+    },
+    "RUS": {
+        "base": [
+            ["plus", "relation", 60189], # Russia (includes Crimea in OSM)
+            ["minus", "relation", 3788824], # Crimea
+        ],
+        "perspectives": {
+            "RUS": [
+                ["plus", "relation", 3788824], # Crimea
+            ],
+            "UKR": [
+                ["minus", "relation", 3788824], # Crimea
+            ],
+        },
+    },
+    "UKR": {
+        "base": [
+            ["plus", "relation", 60199], # Ukraine (includes Crimea in OSM)
+        ],
+        "perspectives": {
+            "RUS": [
+                ["minus", "relation", 3788824], # Crimea
             ],
         },
     },
@@ -69,20 +93,24 @@ def main():
         rows = csv.DictWriter(file, ("iso3", "perspective", "geometry"))
         rows.writeheader()
         for (iso3a, config) in CONFIGS.items():
-            base_shapes = [
-                make_shape(el_type, osm_id)
-                for (el_type, osm_id) in config["base"]
-            ]
+            direction, el_type, osm_id = config["base"][0]
+            assert direction == "plus"
+            geom1 = make_shape(el_type, osm_id)
+            for (direction, el_type, osm_id) in config["base"][1:]:
+                if direction == "plus":
+                    geom1 = geom1.Union(make_shape(el_type, osm_id))
+                elif direction == "minus":
+                    geom1 = geom1.Difference(make_shape(el_type, osm_id))
 
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(CONFIGS.keys()) - set(config["perspectives"].keys())
             row = dict(iso3=iso3a, perspective=",".join(sorted(neutral_pov)))
             print("Writing", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": base_shapes[0].ExportToWkt()})
+            rows.writerow({**row, "geometry": geom1.ExportToWkt()})
 
             # Generate perspectives
             for (iso3b, shapes) in config["perspectives"].items():
-                geom2 = base_shapes[0].Clone()
+                geom2 = geom1.Clone()
                 for (direction, el_type, osm_id) in shapes:
                     if direction == "plus":
                         geom2 = geom2.Union(make_shape(el_type, osm_id))
