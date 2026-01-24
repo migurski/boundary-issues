@@ -31,6 +31,9 @@ CONFIGS = {
                 ["minus", "relation", 2713465], # Aksai Chin
                 ["minus", "relation", 2713466], # Demchok sector
             ],
+            "PAK": [
+                ["plus", "relation", 2713466], # Demchok sector, touches PAK
+            ],
         },
     },
     "IND": {
@@ -73,6 +76,7 @@ CONFIGS = {
             "PAK": [
                 ["plus", "relation", 5515045], # Ladakh
                 ["plus", "relation", 1943188], # Jammu and Kashmir
+                ["minus", "relation", 2713466], # Demchok sector, claimed by CHN
             ],
             "IND": [
                 ["minus", "relation", 13414393], # Pakistani-Administered Kashmir
