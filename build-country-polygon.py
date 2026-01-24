@@ -12,11 +12,41 @@ import osgeo.ogr
 osgeo.gdal.UseExceptions()
 
 CONFIGS = {
+    "CHN": {
+        "base": [
+            ["plus", "relation", 270056], # China
+        ],
+        "perspectives": {
+            "CHN": [
+                ["plus", "relation", 7935380], # Trans-Karakoram Tract
+                ["plus", "relation", 2713466], # Demchok sector
+                ["plus", "relation", 2713483], # Gue-Kaurik
+                ["plus", "relation", 2713485], # Shipki La
+                ["plus", "relation", 2713676], # Nilang-Jadhang
+                ["plus", "relation", 2713484], # Barahoti
+                ["plus", "relation", 3202329], # South Tibet
+            ],
+            "IND": [
+                ["minus", "relation", 7935380], # Trans-Karakoram Tract
+                ["minus", "relation", 2713465], # Aksai Chin
+                ["minus", "relation", 2713466], # Demchok sector
+            ],
+        },
+    },
     "IND": {
         "base": [
             ["plus", "relation", 304716], # India
         ],
         "perspectives": {
+            "CHN": [
+                ["minus", "relation", 7935380], # Trans-Karakoram Tract
+                ["minus", "relation", 2713466], # Demchok sector
+                ["minus", "relation", 2713483], # Gue-Kaurik
+                ["minus", "relation", 2713485], # Shipki La
+                ["minus", "relation", 2713676], # Nilang-Jadhang
+                ["minus", "relation", 2713484], # Barahoti
+                ["minus", "relation", 3202329], # South Tibet
+            ],
             "IND": [
                 ["plus", "relation", 13414393], # Pakistani-Administered Kashmir
                 ["plus", "relation", 7935380], # Trans-Karakoram Tract
