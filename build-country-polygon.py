@@ -11,99 +11,152 @@ import osgeo.ogr
 
 osgeo.gdal.UseExceptions()
 
+# CONFIGS = {
+#     "CHN": {
+#         "base": [
+#             ["plus", "relation", 270056], # China
+#         ],
+#         "perspectives": {
+#             "CHN": [
+#                 ["plus", "relation", 7935380], # Trans-Karakoram Tract
+#                 ["plus", "relation", 2713466], # Demchok sector
+#                 ["plus", "relation", 2713483], # Gue-Kaurik
+#                 ["plus", "relation", 2713485], # Shipki La
+#                 ["plus", "relation", 2713676], # Nilang-Jadhang
+#                 ["plus", "relation", 2713484], # Barahoti
+#                 ["plus", "relation", 3202329], # South Tibet
+#             ],
+#             "IND": [
+#                 ["minus", "relation", 7935380], # Trans-Karakoram Tract
+#                 ["minus", "relation", 2713465], # Aksai Chin
+#                 ["minus", "relation", 2713466], # Demchok sector
+#             ],
+#             "PAK": [
+#                 ["plus", "relation", 2713466], # Demchok sector, touches PAK
+#             ],
+#         },
+#     },
+#     "IND": {
+#         "base": [
+#             ["plus", "relation", 304716], # India
+#         ],
+#         "perspectives": {
+#             "CHN": [
+#                 ["minus", "relation", 7935380], # Trans-Karakoram Tract
+#                 ["minus", "relation", 2713466], # Demchok sector
+#                 ["minus", "relation", 2713483], # Gue-Kaurik
+#                 ["minus", "relation", 2713485], # Shipki La
+#                 ["minus", "relation", 2713676], # Nilang-Jadhang
+#                 ["minus", "relation", 2713484], # Barahoti
+#                 ["minus", "relation", 3202329], # South Tibet
+#             ],
+#             "IND": [
+#                 ["plus", "relation", 13414393], # Pakistani-Administered Kashmir
+#                 ["plus", "relation", 7935380], # Trans-Karakoram Tract
+#                 ["plus", "relation", 2713465], # Aksai Chin
+#                 ["plus", "relation", 2713466], # Demchok sector
+#             ],
+#             "PAK": [
+#                 ["minus", "relation", 5515045], # Ladakh
+#                 ["minus", "relation", 1943188], # Jammu and Kashmir
+#             ],
+#         },
+#     },
+#     "NPL": {
+#         "base": [
+#             ["plus", "relation", 184633], # Nepal
+#         ],
+#         "perspectives": {},
+#     },
+#     "PAK": {
+#         "base": [
+#             ["plus", "relation", 307573], # Pakistan
+#         ],
+#         "perspectives": {
+#             "PAK": [
+#                 ["plus", "relation", 5515045], # Ladakh
+#                 ["plus", "relation", 1943188], # Jammu and Kashmir
+#                 ["minus", "relation", 2713466], # Demchok sector, claimed by CHN
+#             ],
+#             "IND": [
+#                 ["minus", "relation", 13414393], # Pakistani-Administered Kashmir
+#             ],
+#         },
+#     },
+#     "RUS": {
+#         "base": [
+#             ["plus", "relation", 60189], # Russia (includes Crimea in OSM)
+#             ["minus", "relation", 3788824], # Crimea
+#         ],
+#         "perspectives": {
+#             "RUS": [
+#                 ["plus", "relation", 3788824], # Crimea
+#             ],
+#             "UKR": [
+#                 ["minus", "relation", 3788824], # Crimea
+#             ],
+#         },
+#     },
+#     "UKR": {
+#         "base": [
+#             ["plus", "relation", 60199], # Ukraine (includes Crimea in OSM)
+#         ],
+#         "perspectives": {
+#             "RUS": [
+#                 ["minus", "relation", 3788824], # Crimea
+#             ],
+#         },
+#     },
+# }
+
 CONFIGS = {
-    "CHN": {
-        "base": [
-            ["plus", "relation", 270056], # China
-        ],
-        "perspectives": {
-            "CHN": [
-                ["plus", "relation", 7935380], # Trans-Karakoram Tract
-                ["plus", "relation", 2713466], # Demchok sector
-                ["plus", "relation", 2713483], # Gue-Kaurik
-                ["plus", "relation", 2713485], # Shipki La
-                ["plus", "relation", 2713676], # Nilang-Jadhang
-                ["plus", "relation", 2713484], # Barahoti
-                ["plus", "relation", 3202329], # South Tibet
-            ],
-            "IND": [
-                ["minus", "relation", 7935380], # Trans-Karakoram Tract
-                ["minus", "relation", 2713465], # Aksai Chin
-                ["minus", "relation", 2713466], # Demchok sector
-            ],
-            "PAK": [
-                ["plus", "relation", 2713466], # Demchok sector, touches PAK
-            ],
-        },
-    },
     "IND": {
         "base": [
-            ["plus", "relation", 304716], # India
+            ["plus", "relation", "fake-IND"],
         ],
         "perspectives": {
-            "CHN": [
-                ["minus", "relation", 7935380], # Trans-Karakoram Tract
-                ["minus", "relation", 2713466], # Demchok sector
-                ["minus", "relation", 2713483], # Gue-Kaurik
-                ["minus", "relation", 2713485], # Shipki La
-                ["minus", "relation", 2713676], # Nilang-Jadhang
-                ["minus", "relation", 2713484], # Barahoti
-                ["minus", "relation", 3202329], # South Tibet
-            ],
             "IND": [
-                ["plus", "relation", 13414393], # Pakistani-Administered Kashmir
-                ["plus", "relation", 7935380], # Trans-Karakoram Tract
-                ["plus", "relation", 2713465], # Aksai Chin
-                ["plus", "relation", 2713466], # Demchok sector
+                ["plus", "relation", "fake-PAK-Kashmir"],
             ],
             "PAK": [
-                ["minus", "relation", 5515045], # Ladakh
-                ["minus", "relation", 1943188], # Jammu and Kashmir
+                ["minus", "relation", "fake-IND-Kashmir"],
             ],
         },
-    },
-    "NPL": {
-        "base": [
-            ["plus", "relation", 184633], # Nepal
-        ],
-        "perspectives": {},
     },
     "PAK": {
         "base": [
-            ["plus", "relation", 307573], # Pakistan
+            ["plus", "relation", "fake-PAK"],
         ],
         "perspectives": {
             "PAK": [
-                ["plus", "relation", 5515045], # Ladakh
-                ["plus", "relation", 1943188], # Jammu and Kashmir
-                ["minus", "relation", 2713466], # Demchok sector, claimed by CHN
+                ["plus", "relation", "fake-IND-Kashmir"],
             ],
             "IND": [
-                ["minus", "relation", 13414393], # Pakistani-Administered Kashmir
+                ["minus", "relation", "fake-PAK-Kashmir"],
             ],
         },
     },
     "RUS": {
         "base": [
-            ["plus", "relation", 60189], # Russia (includes Crimea in OSM)
-            ["minus", "relation", 3788824], # Crimea
+            ["plus", "relation", "fake-RUS"],
+            ["minus", "relation", "fake-Crimea"],
         ],
         "perspectives": {
             "RUS": [
-                ["plus", "relation", 3788824], # Crimea
+                ["plus", "relation", "fake-Crimea"],
             ],
             "UKR": [
-                ["minus", "relation", 3788824], # Crimea
+                ["minus", "relation", "fake-Crimea"],
             ],
         },
     },
     "UKR": {
         "base": [
-            ["plus", "relation", 60199], # Ukraine (includes Crimea in OSM)
+            ["plus", "relation", "fake-UKR"],
         ],
         "perspectives": {
             "RUS": [
-                ["minus", "relation", 3788824], # Crimea
+                ["minus", "relation", "fake-Crimea"],
             ],
         },
     },
