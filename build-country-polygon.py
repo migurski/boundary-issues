@@ -117,13 +117,28 @@ CONFIGS = {
 }
 
 FAKE_CONFIGS = {
-    "IND": {
+    "CHN": {
         "base": [
-            ["plus", "relation", "fake-IND"],
+            ["plus", "relation", "fake-CHN"],
         ],
         "perspectives": {
             "IND": [
+                ["minus", "relation", "fake-Aksai-Chin"],
+            ],
+        }
+    },
+    "IND": {
+        "base": [
+            ["plus", "relation", "fake-IND"],
+            ["minus", "relation", "fake-Aksai-Chin"],
+        ],
+        "perspectives": {
+            "CHN": [
+                ["minus", "relation", "fake-Aksai-Chin"],
+            ],
+            "IND": [
                 ["plus", "relation", "fake-PAK-Kashmir"],
+                ["plus", "relation", "fake-Aksai-Chin"],
             ],
             "PAK": [
                 ["minus", "relation", "fake-IND-Kashmir"],
@@ -185,9 +200,9 @@ class TestCase (unittest.TestCase):
                 disputes[key] = osgeo.ogr.CreateGeometryFromWkt(row[-1])
 
         # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
-        self.assertTrue(borders[("IND", "PAK", "PAK")].Contains(make_point(3, 2)))
-        self.assertFalse(borders[("IND", "PAK", "IND")].Contains(make_point(3, 2)))
-        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(3, 2)))
+        self.assertTrue(borders[("IND", "PAK", "PAK")].Contains(make_point(2.9, 2)))
+        self.assertFalse(borders[("IND", "PAK", "IND")].Contains(make_point(2.9, 2)))
+        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.9, 2)))
 
         # A point along the border of fake Azad Kashmir and fake Islamabad
         self.assertTrue(borders[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
@@ -202,12 +217,22 @@ class TestCase (unittest.TestCase):
         # A point along the border of fake Crimea and fake Russia
         self.assertTrue(borders[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
         self.assertFalse(borders[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
-        self.assertTrue(disputes[("RUS", "UKR", "IND,PAK")].Contains(make_point(-2, 2)))
+        self.assertTrue(disputes[("RUS", "UKR", "CHN,IND,PAK")].Contains(make_point(-2, 2)))
 
         # A point along the border of fake Crimea and fake Ukraine
         self.assertTrue(borders[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
         self.assertFalse(borders[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
-        self.assertTrue(disputes[("RUS", "UKR", "IND,PAK")].Contains(make_point(-3, 1)))
+        self.assertTrue(disputes[("RUS", "UKR", "CHN,IND,PAK")].Contains(make_point(-3, 1)))
+
+        # A point along the border of fake Jammu/Kashmir and fake Aksai Chin
+        self.assertTrue(borders[("CHN", "IND", "CHN")].Contains(make_point(3, 2.1)))
+        self.assertFalse(borders[("CHN", "IND", "IND")].Contains(make_point(3, 2.1)))
+        self.assertTrue(disputes[("CHN", "IND", "RUS,UKR")].Contains(make_point(3, 2.1)))
+
+        # A point along the border of fake India and fake Aksai Chin
+        self.assertTrue(borders[("CHN", "IND", "CHN")].Contains(make_point(3.1, 2)))
+        self.assertFalse(borders[("CHN", "IND", "IND")].Contains(make_point(3.1, 2)))
+        self.assertTrue(disputes[("CHN", "IND", "RUS,UKR")].Contains(make_point(3.1, 2)))
 
     def test_polygons(self):
         with open("country-polygons.csv", "r") as file:
@@ -220,19 +245,25 @@ class TestCase (unittest.TestCase):
         # A point inside fake Azad Kashmir
         self.assertTrue(areas[("IND", "IND")].Contains(make_point(2.3, 2.7)))
         self.assertFalse(areas[("IND", "PAK")].Contains(make_point(2.3, 2.7)))
-        self.assertTrue(areas[("PAK", "RUS,UKR")].Contains(make_point(2.3, 2.7)))
+        self.assertTrue(areas[("PAK", "CHN,RUS,UKR")].Contains(make_point(2.3, 2.7)))
         self.assertFalse(areas[("IND", "RUS,UKR")].Contains(make_point(2.3, 2.7)))
 
         # A point inside fake Jammu/Kashmir
         self.assertTrue(areas[("IND", "IND")].Contains(make_point(2.7, 2.3)))
         self.assertFalse(areas[("IND", "PAK")].Contains(make_point(2.7, 2.3)))
         self.assertTrue(areas[("IND", "RUS,UKR")].Contains(make_point(2.7, 2.3)))
-        self.assertFalse(areas[("PAK", "RUS,UKR")].Contains(make_point(2.7, 2.3)))
+        self.assertFalse(areas[("PAK", "CHN,RUS,UKR")].Contains(make_point(2.7, 2.3)))
 
         # A point inside fake Crimea
-        self.assertTrue(areas[("UKR", "IND,PAK,UKR")].Contains(make_point(-2.5, 1.5)))
+        self.assertTrue(areas[("UKR", "CHN,IND,PAK,UKR")].Contains(make_point(-2.5, 1.5)))
         self.assertFalse(areas[("UKR", "RUS")].Contains(make_point(-2.5, 1.5)))
         self.assertTrue(areas[("RUS", "RUS")].Contains(make_point(-2.5, 1.5)))
+
+        # A point inside fake Aksai Chin
+        self.assertTrue(areas[("IND", "IND")].Contains(make_point(3.5, 2.5)))
+        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.5, 2.5)))
+        self.assertTrue(areas[("CHN", "CHN,PAK,RUS,UKR")].Contains(make_point(3.5, 2.5)))
+        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.5, 2.5)))
 
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
