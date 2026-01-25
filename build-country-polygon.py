@@ -6,6 +6,7 @@ import functools
 import gzip
 import os
 import sys
+import unittest
 import urllib.request
 
 import osgeo.gdal
@@ -111,58 +112,109 @@ CONFIGS = {
     },
 }
 
-# CONFIGS = {
-#     "IND": {
-#         "base": [
-#             ["plus", "relation", "fake-IND"],
-#         ],
-#         "perspectives": {
-#             "IND": [
-#                 ["plus", "relation", "fake-PAK-Kashmir"],
-#             ],
-#             "PAK": [
-#                 ["minus", "relation", "fake-IND-Kashmir"],
-#             ],
-#         },
-#     },
-#     "PAK": {
-#         "base": [
-#             ["plus", "relation", "fake-PAK"],
-#         ],
-#         "perspectives": {
-#             "PAK": [
-#                 ["plus", "relation", "fake-IND-Kashmir"],
-#             ],
-#             "IND": [
-#                 ["minus", "relation", "fake-PAK-Kashmir"],
-#             ],
-#         },
-#     },
-#     "RUS": {
-#         "base": [
-#             ["plus", "relation", "fake-RUS"],
-#             ["minus", "relation", "fake-Crimea"],
-#         ],
-#         "perspectives": {
-#             "RUS": [
-#                 ["plus", "relation", "fake-Crimea"],
-#             ],
-#             "UKR": [
-#                 ["minus", "relation", "fake-Crimea"],
-#             ],
-#         },
-#     },
-#     "UKR": {
-#         "base": [
-#             ["plus", "relation", "fake-UKR"],
-#         ],
-#         "perspectives": {
-#             "RUS": [
-#                 ["minus", "relation", "fake-Crimea"],
-#             ],
-#         },
-#     },
-# }
+FAKE_CONFIGS = {
+    "IND": {
+        "base": [
+            ["plus", "relation", "fake-IND"],
+        ],
+        "perspectives": {
+            "IND": [
+                ["plus", "relation", "fake-PAK-Kashmir"],
+            ],
+            "PAK": [
+                ["minus", "relation", "fake-IND-Kashmir"],
+            ],
+        },
+    },
+    "PAK": {
+        "base": [
+            ["plus", "relation", "fake-PAK"],
+        ],
+        "perspectives": {
+            "PAK": [
+                ["plus", "relation", "fake-IND-Kashmir"],
+            ],
+            "IND": [
+                ["minus", "relation", "fake-PAK-Kashmir"],
+            ],
+        },
+    },
+    "RUS": {
+        "base": [
+            ["plus", "relation", "fake-RUS"],
+            ["minus", "relation", "fake-Crimea"],
+        ],
+        "perspectives": {
+            "RUS": [
+                ["plus", "relation", "fake-Crimea"],
+            ],
+            "UKR": [
+                ["minus", "relation", "fake-Crimea"],
+            ],
+        },
+    },
+    "UKR": {
+        "base": [
+            ["plus", "relation", "fake-UKR"],
+        ],
+        "perspectives": {
+            "RUS": [
+                ["minus", "relation", "fake-Crimea"],
+            ],
+        },
+    },
+}
+
+class TestCase (unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        main(FAKE_CONFIGS)
+
+    def test_borders(self):
+        with open("country-borders.csv", "r") as file:
+            file.readline()
+            rows = {
+                tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
+                for row in csv.reader(file)
+            }
+
+        # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
+        self.assertTrue(rows[("IND", "PAK", "PAK")].Contains(make_point(3, 2)))
+        self.assertFalse(rows[("IND", "PAK", "IND")].Contains(make_point(3, 2)))
+
+        # A point along the border of fake Azad Kashmir and fake Islamabad
+        self.assertTrue(rows[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
+        self.assertFalse(rows[("IND", "PAK", "PAK")].Contains(make_point(2, 3)))
+
+        # A point along the fake Line Of Control
+        self.assertTrue(rows[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.5, 2.5)))
+
+        # A point along the border of fake Crimea and fake Russia
+        self.assertTrue(rows[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
+        self.assertFalse(rows[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
+
+        # A point along the border of fake Crimea and fake Ukraine
+        self.assertTrue(rows[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
+        self.assertFalse(rows[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
+
+    def test_disputes(self):
+        with open("country-disputes.csv", "r") as file:
+            file.readline()
+            rows = {
+                tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
+                for row in csv.reader(file)
+            }
+
+        # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
+        self.assertTrue(rows[("IND",)].Contains(make_point(3, 2)))
+        self.assertFalse(rows[("PAK",)].Contains(make_point(3, 2)))
+
+        # A point along the border of fake Azad Kashmir and fake Islamabad
+        self.assertTrue(rows[("PAK",)].Contains(make_point(2, 3)))
+
+def make_point(x, y):
+    return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
 
 def make_shape(el_type, osm_id):
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
@@ -194,16 +246,13 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str]) ->
         raise ValueError((geom1, direction2))
     return geom3
 
-def main():
+def write_country_disputes(configs):
     with open("country-disputes.csv", "w") as file:
         rows = csv.DictWriter(file, ("iso3", "geometry"))
         rows.writeheader()
-        for (iso3a, config) in CONFIGS.items():
+        for (iso3a, config) in configs.items():
             self_geom = combine_shapes(config["base"] + config["perspectives"].get(iso3a, []))
             base_geom = combine_shapes(config["base"])
-            diff_geom = self_geom.Difference(base_geom)
-            diff_line = diff_geom.Boundary().Difference(self_geom.Boundary())
-            print((iso3a,), str(diff_line)[:128], file=sys.stderr)
 
             dispute_lines = osgeo.ogr.CreateGeometryFromWkt('LINESTRING EMPTY') # diff_line.Clone()
             for (iso3b, shapes) in config["perspectives"].items():
@@ -218,12 +267,11 @@ def main():
             print("Writing", row, file=sys.stderr)
             rows.writerow({**row, "geometry": dispute_lines.ExportToWkt()})
 
-    return
-
+def write_country_polygons(configs):
     with open("country-polygons.csv", "w") as file:
         rows = csv.DictWriter(file, ("iso3", "perspective", "geometry"))
         rows.writeheader()
-        for (iso3a, config) in CONFIGS.items():
+        for (iso3a, config) in configs.items():
             direction, el_type, osm_id = config["base"][0]
             assert direction == "plus"
             geom1 = make_shape(el_type, osm_id)
@@ -234,7 +282,7 @@ def main():
                     geom1 = geom1.Difference(make_shape(el_type, osm_id))
 
             # "Neutral" point of view = anyone without a defined perspective
-            neutral_pov = set(CONFIGS.keys()) - set(config["perspectives"].keys())
+            neutral_pov = set(configs.keys()) - set(config["perspectives"].keys())
             row = dict(iso3=iso3a, perspective=",".join(sorted(neutral_pov)))
             print("Writing", row, file=sys.stderr)
             rows.writerow({**row, "geometry": geom1.ExportToWkt()})
@@ -251,5 +299,9 @@ def main():
                 print("Writing", row, file=sys.stderr)
                 rows.writerow({**row, "geometry": geom2.ExportToWkt()})
 
+def main(configs):
+    write_country_disputes(configs)
+    write_country_polygons(configs)
+
 if __name__ == "__main__":
-    exit(main())
+    exit(main(CONFIGS))
