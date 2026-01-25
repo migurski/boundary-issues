@@ -16,6 +16,8 @@ import shapely.wkt
 
 osgeo.gdal.UseExceptions()
 
+EMPTY_LINE_WKT = "LINESTRING EMPTY"
+
 CONFIGS = {
     "CHN": {
         "base": [
@@ -257,38 +259,77 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str]) ->
 
 def write_country_borders(configs):
     df = geopandas.read_file("country-polygons.csv")
-    print(df, file=sys.stderr)
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
-    pov_borders: dict[tuple[int, int], set[int]] = {}
-    iso3_neighbors: set[tuple[str, str]] = set()
 
-    for pov in set(gdf.iso3.values):
-        print("POV:", pov, file=sys.stderr)
-        gdf_pov = gdf[gdf.perspective.str.contains(pov)]
-        for i, row in geopandas.sjoin(gdf_pov, gdf_pov, predicate="touches").iterrows():
-            i1, i2 = (min(i, row.index_right), max(i, row.index_right))
-            iso3a, iso3b = gdf.loc[i1].iso3, gdf.loc[i2].iso3
-            iso3_neighbors.add((iso3a, iso3b))
-            if (i1, i2) in pov_borders:
-                pov_borders[(i1, i2)].add(pov)
-            else:
-                pov_borders[(i1, i2)] = {pov}
-        print(pov_borders, file=sys.stderr)
+    gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
+    iso3_pairings = {
+        (min(row.iso3_left, row.iso3_right), max(row.iso3_left, row.iso3_right))
+        for i, row in gdf_neighbors[["iso3_left", "iso3_right"]].iterrows()
+    }
 
-    with open("country-borders.csv", mode="w") as file:
-        rows = csv.DictWriter(file, fieldnames=("iso3a", "iso3b", "perspectives", "geometry"))
+    with open("country-borders.csv", "w") as file:
+        rows = csv.DictWriter(file, fieldnames=("iso3a", "iso3b", "perspectives", "agreed_geometry", "disputed_geometry"))
         rows.writeheader()
+        for iso3a, iso3b in iso3_pairings:
+            # Populate single perspectives to gdf polygon row ID pairs
+            row_pairings: dict[str, tuple[int, int]] = {}
 
-        for (i1, i2), povs in pov_borders.items():
-            iso3a, iso3b = gdf.loc[i1].iso3, gdf.loc[i2].iso3
-            geom1, geom2 = gdf.loc[i1].geometry, gdf.loc[i2].geometry
-            linestring = geom1.intersection(geom2)
+            for iso3c in configs.keys():
+                gdf1 = gdf[(gdf.iso3 == iso3a) & gdf.perspective.str.contains(iso3c)]
+                gdf2 = gdf[(gdf.iso3 == iso3b) & gdf.perspective.str.contains(iso3c)]
+                assert len(gdf1) == 1
+                assert len(gdf2) == 1
+                geom1, geom2 = gdf1.iloc[0].geometry, gdf2.iloc[0].geometry
+                index1, index2 = int(gdf1.index.values[0]), int(gdf2.index.values[0])
+                row_pairings[iso3c] = (index1, index2)
 
-            row = dict(iso3a=iso3a, iso3b=iso3b, perspectives=",".join(sorted(povs)))
-            print("Writing", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": shapely.wkt.dumps(linestring)})
+            # Populate gdf polygon row ID pairs to matching sets of perspectives
+            other_pairings: dict[tuple[int, int], set[str]] = {}
+
+            party1: tuple[int, int] = row_pairings.pop(iso3a)
+            party2: tuple[int, int] = row_pairings.pop(iso3b)
+            for other_party, pairing in row_pairings.items():
+                if pairing in other_pairings:
+                    other_pairings[pairing].add(other_party)
+                else:
+                    other_pairings[pairing] = {other_party}
+            other_parties: dict[tuple[str], tuple[int, int]] = {
+                tuple(sorted(parties)): pairing for pairing, parties in other_pairings.items()
+            }
+
+            print(iso3a, party1, iso3b, party2, other_parties, file=sys.stderr)
+
+            # Caculate borders for each claimant + those of outside observers
+            line1 = gdf.iloc[party1[0]].geometry.intersection(gdf.iloc[party1[1]].geometry)
+            line2 = gdf.iloc[party2[0]].geometry.intersection(gdf.iloc[party2[1]].geometry)
+            other_lines = {
+                k: gdf.iloc[i1].geometry.intersection(gdf.iloc[i2].geometry)
+                for k, (i1, i2) in other_parties.items()
+            }
+            print(iso3a, line1, iso3b, line2, other_lines, file=sys.stderr)
+
+            # Write unambiguous geometries
+            row1 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3a)
+            print("Writing", row1, file=sys.stderr)
+            rows.writerow({**row1, "agreed_geometry": shapely.wkt.dumps(line1), "disputed_geometry": EMPTY_LINE_WKT})
+
+            row2 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3b)
+            print("Writing", row2, file=sys.stderr)
+            rows.writerow({**row2, "agreed_geometry": shapely.wkt.dumps(line2), "disputed_geometry": EMPTY_LINE_WKT})
+
+            # Write alternative disputed geometries
+            for other_iso3s, linestring in other_lines.items():
+                linestrings = [line1, line2, linestring]
+                agreed_linestring = functools.reduce(lambda g1, g2: g1.intersection(g2), linestrings)
+                agreed_wkt = shapely.wkt.dumps(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
+                disputed_linestring = functools.reduce(lambda g1, g2: g1.union(g2), linestrings).difference(agreed_linestring)
+                disputed_wkt = shapely.wkt.dumps(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
+
+                row3 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=",".join(other_iso3s))
+                print("Writing", row3, file=sys.stderr)
+                rows.writerow({**row3, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
 def write_country_disputes(configs):
     with open("country-disputes.csv", "w") as file:
