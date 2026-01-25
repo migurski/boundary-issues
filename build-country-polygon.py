@@ -234,21 +234,6 @@ class TestCase (unittest.TestCase):
         self.assertFalse(areas[("UKR", "RUS")].Contains(make_point(-2.5, 1.5)))
         self.assertTrue(areas[("RUS", "RUS")].Contains(make_point(-2.5, 1.5)))
 
-    def test_disputes(self):
-        with open("country-disputes.csv", "r") as file:
-            file.readline()
-            rows = {
-                tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
-                for row in csv.reader(file)
-            }
-
-        # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
-        self.assertTrue(rows[("IND",)].Contains(make_point(3, 2)))
-        self.assertFalse(rows[("PAK",)].Contains(make_point(3, 2)))
-
-        # A point along the border of fake Azad Kashmir and fake Islamabad
-        self.assertTrue(rows[("PAK",)].Contains(make_point(2, 3)))
-
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
 
@@ -356,27 +341,6 @@ def write_country_borders(configs):
                 print("Writing", row3, file=sys.stderr)
                 rows.writerow({**row3, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
-def write_country_disputes(configs):
-    with open("country-disputes.csv", "w") as file:
-        rows = csv.DictWriter(file, ("iso3", "geometry"))
-        rows.writeheader()
-        for (iso3a, config) in configs.items():
-            self_geom = combine_shapes(config["base"] + config["perspectives"].get(iso3a, []))
-            base_geom = combine_shapes(config["base"])
-
-            dispute_lines = osgeo.ogr.CreateGeometryFromWkt('LINESTRING EMPTY') # diff_line.Clone()
-            for (iso3b, shapes) in config["perspectives"].items():
-                if iso3b == iso3a:
-                    continue
-                pov_geom = combine_shapes(config["base"] + shapes)
-                pov_line = pov_geom.Boundary().Difference(self_geom.Boundary()).Difference(base_geom.Boundary())
-                print((iso3a, iso3b), str(pov_line)[:128], file=sys.stderr)
-                dispute_lines = dispute_lines.Union(pov_line)
-
-            row = dict(iso3=iso3a)
-            print("Writing", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": dispute_lines.ExportToWkt()})
-
 def write_country_polygons(configs):
     with open("country-polygons.csv", "w") as file:
         rows = csv.DictWriter(file, ("iso3", "perspective", "geometry"))
@@ -410,7 +374,6 @@ def write_country_polygons(configs):
                 rows.writerow({**row, "geometry": geom2.ExportToWkt()})
 
 def main(configs):
-    write_country_disputes(configs)
     write_country_polygons(configs)
     write_country_borders(configs)
 
