@@ -9,8 +9,10 @@ import sys
 import unittest
 import urllib.request
 
+import geopandas
 import osgeo.gdal
 import osgeo.ogr
+import shapely.wkt
 
 osgeo.gdal.UseExceptions()
 
@@ -246,6 +248,41 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str]) ->
         raise ValueError((geom1, direction2))
     return geom3
 
+def write_country_borders(configs):
+    df = geopandas.read_file("country-polygons.csv")
+    print(df, file=sys.stderr)
+
+    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
+    gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
+    pov_borders: dict[tuple[int, int], set[int]] = {}
+    iso3_neighbors: set[tuple[str, str]] = set()
+
+    for pov in set(gdf.iso3.values):
+        print("POV:", pov, file=sys.stderr)
+        gdf_pov = gdf[gdf.perspective.str.contains(pov)]
+        for i, row in geopandas.sjoin(gdf_pov, gdf_pov, predicate="touches").iterrows():
+            i1, i2 = (min(i, row.index_right), max(i, row.index_right))
+            iso3a, iso3b = gdf.loc[i1].iso3, gdf.loc[i2].iso3
+            iso3_neighbors.add((iso3a, iso3b))
+            if (i1, i2) in pov_borders:
+                pov_borders[(i1, i2)].add(pov)
+            else:
+                pov_borders[(i1, i2)] = {pov}
+        print(pov_borders, file=sys.stderr)
+
+    with open("country-borders.csv", mode="w") as file:
+        rows = csv.DictWriter(file, fieldnames=("iso3a", "iso3b", "perspectives", "geometry"))
+        rows.writeheader()
+
+        for (i1, i2), povs in pov_borders.items():
+            iso3a, iso3b = gdf.loc[i1].iso3, gdf.loc[i2].iso3
+            geom1, geom2 = gdf.loc[i1].geometry, gdf.loc[i2].geometry
+            linestring = geom1.intersection(geom2)
+
+            row = dict(iso3a=iso3a, iso3b=iso3b, perspectives=",".join(sorted(povs)))
+            print("Writing", row, file=sys.stderr)
+            rows.writerow({**row, "geometry": shapely.wkt.dumps(linestring)})
+
 def write_country_disputes(configs):
     with open("country-disputes.csv", "w") as file:
         rows = csv.DictWriter(file, ("iso3", "geometry"))
@@ -302,6 +339,7 @@ def write_country_polygons(configs):
 def main(configs):
     write_country_disputes(configs)
     write_country_polygons(configs)
+    write_country_borders(configs)
 
 if __name__ == "__main__":
     exit(main(CONFIGS))
