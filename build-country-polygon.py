@@ -209,6 +209,31 @@ class TestCase (unittest.TestCase):
         self.assertFalse(borders[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
         self.assertTrue(disputes[("RUS", "UKR", "IND,PAK")].Contains(make_point(-3, 1)))
 
+    def test_polygons(self):
+        with open("country-polygons.csv", "r") as file:
+            file.readline()
+            areas = {
+                tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
+                for row in csv.reader(file)
+            }
+
+        # A point inside fake Azad Kashmir
+        self.assertTrue(areas[("IND", "IND")].Contains(make_point(2.3, 2.7)))
+        self.assertFalse(areas[("IND", "PAK")].Contains(make_point(2.3, 2.7)))
+        self.assertTrue(areas[("PAK", "RUS,UKR")].Contains(make_point(2.3, 2.7)))
+        self.assertFalse(areas[("IND", "RUS,UKR")].Contains(make_point(2.3, 2.7)))
+
+        # A point inside fake Jammu/Kashmir
+        self.assertTrue(areas[("IND", "IND")].Contains(make_point(2.7, 2.3)))
+        self.assertFalse(areas[("IND", "PAK")].Contains(make_point(2.7, 2.3)))
+        self.assertTrue(areas[("IND", "RUS,UKR")].Contains(make_point(2.7, 2.3)))
+        self.assertFalse(areas[("PAK", "RUS,UKR")].Contains(make_point(2.7, 2.3)))
+
+        # A point inside fake Crimea
+        self.assertTrue(areas[("UKR", "IND,PAK,UKR")].Contains(make_point(-2.5, 1.5)))
+        self.assertFalse(areas[("UKR", "RUS")].Contains(make_point(-2.5, 1.5)))
+        self.assertTrue(areas[("RUS", "RUS")].Contains(make_point(-2.5, 1.5)))
+
     def test_disputes(self):
         with open("country-disputes.csv", "r") as file:
             file.readline()
