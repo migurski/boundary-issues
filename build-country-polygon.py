@@ -273,6 +273,13 @@ def write_country_borders(configs):
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
 
+    # Note each country's own view of itself
+    self_views: dict[str, shapely.geometry.base.BaseGeometry] = {
+        r.iso3: r.geometry for i, r in gdf.iterrows() if r.iso3 in r.perspective
+    }
+
+    # Calculate all neighbor pairings in all possible views (expensive!)
+    print("Calculating neighbor pairings...", file=sys.stderr)
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
     iso3_pairings = {
         (min(row.iso3_left, row.iso3_right), max(row.iso3_left, row.iso3_right))
@@ -314,32 +321,55 @@ def write_country_borders(configs):
             # Caculate borders for each claimant + those of outside observers
             line1 = gdf.iloc[party1[0]].geometry.intersection(gdf.iloc[party1[1]].geometry)
             line2 = gdf.iloc[party2[0]].geometry.intersection(gdf.iloc[party2[1]].geometry)
-            other_lines = {
+            other_lines: dict[tuple[str], shapely.geometry.base.BaseGeometry] = {
                 k: gdf.iloc[i1].geometry.intersection(gdf.iloc[i2].geometry)
                 for k, (i1, i2) in other_parties.items()
             }
-            print(iso3a, line1, iso3b, line2, other_lines, file=sys.stderr)
+            print(iso3a, str(line1)[:50], iso3b, str(line2)[:50], {k: str(v)[:50] for k, v in other_lines.items()}, file=sys.stderr)
 
             # Write unambiguous geometries
             row1 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3a)
-            print("Writing", row1, file=sys.stderr)
+            print("Writing first-party border", row1, file=sys.stderr)
             rows.writerow({**row1, "agreed_geometry": shapely.wkt.dumps(line1), "disputed_geometry": EMPTY_LINE_WKT})
 
             row2 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3b)
-            print("Writing", row2, file=sys.stderr)
+            print("Writing first-party border", row2, file=sys.stderr)
             rows.writerow({**row2, "agreed_geometry": shapely.wkt.dumps(line2), "disputed_geometry": EMPTY_LINE_WKT})
 
             # Write alternative disputed geometries
             for other_iso3s, linestring in other_lines.items():
                 linestrings = [line1, line2, linestring]
                 agreed_linestring = functools.reduce(lambda g1, g2: g1.intersection(g2), linestrings)
-                agreed_wkt = shapely.wkt.dumps(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
                 disputed_linestring = functools.reduce(lambda g1, g2: g1.union(g2), linestrings).difference(agreed_linestring)
-                disputed_wkt = shapely.wkt.dumps(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
 
-                row3 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=",".join(other_iso3s))
-                print("Writing", row3, file=sys.stderr)
-                rows.writerow({**row3, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
+                # Identify 3rd parties with a potential interest in this border
+                interested_iso3s = {
+                    o for o in other_iso3s
+                    if disputed_linestring.intersects(self_views[o]) or agreed_linestring.intersects(self_views[o])
+                }
+                disinterested_iso3s = set(other_iso3s) - interested_iso3s
+
+                # Subtract this border from within interested parties' interiors
+                for other_iso3 in interested_iso3s:
+                    other_polygon, other_boundary = self_views[other_iso3], self_views[other_iso3].boundary
+
+                    agreed_linestring = agreed_linestring.difference(other_polygon).difference(other_boundary)
+                    disputed_linestring = disputed_linestring.difference(other_polygon).difference(other_boundary)
+                    agreed_wkt = shapely.wkt.dumps(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
+                    disputed_wkt = shapely.wkt.dumps(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
+
+                    row3 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=other_iso3)
+                    print("Writing interested party border", row3, file=sys.stderr)
+                    rows.writerow({**row3, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
+
+                # Show this border for all disinterested parties
+                if disinterested_iso3s:
+                    agreed_wkt = shapely.wkt.dumps(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
+                    disputed_wkt = shapely.wkt.dumps(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
+
+                    row4 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=",".join(sorted(disinterested_iso3s)))
+                    print("Writing disinterested parties border", row4, file=sys.stderr)
+                    rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
 def write_country_polygons(configs):
     with open("country-polygons.csv", "w") as file:
@@ -358,7 +388,7 @@ def write_country_polygons(configs):
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(configs.keys()) - set(config["perspectives"].keys())
             row = dict(iso3=iso3a, perspective=",".join(sorted(neutral_pov)))
-            print("Writing", row, file=sys.stderr)
+            print("Writing polygon", row, file=sys.stderr)
             rows.writerow({**row, "geometry": geom1.ExportToWkt()})
 
             # Generate perspectives
