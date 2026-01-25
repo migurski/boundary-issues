@@ -175,30 +175,37 @@ class TestCase (unittest.TestCase):
 
     def test_borders(self):
         with open("country-borders.csv", "r") as file:
+            borders, disputes = {}, {}
             file.readline()
-            rows = {
-                tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
-                for row in csv.reader(file)
-            }
+            for row in csv.reader(file):
+                key = tuple(row[:-2])
+                borders[key] = osgeo.ogr.CreateGeometryFromWkt(row[-2])
+                disputes[key] = osgeo.ogr.CreateGeometryFromWkt(row[-1])
 
         # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
-        self.assertTrue(rows[("IND", "PAK", "PAK")].Contains(make_point(3, 2)))
-        self.assertFalse(rows[("IND", "PAK", "IND")].Contains(make_point(3, 2)))
+        self.assertTrue(borders[("IND", "PAK", "PAK")].Contains(make_point(3, 2)))
+        self.assertFalse(borders[("IND", "PAK", "IND")].Contains(make_point(3, 2)))
+        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(3, 2)))
 
         # A point along the border of fake Azad Kashmir and fake Islamabad
-        self.assertTrue(rows[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
-        self.assertFalse(rows[("IND", "PAK", "PAK")].Contains(make_point(2, 3)))
+        self.assertTrue(borders[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
+        self.assertFalse(borders[("IND", "PAK", "PAK")].Contains(make_point(2, 3)))
+        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(2, 3)))
 
         # A point along the fake Line Of Control
-        self.assertTrue(rows[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.5, 2.5)))
+        self.assertFalse(borders[("IND", "PAK", "IND")].Contains(make_point(2.5, 2.5)))
+        self.assertFalse(borders[("IND", "PAK", "PAK")].Contains(make_point(2.5, 2.5)))
+        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.5, 2.5)))
 
         # A point along the border of fake Crimea and fake Russia
-        self.assertTrue(rows[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
-        self.assertFalse(rows[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
+        self.assertTrue(borders[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
+        self.assertFalse(borders[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
+        self.assertTrue(disputes[("RUS", "UKR", "IND,PAK")].Contains(make_point(-2, 2)))
 
         # A point along the border of fake Crimea and fake Ukraine
-        self.assertTrue(rows[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
-        self.assertFalse(rows[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
+        self.assertTrue(borders[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
+        self.assertFalse(borders[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
+        self.assertTrue(disputes[("RUS", "UKR", "IND,PAK")].Contains(make_point(-3, 1)))
 
     def test_disputes(self):
         with open("country-disputes.csv", "r") as file:
