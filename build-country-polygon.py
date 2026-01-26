@@ -268,7 +268,7 @@ class TestCase (unittest.TestCase):
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
 
-def make_shape(el_type, osm_id):
+def load_shape(el_type: str, osm_id: int|str) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
     if not os.path.exists(local_path):
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -287,7 +287,7 @@ def combine_shapes(shapes: list[tuple[str, str, int|str]]) -> osgeo.ogr.Geometry
 
 def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str]) -> osgeo.ogr.Geometry:
     direction2, el_type2, osm_id2 = shape2
-    geom2 = make_shape(el_type2, osm_id2)
+    geom2 = load_shape(el_type2, osm_id2)
     if direction2 == "plus" and geom1 is None:
         geom3 = geom2.Clone()
     elif direction2 == "plus" and geom1 is not None:
@@ -407,32 +407,21 @@ def write_country_polygons(configs):
         rows = csv.DictWriter(file, ("iso3", "perspective", "geometry"))
         rows.writeheader()
         for (iso3a, config) in configs.items():
-            direction, el_type, osm_id = config["base"][0]
-            assert direction == "plus"
-            geom1 = make_shape(el_type, osm_id)
-            for (direction, el_type, osm_id) in config["base"][1:]:
-                if direction == "plus":
-                    geom1 = geom1.Union(make_shape(el_type, osm_id))
-                elif direction == "minus":
-                    geom1 = geom1.Difference(make_shape(el_type, osm_id))
+            geom1 = combine_shapes(config["base"])
 
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(configs.keys()) - set(config["perspectives"].keys())
-            row = dict(iso3=iso3a, perspective=",".join(sorted(neutral_pov)))
-            print("Writing polygon", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": geom1.ExportToWkt()})
+            row1 = dict(iso3=iso3a, perspective=",".join(sorted(neutral_pov)))
+            print("Writing base polygon", row1, file=sys.stderr)
+            rows.writerow({**row1, "geometry": geom1.ExportToWkt()})
 
             # Generate perspectives
             for (iso3b, shapes) in config["perspectives"].items():
-                geom2 = geom1.Clone()
-                for (direction, el_type, osm_id) in shapes:
-                    if direction == "plus":
-                        geom2 = geom2.Union(make_shape(el_type, osm_id))
-                    elif direction == "minus":
-                        geom2 = geom2.Difference(make_shape(el_type, osm_id))
-                row = dict(iso3=iso3a, perspective=iso3b)
-                print("Writing", row, file=sys.stderr)
-                rows.writerow({**row, "geometry": geom2.ExportToWkt()})
+                geom2 = functools.reduce(combine_pair, shapes, geom1)
+
+                row2 = dict(iso3=iso3a, perspective=iso3b)
+                print("Writing perspective polygon", row2, file=sys.stderr)
+                rows.writerow({**row2, "geometry": geom2.ExportToWkt()})
 
 def main(configs):
     write_country_polygons(configs)
