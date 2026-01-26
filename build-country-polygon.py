@@ -120,10 +120,12 @@ FAKE_CONFIGS = {
     "CHN": {
         "base": [
             ["plus", "relation", "fake-CHN"],
+            ["plus", "relation", "fake-Trans-Karakoram-Tract"],
         ],
         "perspectives": {
             "IND": [
                 ["minus", "relation", "fake-Aksai-Chin"],
+                ["minus", "relation", "fake-Trans-Karakoram-Tract"],
             ],
         }
     },
@@ -131,14 +133,17 @@ FAKE_CONFIGS = {
         "base": [
             ["plus", "relation", "fake-IND"],
             ["minus", "relation", "fake-Aksai-Chin"],
+            ["minus", "relation", "fake-Trans-Karakoram-Tract"],
         ],
         "perspectives": {
             "CHN": [
                 ["minus", "relation", "fake-Aksai-Chin"],
+                ["minus", "relation", "fake-Trans-Karakoram-Tract"],
             ],
             "IND": [
                 ["plus", "relation", "fake-PAK-Kashmir"],
                 ["plus", "relation", "fake-Aksai-Chin"],
+                ["plus", "relation", "fake-Trans-Karakoram-Tract"],
             ],
             "PAK": [
                 ["minus", "relation", "fake-IND-Kashmir"],
@@ -234,6 +239,27 @@ class TestCase (unittest.TestCase):
         self.assertFalse(borders[("CHN", "IND", "IND")].Contains(make_point(3.1, 2)))
         self.assertTrue(disputes[("CHN", "IND", "RUS,UKR")].Contains(make_point(3.1, 2)))
 
+        # A point along the border of fake Pakistan and fake China
+        self.assertTrue(borders[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
+        self.assertTrue(borders[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
+        self.assertTrue(borders[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
+        self.assertTrue(borders[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputes[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputes[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputes[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputes[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.2)))
+
+        # A point along the border of fake Pakistan and fake Trans-Karakoram Tract
+        self.assertTrue(borders[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.7)))
+        self.assertTrue(borders[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.7)))
+        self.assertTrue(borders[("IND", "PAK", "IND")].Contains(make_point(3, 3.7)))
+        self.assertFalse(borders[("CHN", "PAK", "IND")].Contains(make_point(3, 3.7)))
+        self.assertFalse(borders[("IND", "PAK", "CHN")].Contains(make_point(3, 3.7)))
+        self.assertFalse(borders[("IND", "PAK", "PAK")].Contains(make_point(3, 3.7)))
+        self.assertFalse(disputes[("CHN", "IND", "RUS,UKR")].Contains(make_point(3, 3.7)))
+        self.assertFalse(disputes[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)))
+        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+
     def test_polygons(self):
         with open("country-polygons.csv", "r") as file:
             file.readline()
@@ -264,6 +290,12 @@ class TestCase (unittest.TestCase):
         self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.5, 2.5)))
         self.assertTrue(areas[("CHN", "CHN,PAK,RUS,UKR")].Contains(make_point(3.5, 2.5)))
         self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.5, 2.5)))
+
+        # A point inside fake Trans-Karakoram Tract
+        self.assertTrue(areas[("IND", "IND")].Contains(make_point(3.7, 3.7)))
+        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.7, 3.7)))
+        self.assertTrue(areas[("CHN", "CHN,PAK,RUS,UKR")].Contains(make_point(3.7, 3.7)))
+        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.7, 3.7)))
 
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
@@ -297,6 +329,9 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str]) ->
     else:
         raise ValueError((geom1, direction2))
     return geom3
+
+def dump_wkt(shape: shapely.geometry.base.BaseGeometry) -> str:
+    return shapely.wkt.dumps(shape, rounding_precision=7)
 
 def write_country_borders(configs):
     df = geopandas.read_file("country-polygons.csv")
@@ -347,7 +382,7 @@ def write_country_borders(configs):
                 tuple(sorted(parties)): pairing for pairing, parties in other_pairings.items()
             }
 
-            print(iso3a, party1, iso3b, party2, other_parties, file=sys.stderr)
+            # print(iso3a, party1, iso3b, party2, other_parties, file=sys.stderr)
 
             # Caculate borders for each claimant + those of outside observers
             line1 = gdf.iloc[party1[0]].geometry.intersection(gdf.iloc[party1[1]].geometry)
@@ -356,16 +391,16 @@ def write_country_borders(configs):
                 k: gdf.iloc[i1].geometry.intersection(gdf.iloc[i2].geometry)
                 for k, (i1, i2) in other_parties.items()
             }
-            print(iso3a, str(line1)[:50], iso3b, str(line2)[:50], {k: str(v)[:50] for k, v in other_lines.items()}, file=sys.stderr)
+            # print(iso3a, str(line1)[:50], iso3b, str(line2)[:50], {k: str(v)[:50] for k, v in other_lines.items()}, file=sys.stderr)
 
             # Write unambiguous geometries
             row1 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3a)
             print("Writing first-party border", row1, file=sys.stderr)
-            rows.writerow({**row1, "agreed_geometry": shapely.wkt.dumps(line1), "disputed_geometry": EMPTY_LINE_WKT})
+            rows.writerow({**row1, "agreed_geometry": dump_wkt(line1), "disputed_geometry": EMPTY_LINE_WKT})
 
             row2 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3b)
             print("Writing first-party border", row2, file=sys.stderr)
-            rows.writerow({**row2, "agreed_geometry": shapely.wkt.dumps(line2), "disputed_geometry": EMPTY_LINE_WKT})
+            rows.writerow({**row2, "agreed_geometry": dump_wkt(line2), "disputed_geometry": EMPTY_LINE_WKT})
 
             # Write alternative disputed geometries
             for other_iso3s, linestring in other_lines.items():
@@ -374,11 +409,11 @@ def write_country_borders(configs):
                 disputed_linestring = functools.reduce(lambda g1, g2: g1.union(g2), linestrings).difference(agreed_linestring)
 
                 # Identify 3rd parties with a potential interest in this border
-                interested_iso3s = {
+                interested_iso3s: set[str] = {
                     o for o in other_iso3s
                     if disputed_linestring.intersects(self_views[o]) or agreed_linestring.intersects(self_views[o])
                 }
-                disinterested_iso3s = set(other_iso3s) - interested_iso3s
+                disinterested_iso3s: set[str] = set(other_iso3s) - interested_iso3s
 
                 # Subtract this border from within interested parties' interiors
                 for other_iso3 in interested_iso3s:
@@ -386,8 +421,8 @@ def write_country_borders(configs):
 
                     agreed_linestring = agreed_linestring.difference(other_polygon).difference(other_boundary)
                     disputed_linestring = disputed_linestring.difference(other_polygon).difference(other_boundary)
-                    agreed_wkt = shapely.wkt.dumps(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
-                    disputed_wkt = shapely.wkt.dumps(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
+                    agreed_wkt = dump_wkt(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
+                    disputed_wkt = dump_wkt(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
 
                     row3 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=other_iso3)
                     print("Writing interested party border", row3, file=sys.stderr)
@@ -395,8 +430,8 @@ def write_country_borders(configs):
 
                 # Show this border for all disinterested parties
                 if disinterested_iso3s:
-                    agreed_wkt = shapely.wkt.dumps(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
-                    disputed_wkt = shapely.wkt.dumps(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
+                    agreed_wkt = dump_wkt(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
+                    disputed_wkt = dump_wkt(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
 
                     row4 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=",".join(sorted(disinterested_iso3s)))
                     print("Writing disinterested parties border", row4, file=sys.stderr)
