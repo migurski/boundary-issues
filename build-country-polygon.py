@@ -6,6 +6,7 @@ import functools
 import gzip
 import os
 import sys
+import tempfile
 import unittest
 import urllib.request
 
@@ -16,6 +17,8 @@ import shapely.wkt
 
 osgeo.gdal.UseExceptions()
 
+BOUNDARIES_NAME = "country-boundaries.csv"
+AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 
 CONFIGS = {
@@ -191,77 +194,89 @@ FAKE_CONFIGS = {
 
 class TestCase (unittest.TestCase):
 
+    tempdir: str|None = None
+
     @classmethod
     def setUpClass(cls):
-        main(FAKE_CONFIGS)
+        cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
+        os.makedirs(cls.tempdir, exist_ok=True)
+        main(cls.tempdir, FAKE_CONFIGS)
 
-    def test_borders(self):
-        with open("country-borders.csv", "r") as file:
-            borders, disputes = {}, {}
+    @classmethod
+    def tearDownClass(cls):
+        return  # Don't remove these so we can inspect them in QGIS
+        os.remove(os.path.join(cls.tempdir, BOUNDARIES_NAME))
+        os.remove(os.path.join(cls.tempdir, AREAS_NAME))
+        os.rmdir(cls.tempdir)
+        cls.tempdir = None
+
+    def test_boundaries(self):
+        with open(os.path.join(TestCase.tempdir, BOUNDARIES_NAME), "r") as file:
+            agreed, disputed = {}, {}
             file.readline()
             for row in csv.reader(file):
                 key = tuple(row[:-2])
-                borders[key] = osgeo.ogr.CreateGeometryFromWkt(row[-2])
-                disputes[key] = osgeo.ogr.CreateGeometryFromWkt(row[-1])
+                agreed[key] = osgeo.ogr.CreateGeometryFromWkt(row[-2])
+                disputed[key] = osgeo.ogr.CreateGeometryFromWkt(row[-1])
 
         # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
-        self.assertTrue(borders[("IND", "PAK", "PAK")].Contains(make_point(2.9, 2)))
-        self.assertFalse(borders[("IND", "PAK", "IND")].Contains(make_point(2.9, 2)))
-        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.9, 2)))
+        self.assertTrue(agreed[("IND", "PAK", "PAK")].Contains(make_point(2.9, 2)))
+        self.assertFalse(agreed[("IND", "PAK", "IND")].Contains(make_point(2.9, 2)))
+        self.assertTrue(disputed[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.9, 2)))
 
         # A point along the border of fake Azad Kashmir and fake Islamabad
-        self.assertTrue(borders[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
-        self.assertFalse(borders[("IND", "PAK", "PAK")].Contains(make_point(2, 3)))
-        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(2, 3)))
+        self.assertTrue(agreed[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
+        self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(2, 3)))
+        self.assertTrue(disputed[("IND", "PAK", "RUS,UKR")].Contains(make_point(2, 3)))
 
         # A point along the fake Line Of Control
-        self.assertFalse(borders[("IND", "PAK", "IND")].Contains(make_point(2.5, 2.5)))
-        self.assertFalse(borders[("IND", "PAK", "PAK")].Contains(make_point(2.5, 2.5)))
-        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.5, 2.5)))
+        self.assertFalse(agreed[("IND", "PAK", "IND")].Contains(make_point(2.5, 2.5)))
+        self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(2.5, 2.5)))
+        self.assertTrue(disputed[("IND", "PAK", "RUS,UKR")].Contains(make_point(2.5, 2.5)))
 
         # A point along the border of fake Crimea and fake Russia
-        self.assertTrue(borders[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
-        self.assertFalse(borders[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
-        self.assertTrue(disputes[("RUS", "UKR", "CHN,IND,PAK")].Contains(make_point(-2, 2)))
+        self.assertTrue(agreed[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
+        self.assertFalse(agreed[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
+        self.assertTrue(disputed[("RUS", "UKR", "CHN,IND,PAK")].Contains(make_point(-2, 2)))
 
         # A point along the border of fake Crimea and fake Ukraine
-        self.assertTrue(borders[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
-        self.assertFalse(borders[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
-        self.assertTrue(disputes[("RUS", "UKR", "CHN,IND,PAK")].Contains(make_point(-3, 1)))
+        self.assertTrue(agreed[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
+        self.assertFalse(agreed[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
+        self.assertTrue(disputed[("RUS", "UKR", "CHN,IND,PAK")].Contains(make_point(-3, 1)))
 
         # A point along the border of fake Jammu/Kashmir and fake Aksai Chin
-        self.assertTrue(borders[("CHN", "IND", "CHN")].Contains(make_point(3, 2.1)))
-        self.assertFalse(borders[("CHN", "IND", "IND")].Contains(make_point(3, 2.1)))
-        self.assertTrue(disputes[("CHN", "IND", "RUS,UKR")].Contains(make_point(3, 2.1)))
+        self.assertTrue(agreed[("CHN", "IND", "CHN")].Contains(make_point(3, 2.1)))
+        self.assertFalse(agreed[("CHN", "IND", "IND")].Contains(make_point(3, 2.1)))
+        self.assertTrue(disputed[("CHN", "IND", "RUS,UKR")].Contains(make_point(3, 2.1)))
 
         # A point along the border of fake India and fake Aksai Chin
-        self.assertTrue(borders[("CHN", "IND", "CHN")].Contains(make_point(3.1, 2)))
-        self.assertFalse(borders[("CHN", "IND", "IND")].Contains(make_point(3.1, 2)))
-        self.assertTrue(disputes[("CHN", "IND", "RUS,UKR")].Contains(make_point(3.1, 2)))
+        self.assertTrue(agreed[("CHN", "IND", "CHN")].Contains(make_point(3.1, 2)))
+        self.assertFalse(agreed[("CHN", "IND", "IND")].Contains(make_point(3.1, 2)))
+        self.assertTrue(disputed[("CHN", "IND", "RUS,UKR")].Contains(make_point(3.1, 2)))
 
         # A point along the border of fake Pakistan and fake China
-        self.assertTrue(borders[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
-        self.assertTrue(borders[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
-        self.assertTrue(borders[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
-        self.assertTrue(borders[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputes[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputes[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputes[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputes[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.2)))
+        self.assertTrue(agreed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
+        self.assertTrue(agreed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
+        self.assertTrue(agreed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
+        self.assertTrue(agreed[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.2)))
 
         # A point along the border of fake Pakistan and fake Trans-Karakoram Tract
-        self.assertTrue(borders[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.7)))
-        self.assertTrue(borders[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.7)))
-        self.assertTrue(borders[("IND", "PAK", "IND")].Contains(make_point(3, 3.7)))
-        self.assertFalse(borders[("CHN", "PAK", "IND")].Contains(make_point(3, 3.7)))
-        self.assertFalse(borders[("IND", "PAK", "CHN")].Contains(make_point(3, 3.7)))
-        self.assertFalse(borders[("IND", "PAK", "PAK")].Contains(make_point(3, 3.7)))
-        self.assertFalse(disputes[("CHN", "IND", "RUS,UKR")].Contains(make_point(3, 3.7)))
-        self.assertFalse(disputes[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)))
-        self.assertTrue(disputes[("IND", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+        self.assertTrue(agreed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.7)))
+        self.assertTrue(agreed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.7)))
+        self.assertTrue(agreed[("IND", "PAK", "IND")].Contains(make_point(3, 3.7)))
+        self.assertFalse(agreed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.7)))
+        self.assertFalse(agreed[("IND", "PAK", "CHN")].Contains(make_point(3, 3.7)))
+        self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(3, 3.7)))
+        self.assertFalse(disputed[("CHN", "IND", "RUS,UKR")].Contains(make_point(3, 3.7)))
+        self.assertFalse(disputed[("CHN", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)))
+        self.assertTrue(disputed[("IND", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
 
-    def test_polygons(self):
-        with open("country-polygons.csv", "r") as file:
+    def test_areas(self):
+        with open(os.path.join(TestCase.tempdir, AREAS_NAME), "r") as file:
             file.readline()
             areas = {
                 tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
@@ -333,8 +348,8 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str]) ->
 def dump_wkt(shape: shapely.geometry.base.BaseGeometry) -> str:
     return shapely.wkt.dumps(shape, rounding_precision=7)
 
-def write_country_borders(configs):
-    df = geopandas.read_file("country-polygons.csv")
+def write_country_boundaries(dirname, configs):
+    df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
@@ -352,7 +367,7 @@ def write_country_borders(configs):
         for i, row in gdf_neighbors[["iso3_left", "iso3_right"]].iterrows()
     }
 
-    with open("country-borders.csv", "w") as file:
+    with open(os.path.join(dirname, BOUNDARIES_NAME), "w") as file:
         rows = csv.DictWriter(file, fieldnames=("iso3a", "iso3b", "perspectives", "agreed_geometry", "disputed_geometry"))
         rows.writeheader()
         for iso3a, iso3b in iso3_pairings:
@@ -384,7 +399,7 @@ def write_country_borders(configs):
 
             # print(iso3a, party1, iso3b, party2, other_parties, file=sys.stderr)
 
-            # Caculate borders for each claimant + those of outside observers
+            # Caculate boundaries for each claimant + those of outside observers
             line1 = gdf.iloc[party1[0]].geometry.intersection(gdf.iloc[party1[1]].geometry)
             line2 = gdf.iloc[party2[0]].geometry.intersection(gdf.iloc[party2[1]].geometry)
             other_lines: dict[tuple[str], shapely.geometry.base.BaseGeometry] = {
@@ -437,8 +452,8 @@ def write_country_borders(configs):
                     print("Writing disinterested parties border", row4, file=sys.stderr)
                     rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
-def write_country_polygons(configs):
-    with open("country-polygons.csv", "w") as file:
+def write_country_areas(dirname, configs):
+    with open(os.path.join(dirname, AREAS_NAME), "w") as file:
         rows = csv.DictWriter(file, ("iso3", "perspective", "geometry"))
         rows.writeheader()
         for (iso3a, config) in configs.items():
@@ -458,9 +473,9 @@ def write_country_polygons(configs):
                 print("Writing perspective polygon", row2, file=sys.stderr)
                 rows.writerow({**row2, "geometry": geom2.ExportToWkt()})
 
-def main(configs):
-    write_country_polygons(configs)
-    write_country_borders(configs)
+def main(dirname, configs):
+    write_country_areas(dirname, configs)
+    write_country_boundaries(dirname, configs)
 
 if __name__ == "__main__":
-    exit(main(CONFIGS))
+    exit(main(".", CONFIGS))
