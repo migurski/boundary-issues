@@ -22,6 +22,7 @@ osgeo.gdal.UseExceptions()
 BOUNDARIES_NAME = "country-boundaries.csv"
 AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
+BASE = "base"
 
 class TestCase (unittest.TestCase):
 
@@ -32,8 +33,8 @@ class TestCase (unittest.TestCase):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
         with open('test-config.yaml', 'r') as file:
-            config = yaml.safe_load(file)
-        main(cls.tempdir, config)
+            cls.config = yaml.safe_load(file)
+        main(cls.tempdir, cls.config)
 
     @classmethod
     def tearDownClass(cls):
@@ -109,41 +110,47 @@ class TestCase (unittest.TestCase):
         self.assertTrue(disputed[("IND", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
 
     def test_areas(self):
-        with open(os.path.join(TestCase.tempdir, AREAS_NAME), "r") as file:
-            file.readline()
-            areas = {
-                tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
-                for row in csv.reader(file)
-            }
+        validate_areas(TestCase.config.items(), os.path.join(TestCase.tempdir, AREAS_NAME))
 
-        # A point inside fake Azad Kashmir
-        self.assertTrue(areas[("IND", "IND")].Contains(make_point(2.3, 2.7)))
-        self.assertFalse(areas[("IND", "PAK")].Contains(make_point(2.3, 2.7)))
-        self.assertTrue(areas[("PAK", "CHN,RUS,UKR")].Contains(make_point(2.3, 2.7)))
-        self.assertFalse(areas[("IND", "RUS,UKR")].Contains(make_point(2.3, 2.7)))
+def validate_areas(configs, areas_path):
+    with open(areas_path, "r") as file:
+        file.readline()
+        areas = {
+            tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
+            for row in csv.reader(file)
+        }
 
-        # A point inside fake Jammu/Kashmir
-        self.assertTrue(areas[("IND", "IND")].Contains(make_point(2.7, 2.3)))
-        self.assertFalse(areas[("IND", "PAK")].Contains(make_point(2.7, 2.3)))
-        self.assertTrue(areas[("IND", "RUS,UKR")].Contains(make_point(2.7, 2.3)))
-        self.assertFalse(areas[("PAK", "CHN,RUS,UKR")].Contains(make_point(2.7, 2.3)))
+    all_povs = set(TestCase.config.keys())
+    cases = [
+        (is_in, test_iso3a, test_iso3b, x, y, area_iso3a, area_iso3bs, area_geom)
+        for test_iso3a, config in configs
+        for is_in, grouping in [(True, "interior-points"), (False, "exterior-points")]
+        for test_iso3b, points in config.get(grouping, {}).items()
+        for x, y in points
+        for (area_iso3a, area_iso3bs), area_geom in areas.items()
+    ]
 
-        # A point inside fake Crimea
-        self.assertTrue(areas[("UKR", "CHN,IND,PAK,UKR")].Contains(make_point(-2.5, 1.5)))
-        self.assertFalse(areas[("UKR", "RUS")].Contains(make_point(-2.5, 1.5)))
-        self.assertTrue(areas[("RUS", "RUS")].Contains(make_point(-2.5, 1.5)))
+    for is_in, test_iso3a, test_iso3b, x, y, area_iso3a, area_iso3bs, area_geom in cases:
+        if test_iso3a != area_iso3a:
+            # Skip test/area mismatches
+            continue
+        if test_iso3b == BASE:
+            # "Neutral" point of view = anyone without a defined perspective
+            local_povs = set(TestCase.config[test_iso3a].get("perspectives", {}).keys())
+            neutral_povs = all_povs - local_povs
+            if not any(neutral_pov in area_iso3bs for neutral_pov in neutral_povs):
+                # Skip test/perspective mismatches for disinterested parties
+                continue
+        elif test_iso3b not in area_iso3bs:
+            # Skip test/perspective mismatches
+            continue
 
-        # A point inside fake Aksai Chin
-        self.assertTrue(areas[("IND", "IND")].Contains(make_point(3.5, 2.5)))
-        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.5, 2.5)))
-        self.assertTrue(areas[("CHN", "CHN,PAK,RUS,UKR")].Contains(make_point(3.5, 2.5)))
-        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.5, 2.5)))
-
-        # A point inside fake Trans-Karakoram Tract
-        self.assertTrue(areas[("IND", "IND")].Contains(make_point(3.7, 3.7)))
-        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.7, 3.7)))
-        self.assertTrue(areas[("CHN", "CHN,PAK,RUS,UKR")].Contains(make_point(3.7, 3.7)))
-        self.assertFalse(areas[("IND", "CHN")].Contains(make_point(3.7, 3.7)))
+        if is_in:
+            assert make_point(x, y).Within(area_geom), \
+                f"({x}, {y}) should be inside {test_iso3a} from the {test_iso3b} perspective"
+        else:
+            assert not make_point(x, y).Within(area_geom), \
+                f"({x}, {y}) should be outside {test_iso3a} from the {test_iso3b} perspective"
 
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
@@ -290,7 +297,7 @@ def write_country_areas(dirname, configs):
         rows = csv.DictWriter(file, ("iso3", "perspective", "geometry"))
         rows.writeheader()
         for (iso3a, config) in configs.items():
-            geom1 = combine_shapes(config["base"])
+            geom1 = combine_shapes(config[BASE])
 
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())

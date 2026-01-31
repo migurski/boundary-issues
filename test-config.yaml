@@ -6,6 +6,10 @@ CHN:
     IND:
     - [minus, relation, "fake-Aksai-Chin"]
     - [minus, relation, "fake-Trans-Karakoram-Tract"]
+  interior-points:
+    CHN:
+      - [3.5, 2.5] # fake-Aksai-Chin
+      - [3.7, 3.7] # fake-Trans-Karakoram-Tract
 
 IND:
   base:
@@ -22,6 +26,23 @@ IND:
     - [plus, relation, "fake-Trans-Karakoram-Tract"]
     PAK:
     - [minus, relation, "fake-IND-Kashmir"]
+  interior-points:
+    base:
+      - [2.7, 2.3] # fake-IND-Kashmir
+    IND:
+      - [2.3, 2.7] # fake-PAK-Kashmir
+      - [2.7, 2.3] # fake-IND-Kashmir
+      - [3.5, 2.5] # fake-Aksai-Chin
+      - [3.7, 3.7] # fake-Trans-Karakoram-Tract
+  exterior-points:
+    base:
+      - [2.3, 2.7] # fake-PAK-Kashmir
+    CHN:
+      - [3.5, 2.5] # fake-Aksai-Chin
+      - [3.7, 3.7] # fake-Trans-Karakoram-Tract
+    PAK:
+      - [2.3, 2.7] # fake-PAK-Kashmir
+      - [2.7, 2.3] # fake-IND-Kashmir
 
 PAK:
   base:
@@ -31,6 +52,12 @@ PAK:
     - [minus, relation, "fake-PAK-Kashmir"]
     PAK:
     - [plus, relation, "fake-IND-Kashmir"]
+  interior-points:
+    CHN:
+      - [2.3, 2.7] # fake-PAK-Kashmir
+  exterior-points:
+    base:
+      - [2.7, 2.3] # fake-IND-Kashmir
 
 RUS:
   base:
@@ -41,6 +68,9 @@ RUS:
     - [plus, relation, "fake-Crimea"]
     UKR:
     - [minus, relation, "fake-Crimea"]
+  interior-points:
+    RUS:
+      - [-2.5, 1.5] # fake-Crimea
 
 UKR:
   base:
@@ -48,3 +78,9 @@ UKR:
   perspectives:
     RUS:
     - [minus, relation, "fake-Crimea"]
+  interior-points:
+    base:
+      - [-2.5, 1.5] # fake-Crimea
+  exterior-points:
+    RUS:
+      - [-2.5, 1.5] # fake-Crimea
