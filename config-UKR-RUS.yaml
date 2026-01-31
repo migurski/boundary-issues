@@ -1,16 +1,18 @@
 RUS:
   base:
-  - [plus, relation, 60189] # Russia (includes Crimea in OSM)
-  - [minus, relation, 3788824] # Crimea is not widely acknowleged as part of Russia
+    # Russia includes Crimea in OSM, but this is not widely acknowledged
+    - [plus, relation, 60189] # Russia
+    - [minus, relation, 3788824] # Crimea
   perspectives:
     RUS:
-    - [plus, relation, 3788824] # Crimea
+      - [plus, relation, 3788824] # Crimea
     UKR:
-    - [minus, relation, 3788824] # Crimea
+      - [minus, relation, 3788824] # Crimea
 
 UKR:
   base:
-  - [plus, relation, 60199] # Ukraine (includes Crimea in OSM)
+    # Ukraine includes Crimea in OSM
+    - [plus, relation, 60199] # Ukraine
   perspectives:
     RUS:
-    - [minus, relation, 3788824] # Crimea
+      - [minus, relation, 3788824] # Crimea
