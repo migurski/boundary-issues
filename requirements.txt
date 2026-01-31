@@ -1,0 +1,5 @@
+GDAL==3.2.2
+jupyter==1.1.1
+rtree==1.4.1
+geopandas==1.0.1
+PyYAML==6.0.3

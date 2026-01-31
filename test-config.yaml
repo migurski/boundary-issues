@@ -1,0 +1,50 @@
+CHN:
+  base:
+  - [plus, relation, "fake-CHN"]
+  - [plus, relation, "fake-Trans-Karakoram-Tract"]
+  perspectives:
+    IND:
+    - [minus, relation, "fake-Aksai-Chin"]
+    - [minus, relation, "fake-Trans-Karakoram-Tract"]
+
+IND:
+  base:
+  - [plus, relation, "fake-IND"]
+  - [minus, relation, "fake-Aksai-Chin"]
+  - [minus, relation, "fake-Trans-Karakoram-Tract"]
+  perspectives:
+    CHN:
+    - [minus, relation, "fake-Aksai-Chin"]
+    - [minus, relation, "fake-Trans-Karakoram-Tract"]
+    IND:
+    - [plus, relation, "fake-PAK-Kashmir"]
+    - [plus, relation, "fake-Aksai-Chin"]
+    - [plus, relation, "fake-Trans-Karakoram-Tract"]
+    PAK:
+    - [minus, relation, "fake-IND-Kashmir"]
+
+PAK:
+  base:
+  - [plus, relation, "fake-PAK"]
+  perspectives:
+    IND:
+    - [minus, relation, "fake-PAK-Kashmir"]
+    PAK:
+    - [plus, relation, "fake-IND-Kashmir"]
+
+RUS:
+  base:
+  - [plus, relation, "fake-RUS"]
+  - [minus, relation, "fake-Crimea"]
+  perspectives:
+    RUS:
+    - [plus, relation, "fake-Crimea"]
+    UKR:
+    - [minus, relation, "fake-Crimea"]
+
+UKR:
+  base:
+  - [plus, relation, "fake-UKR"]
+  perspectives:
+    RUS:
+    - [minus, relation, "fake-Crimea"]

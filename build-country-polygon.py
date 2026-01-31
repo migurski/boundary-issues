@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import functools
+import glob
 import gzip
 import os
 import sys
@@ -14,183 +15,13 @@ import geopandas
 import osgeo.gdal
 import osgeo.ogr
 import shapely.wkt
+import yaml
 
 osgeo.gdal.UseExceptions()
 
 BOUNDARIES_NAME = "country-boundaries.csv"
 AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
-
-CONFIGS = {
-    "CHN": {
-        "base": [
-            ["plus", "relation", 270056], # China
-        ],
-        "perspectives": {
-            "CHN": [
-                ["plus", "relation", 7935380], # Trans-Karakoram Tract
-                ["plus", "relation", 2713466], # Demchok sector
-                ["plus", "relation", 2713483], # Gue-Kaurik
-                ["plus", "relation", 2713485], # Shipki La
-                ["plus", "relation", 2713676], # Nilang-Jadhang
-                ["plus", "relation", 2713484], # Barahoti
-                ["plus", "relation", 3202329], # South Tibet
-            ],
-            "IND": [
-                ["minus", "relation", 7935380], # Trans-Karakoram Tract
-                ["minus", "relation", 2713465], # Aksai Chin
-                ["minus", "relation", 2713466], # Demchok sector
-            ],
-            "PAK": [
-                ["plus", "relation", 2713466], # Demchok sector, touches PAK
-            ],
-        },
-    },
-    "IND": {
-        "base": [
-            ["plus", "relation", 304716], # India
-        ],
-        "perspectives": {
-            "CHN": [
-                ["minus", "relation", 7935380], # Trans-Karakoram Tract
-                ["minus", "relation", 2713466], # Demchok sector
-                ["minus", "relation", 2713483], # Gue-Kaurik
-                ["minus", "relation", 2713485], # Shipki La
-                ["minus", "relation", 2713676], # Nilang-Jadhang
-                ["minus", "relation", 2713484], # Barahoti
-                ["minus", "relation", 3202329], # South Tibet
-            ],
-            "IND": [
-                ["plus", "relation", 13414393], # Pakistani-Administered Kashmir
-                ["plus", "relation", 7935380], # Trans-Karakoram Tract
-                ["plus", "relation", 2713465], # Aksai Chin
-                ["plus", "relation", 2713466], # Demchok sector
-            ],
-            "PAK": [
-                ["minus", "relation", 5515045], # Ladakh
-                ["minus", "relation", 1943188], # Jammu and Kashmir
-            ],
-        },
-    },
-    "NPL": {
-        "base": [
-            ["plus", "relation", 184633], # Nepal
-        ],
-        "perspectives": {},
-    },
-    "PAK": {
-        "base": [
-            ["plus", "relation", 307573], # Pakistan
-        ],
-        "perspectives": {
-            "PAK": [
-                ["plus", "relation", 5515045], # Ladakh
-                ["plus", "relation", 1943188], # Jammu and Kashmir
-                ["minus", "relation", 2713466], # Demchok sector, claimed by CHN
-            ],
-            "IND": [
-                ["minus", "relation", 13414393], # Pakistani-Administered Kashmir
-            ],
-        },
-    },
-    "RUS": {
-        "base": [
-            ["plus", "relation", 60189], # Russia (includes Crimea in OSM)
-            ["minus", "relation", 3788824], # Crimea
-        ],
-        "perspectives": {
-            "RUS": [
-                ["plus", "relation", 3788824], # Crimea
-            ],
-            "UKR": [
-                ["minus", "relation", 3788824], # Crimea
-            ],
-        },
-    },
-    "UKR": {
-        "base": [
-            ["plus", "relation", 60199], # Ukraine (includes Crimea in OSM)
-        ],
-        "perspectives": {
-            "RUS": [
-                ["minus", "relation", 3788824], # Crimea
-            ],
-        },
-    },
-}
-
-FAKE_CONFIGS = {
-    "CHN": {
-        "base": [
-            ["plus", "relation", "fake-CHN"],
-            ["plus", "relation", "fake-Trans-Karakoram-Tract"],
-        ],
-        "perspectives": {
-            "IND": [
-                ["minus", "relation", "fake-Aksai-Chin"],
-                ["minus", "relation", "fake-Trans-Karakoram-Tract"],
-            ],
-        }
-    },
-    "IND": {
-        "base": [
-            ["plus", "relation", "fake-IND"],
-            ["minus", "relation", "fake-Aksai-Chin"],
-            ["minus", "relation", "fake-Trans-Karakoram-Tract"],
-        ],
-        "perspectives": {
-            "CHN": [
-                ["minus", "relation", "fake-Aksai-Chin"],
-                ["minus", "relation", "fake-Trans-Karakoram-Tract"],
-            ],
-            "IND": [
-                ["plus", "relation", "fake-PAK-Kashmir"],
-                ["plus", "relation", "fake-Aksai-Chin"],
-                ["plus", "relation", "fake-Trans-Karakoram-Tract"],
-            ],
-            "PAK": [
-                ["minus", "relation", "fake-IND-Kashmir"],
-            ],
-        },
-    },
-    "PAK": {
-        "base": [
-            ["plus", "relation", "fake-PAK"],
-        ],
-        "perspectives": {
-            "PAK": [
-                ["plus", "relation", "fake-IND-Kashmir"],
-            ],
-            "IND": [
-                ["minus", "relation", "fake-PAK-Kashmir"],
-            ],
-        },
-    },
-    "RUS": {
-        "base": [
-            ["plus", "relation", "fake-RUS"],
-            ["minus", "relation", "fake-Crimea"],
-        ],
-        "perspectives": {
-            "RUS": [
-                ["plus", "relation", "fake-Crimea"],
-            ],
-            "UKR": [
-                ["minus", "relation", "fake-Crimea"],
-            ],
-        },
-    },
-    "UKR": {
-        "base": [
-            ["plus", "relation", "fake-UKR"],
-        ],
-        "perspectives": {
-            "RUS": [
-                ["minus", "relation", "fake-Crimea"],
-            ],
-        },
-    },
-}
 
 class TestCase (unittest.TestCase):
 
@@ -200,7 +31,9 @@ class TestCase (unittest.TestCase):
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
-        main(cls.tempdir, FAKE_CONFIGS)
+        with open('test-config.yaml', 'r') as file:
+            config = yaml.safe_load(file)
+        main(cls.tempdir, config)
 
     @classmethod
     def tearDownClass(cls):
@@ -460,13 +293,13 @@ def write_country_areas(dirname, configs):
             geom1 = combine_shapes(config["base"])
 
             # "Neutral" point of view = anyone without a defined perspective
-            neutral_pov = set(configs.keys()) - set(config["perspectives"].keys())
+            neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
             row1 = dict(iso3=iso3a, perspective=",".join(sorted(neutral_pov)))
             print("Writing base polygon", row1, file=sys.stderr)
             rows.writerow({**row1, "geometry": geom1.ExportToWkt()})
 
             # Generate perspectives
-            for (iso3b, shapes) in config["perspectives"].items():
+            for (iso3b, shapes) in config.get("perspectives", {}).items():
                 geom2 = functools.reduce(combine_pair, shapes, geom1)
 
                 row2 = dict(iso3=iso3a, perspective=iso3b)
@@ -478,4 +311,8 @@ def main(dirname, configs):
     write_country_boundaries(dirname, configs)
 
 if __name__ == "__main__":
-    exit(main(".", CONFIGS))
+    config = {}
+    for path in glob.glob('config*.yaml'):
+        with open(path, 'r') as file:
+            config.update(yaml.safe_load(file))
+    exit(main(".", config))
