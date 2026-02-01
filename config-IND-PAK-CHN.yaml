@@ -20,9 +20,21 @@ CHN:
       # Pakistan disclaims the Demchok sector, which is claimed by China
       - [plus, relation, 2713466] # Demchok sector
   interior-points:
+    base:
+      - [79.18, 35.15] # Aksai Chin
+      - [76.32, 36.09] # Trans-Karakoram Tract
+      - [79.26, 33.11] # Eastern Demchock sector
     CHN:
       - [79.18, 35.15] # Aksai Chin
       - [76.32, 36.09] # Trans-Karakoram Tract
+      - [79.26, 33.11] # Eastern Demchock sector
+      - [79.35, 32.72] # Western Demchock sector
+      - [94.47, 28.36] # South Tibet (Arunachal Pradesh)
+  exterior-points:
+    IND:
+      - [79.26, 33.11] # Eastern Demchock sector
+      - [79.35, 32.72] # Western Demchock sector
+      - [94.47, 28.36] # Arunachal Pradesh (South Tibet)
 
 IND:
   base:
@@ -51,20 +63,29 @@ IND:
   interior-points:
     base:
       - [77.54, 34.07] # Ladakh
+      - [79.35, 32.72] # Western Demchock sector
+      - [94.47, 28.36] # Arunachal Pradesh (South Tibet)
     IND:
       - [74.95, 35.81] # Pakistani-Administered Kashmir
       - [77.54, 34.07] # Ladakh
       - [79.18, 35.15] # Aksai Chin
       - [76.32, 36.09] # Trans-Karakoram Tract
+      - [79.26, 33.11] # Eastern Demchock sector
+      - [79.35, 32.72] # Western Demchock sector
+      - [94.47, 28.36] # Arunachal Pradesh (South Tibet)
   exterior-points:
     base:
       - [74.95, 35.81] # Pakistani-Administered Kashmir
     CHN:
       - [79.18, 35.15] # Aksai Chin
       - [76.32, 36.09] # Trans-Karakoram Tract
+      - [79.26, 33.11] # Eastern Demchock sector
+      - [79.35, 32.72] # Western Demchock sector
+      - [94.47, 28.36] # South Tibet (Arunachal Pradesh)
     PAK:
       - [74.95, 35.81] # Pakistani-Administered Kashmir
       - [77.54, 34.07] # Ladakh
+      - [79.26, 33.11] # Eastern Demchock sector
 
 PAK:
   base:
@@ -80,8 +101,14 @@ PAK:
       # India's claims on "Pakistan-occupied Kashmir"
       - [minus, relation, 13414393] # Pakistani-Administered Kashmir
   interior-points:
+    PAK:
+      - [77.54, 34.07] # Ladakh
+      - [74.95, 35.81] # Pakistani-Administered Kashmir
     CHN:
       - [74.95, 35.81] # Pakistani-Administered Kashmir
   exterior-points:
     base:
       - [77.54, 34.07] # Ladakh
+    PAK:
+      - [79.26, 33.11] # Eastern Demchock sector
+      - [79.35, 32.72] # Western Demchock sector
