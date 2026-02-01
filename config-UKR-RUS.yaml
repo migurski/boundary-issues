@@ -8,6 +8,9 @@ RUS:
       - [plus, relation, 3788824] # Crimea
     UKR:
       - [minus, relation, 3788824] # Crimea
+  interior-points:
+    RUS:
+      - [34.25, 45.41] # Crimea
 
 UKR:
   base:
@@ -16,3 +19,9 @@ UKR:
   perspectives:
     RUS:
       - [minus, relation, 3788824] # Crimea
+  interior-points:
+    base:
+      - [34.25, 45.41] # Crimea
+  exterior-points:
+    RUS:
+      - [34.25, 45.41] # Crimea

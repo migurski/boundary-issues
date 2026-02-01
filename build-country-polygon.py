@@ -18,6 +18,7 @@ import shapely.wkt
 import yaml
 
 osgeo.gdal.UseExceptions()
+csv.field_size_limit(sys.maxsize)
 
 BOUNDARIES_NAME = "country-boundaries.csv"
 AREAS_NAME = "country-areas.csv"
@@ -27,6 +28,7 @@ BASE = "base"
 class TestCase (unittest.TestCase):
 
     tempdir: str|None = None
+    config: dict|None = None
 
     @classmethod
     def setUpClass(cls):
@@ -34,7 +36,8 @@ class TestCase (unittest.TestCase):
         os.makedirs(cls.tempdir, exist_ok=True)
         with open('test-config.yaml', 'r') as file:
             cls.config = yaml.safe_load(file)
-        main(cls.tempdir, cls.config)
+        write_country_areas(cls.tempdir, cls.config)
+        write_country_boundaries(cls.tempdir, cls.config)
 
     @classmethod
     def tearDownClass(cls):
@@ -110,7 +113,7 @@ class TestCase (unittest.TestCase):
         self.assertTrue(disputed[("IND", "PAK", "RUS,UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
 
     def test_areas(self):
-        validate_areas(TestCase.config.items(), os.path.join(TestCase.tempdir, AREAS_NAME))
+        validate_areas(TestCase.config, os.path.join(TestCase.tempdir, AREAS_NAME))
 
 def validate_areas(configs, areas_path):
     with open(areas_path, "r") as file:
@@ -120,10 +123,10 @@ def validate_areas(configs, areas_path):
             for row in csv.reader(file)
         }
 
-    all_povs = set(TestCase.config.keys())
+    all_povs = set(configs.keys())
     cases = [
         (is_in, test_iso3a, test_iso3b, x, y, area_iso3a, area_iso3bs, area_geom)
-        for test_iso3a, config in configs
+        for test_iso3a, config in configs.items()
         for is_in, grouping in [(True, "interior-points"), (False, "exterior-points")]
         for test_iso3b, points in config.get(grouping, {}).items()
         for x, y in points
@@ -136,7 +139,7 @@ def validate_areas(configs, areas_path):
             continue
         if test_iso3b == BASE:
             # "Neutral" point of view = anyone without a defined perspective
-            local_povs = set(TestCase.config[test_iso3a].get("perspectives", {}).keys())
+            local_povs = set(configs[test_iso3a].get("perspectives", {}).keys())
             neutral_povs = all_povs - local_povs
             if not any(neutral_pov in area_iso3bs for neutral_pov in neutral_povs):
                 # Skip test/perspective mismatches for disinterested parties
@@ -196,7 +199,7 @@ def write_country_boundaries(dirname, configs):
 
     # Note each country's own view of itself
     self_views: dict[str, shapely.geometry.base.BaseGeometry] = {
-        r.iso3: r.geometry for i, r in gdf.iterrows() if r.iso3 in r.perspective
+        r.iso3: r.geometry for i, r in gdf.iterrows() if r.iso3 in r.perspectives
     }
 
     # Calculate all neighbor pairings in all possible views (expensive!)
@@ -215,8 +218,8 @@ def write_country_boundaries(dirname, configs):
             row_pairings: dict[str, tuple[int, int]] = {}
 
             for iso3c in configs.keys():
-                gdf1 = gdf[(gdf.iso3 == iso3a) & gdf.perspective.str.contains(iso3c)]
-                gdf2 = gdf[(gdf.iso3 == iso3b) & gdf.perspective.str.contains(iso3c)]
+                gdf1 = gdf[(gdf.iso3 == iso3a) & gdf.perspectives.str.contains(iso3c)]
+                gdf2 = gdf[(gdf.iso3 == iso3b) & gdf.perspectives.str.contains(iso3c)]
                 assert len(gdf1) == 1
                 assert len(gdf2) == 1
                 geom1, geom2 = gdf1.iloc[0].geometry, gdf2.iloc[0].geometry
@@ -288,20 +291,20 @@ def write_country_boundaries(dirname, configs):
                     agreed_wkt = dump_wkt(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
                     disputed_wkt = dump_wkt(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
 
-                    row4 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=",".join(sorted(disinterested_iso3s)))
+                    row4 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=DELIM.join(sorted(disinterested_iso3s)))
                     print("Writing disinterested parties border", row4, file=sys.stderr)
                     rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
 def write_country_areas(dirname, configs):
     with open(os.path.join(dirname, AREAS_NAME), "w") as file:
-        rows = csv.DictWriter(file, ("iso3", "perspective", "geometry"))
+        rows = csv.DictWriter(file, ("iso3", "perspectives", "geometry"))
         rows.writeheader()
         for (iso3a, config) in configs.items():
             geom1 = combine_shapes(config[BASE])
 
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
-            row1 = dict(iso3=iso3a, perspective=",".join(sorted(neutral_pov)))
+            row1 = dict(iso3=iso3a, perspectives=DELIM.join(sorted(neutral_pov)))
             print("Writing base polygon", row1, file=sys.stderr)
             rows.writerow({**row1, "geometry": geom1.ExportToWkt()})
 
@@ -309,12 +312,16 @@ def write_country_areas(dirname, configs):
             for (iso3b, shapes) in config.get("perspectives", {}).items():
                 geom2 = functools.reduce(combine_pair, shapes, geom1)
 
-                row2 = dict(iso3=iso3a, perspective=iso3b)
+                row2 = dict(iso3=iso3a, perspectives=iso3b)
                 print("Writing perspective polygon", row2, file=sys.stderr)
                 rows.writerow({**row2, "geometry": geom2.ExportToWkt()})
 
+        return file.name
+
 def main(dirname, configs):
-    write_country_areas(dirname, configs)
+    areas_path = write_country_areas(dirname, configs)
+    print("Validating interior and exterior points...", file=sys.stderr)
+    validate_areas(configs, areas_path)
     write_country_boundaries(dirname, configs)
 
 if __name__ == "__main__":
