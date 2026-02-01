@@ -176,8 +176,8 @@ def combine_shapes(shapes: list[tuple[str, str, int|str]]) -> osgeo.ogr.Geometry
     assert shapes[0][0] == "plus"
     return functools.reduce(combine_pair, shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
-def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str]) -> osgeo.ogr.Geometry:
-    direction2, el_type2, osm_id2 = shape2
+def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str]) -> osgeo.ogr.Geometry:
+    direction2, el_type2, osm_id2, _ = shape2
     geom2 = load_shape(el_type2, osm_id2)
     if direction2 == "plus" and geom1 is None:
         geom3 = geom2.Clone()
