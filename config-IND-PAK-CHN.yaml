@@ -21,10 +21,12 @@ CHN:
       - [plus, relation, 2713466, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/2713466.osm.xml.gz"] # Demchok sector
   interior-points:
     base:
+      # Points recognized to be administered by China
       - [79.18, 35.15] # Aksai Chin
       - [76.32, 36.09] # Trans-Karakoram Tract
       - [79.26, 33.11] # Eastern Demchock sector
     CHN:
+      # Points claimed by China
       - [79.18, 35.15] # Aksai Chin
       - [76.32, 36.09] # Trans-Karakoram Tract
       - [79.26, 33.11] # Eastern Demchock sector
@@ -32,6 +34,7 @@ CHN:
       - [94.47, 28.36] # South Tibet (Arunachal Pradesh)
   exterior-points:
     IND:
+      # Points claimed by India
       - [79.26, 33.11] # Eastern Demchock sector
       - [79.35, 32.72] # Western Demchock sector
       - [94.47, 28.36] # Arunachal Pradesh (South Tibet)
@@ -62,10 +65,12 @@ IND:
       - [minus, relation, 3202329, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3202329.osm.xml.gz"] # South Tibet (Arunachal Pradesh)
   interior-points:
     base:
+      # Points recognized to be administered by India
       - [77.54, 34.07] # Ladakh
       - [79.35, 32.72] # Western Demchock sector
       - [94.47, 28.36] # Arunachal Pradesh (South Tibet)
     IND:
+      # Points claimed by India
       - [74.95, 35.81] # Pakistani-Administered Kashmir
       - [77.54, 34.07] # Ladakh
       - [79.18, 35.15] # Aksai Chin
@@ -75,14 +80,17 @@ IND:
       - [94.47, 28.36] # Arunachal Pradesh (South Tibet)
   exterior-points:
     base:
+      # Points recognized to be not administered by India
       - [74.95, 35.81] # Pakistani-Administered Kashmir
     CHN:
+      # Points claimed by China
       - [79.18, 35.15] # Aksai Chin
       - [76.32, 36.09] # Trans-Karakoram Tract
       - [79.26, 33.11] # Eastern Demchock sector
       - [79.35, 32.72] # Western Demchock sector
       - [94.47, 28.36] # South Tibet (Arunachal Pradesh)
     PAK:
+      # Points claimed by Pakistan
       - [74.95, 35.81] # Pakistani-Administered Kashmir
       - [77.54, 34.07] # Ladakh
       - [79.26, 33.11] # Eastern Demchock sector
@@ -101,14 +109,20 @@ PAK:
       # India's claims on "Pakistan-occupied Kashmir"
       - [minus, relation, 13414393, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/13414393.osm.xml.gz"] # Pakistani-Administered Kashmir
   interior-points:
-    PAK:
-      - [77.54, 34.07] # Ladakh
+    base:
+      # Points recognized to be administered by Pakistan
       - [74.95, 35.81] # Pakistani-Administered Kashmir
+    PAK:
+      # Points claimed by Pakistan
+      - [77.54, 34.07] # Ladakh
     CHN:
+      # Points claimed by China
       - [74.95, 35.81] # Pakistani-Administered Kashmir
   exterior-points:
     base:
+      # Points recognized to be not administered by Pakistan
       - [77.54, 34.07] # Ladakh
     PAK:
+      # Points disclaimed by Pakistan
       - [79.26, 33.11] # Eastern Demchock sector
       - [79.35, 32.72] # Western Demchock sector
