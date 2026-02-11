@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Send push event to Lambda
         env:
-          LAMBDA_URL: https://7fr2amzrsmkgo5wbhmnugig5ai0tdbxh.lambda-url.us-west-2.on.aws/
+          LAMBDA_URL: https://cbsmsl32tdoboqyh2ubejq3rfi0uctnx.lambda-url.us-west-2.on.aws/
         run: |
           echo "Sending push event to Lambda function..."
 
