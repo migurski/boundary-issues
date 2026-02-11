@@ -5,8 +5,8 @@ set -e
 FUNCTION_NAME="boundary-issues-webhook"
 ROLE_NAME="boundary-issues-webhook-role"
 REGION="us-west-2"
-RUNTIME="python3.12"
-HANDLER="lambda_function.lambda_handler"
+RUNTIME="provided.al2023"
+# Custom runtime doesn't use HANDLER parameter
 
 echo "Starting deployment of $FUNCTION_NAME to $REGION..."
 
@@ -57,11 +57,15 @@ EOF
     rm /tmp/trust-policy.json
 fi
 
-# Create deployment package
-echo "Creating deployment package..."
+# Build C++ deployment package
+echo "Building C++ deployment package..."
 cd "$(dirname "$0")"
-zip -q lambda.zip lambda_function.py
-echo "Created lambda.zip"
+./build.sh
+if [ ! -f lambda.zip ]; then
+    echo "Error: lambda.zip not found after build"
+    exit 1
+fi
+echo "lambda.zip ready for deployment"
 
 # Check if Lambda function exists
 echo "Checking Lambda function..."
@@ -79,7 +83,6 @@ else
         --function-name $FUNCTION_NAME \
         --runtime $RUNTIME \
         --role $ROLE_ARN \
-        --handler $HANDLER \
         --zip-file fileb://lambda.zip \
         --region $REGION \
         --timeout 30 \
@@ -132,9 +135,8 @@ FUNCTION_URL=$(aws lambda get-function-url-config \
     --query 'FunctionUrl' \
     --output text)
 
-# Clean up
-rm lambda.zip
-echo "Cleaned up deployment package"
+# Note: lambda.zip is kept for future deployments
+# Run ./build.sh to rebuild if needed
 
 echo ""
 echo "========================================="
