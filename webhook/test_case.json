@@ -1,3 +1,4 @@
+[
 {
   "description": "GitHub push event delivered via GitHub Actions to Lambda",
   "event": {
@@ -37,3 +38,4 @@
     "body": "{\"message\": \"Webhook received successfully\"}"
   }
 }
+]
