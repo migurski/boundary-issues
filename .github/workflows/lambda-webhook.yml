@@ -1,0 +1,32 @@
+name: Trigger Lambda on Push
+
+on:
+  push:
+    branches:
+      - '**'  # Trigger on all branches
+
+jobs:
+  trigger-lambda:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send push event to Lambda
+        env:
+          LAMBDA_URL: https://xpkpzmkhokmyhscyzgndzg4uma0kxzzq.lambda-url.us-west-2.on.aws/
+        run: |
+          echo "Sending push event to Lambda function..."
+
+          # Create a payload with GitHub event context
+          cat > payload.json << 'EOF'
+          ${{ toJSON(github.event) }}
+          EOF
+
+          # Send to Lambda
+          curl -X POST "$LAMBDA_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: push" \
+            -H "X-GitHub-Delivery: ${{ github.run_id }}" \
+            -d @payload.json \
+            --fail \
+            --show-error
+
+          echo "Successfully triggered Lambda function"
