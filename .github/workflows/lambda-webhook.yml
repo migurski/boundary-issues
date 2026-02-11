@@ -8,18 +8,9 @@ on:
 jobs:
   trigger-lambda:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-west-2
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
       - name: Send push event to Lambda
         env:

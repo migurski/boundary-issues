@@ -1,24 +1,8 @@
 #!/bin/bash
 set -e
 
-# Lambda function configuration
-FUNCTION_NAME="boundary-issues-webhook"
-REGION="us-west-2"
-
-# Get the Lambda function URL
-echo "Retrieving Lambda function URL..." >&2
-LAMBDA_URL=$(aws lambda get-function-url-config \
-    --function-name "$FUNCTION_NAME" \
-    --region "$REGION" \
-    --query 'FunctionUrl' \
-    --output text 2>/dev/null)
-
-if [ -z "$LAMBDA_URL" ]; then
-    echo "ERROR: Could not retrieve Lambda function URL for $FUNCTION_NAME in $REGION" >&2
-    exit 1
-fi
-
-echo "Lambda URL: $LAMBDA_URL" >&2
+# Lambda function URL - update this when redeploying
+LAMBDA_URL="https://cbsmsl32tdoboqyh2ubejq3rfi0uctnx.lambda-url.us-west-2.on.aws/"
 
 # Read payload from stdin or file
 if [ -n "$1" ]; then
