@@ -1,0 +1,39 @@
+{
+  "description": "GitHub push event delivered via GitHub Actions to Lambda",
+  "event": {
+    "version": "2.0",
+    "routeKey": "$default",
+    "rawPath": "/",
+    "rawQueryString": "",
+    "headers": {
+      "content-type": "application/json",
+      "x-github-event": "push",
+      "x-github-delivery": "12345-67890-abcdef",
+      "user-agent": "GitHub-Actions/1.0"
+    },
+    "requestContext": {
+      "accountId": "anonymous",
+      "apiId": "test",
+      "domainName": "test.lambda-url.us-west-2.on.aws",
+      "http": {
+        "method": "POST",
+        "path": "/",
+        "protocol": "HTTP/1.1",
+        "sourceIp": "192.0.2.1",
+        "userAgent": "GitHub-Actions/1.0"
+      },
+      "requestId": "test-request-id",
+      "time": "2026-02-11T12:00:00.000Z",
+      "timeEpoch": 1739275200000
+    },
+    "body": "{\"ref\":\"refs/heads/main\",\"before\":\"0000000000000000000000000000000000000000\",\"after\":\"abc123def456\",\"repository\":{\"id\":12345,\"name\":\"test-repo\",\"full_name\":\"testuser/test-repo\",\"owner\":{\"name\":\"testuser\"}},\"pusher\":{\"name\":\"testuser\",\"email\":\"testuser@example.com\"},\"commits\":[{\"id\":\"abc123def456\",\"message\":\"Test commit\",\"author\":{\"name\":\"Test User\",\"email\":\"testuser@example.com\"}}]}",
+    "isBase64Encoded": false
+  },
+  "expected_response": {
+    "statusCode": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"message\": \"Webhook received successfully\"}"
+  }
+}
