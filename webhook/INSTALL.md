@@ -1,6 +1,6 @@
 Implement the webhook library in C++ with aws-lambda-cpp.
 
-0. Work inside a temprary directory inside this one to keep files contained
+0. Work inside a temprary directory inside this one to keep files contained, do not commit any of this implementation to Git.
 1. Read SPEC.md for complete behavior specification
 2. Parse test_case.json and generate a test file
 3. Implement the lambda_handler() function

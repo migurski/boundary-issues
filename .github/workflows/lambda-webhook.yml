@@ -8,25 +8,28 @@ on:
 jobs:
   trigger-lambda:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
       - name: Send push event to Lambda
         env:
-          LAMBDA_URL: https://cbsmsl32tdoboqyh2ubejq3rfi0uctnx.lambda-url.us-west-2.on.aws/
+          GITHUB_EVENT: push
+          GITHUB_DELIVERY: ${{ github.run_id }}
         run: |
-          echo "Sending push event to Lambda function..."
-
           # Create a payload with GitHub event context
           cat > payload.json << 'EOF'
           ${{ toJSON(github.event) }}
           EOF
 
-          # Send to Lambda
-          curl -X POST "$LAMBDA_URL" \
-            -H "Content-Type: application/json" \
-            -H "X-GitHub-Event: push" \
-            -H "X-GitHub-Delivery: ${{ github.run_id }}" \
-            -d @payload.json \
-            --fail \
-            --show-error
-
-          echo "Successfully triggered Lambda function"
+          # Call the webhook trigger script
+          ./webhook/trigger-webhook.sh payload.json

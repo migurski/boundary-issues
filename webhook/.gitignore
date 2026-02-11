@@ -16,6 +16,7 @@ build.sh
 
 # Build directories
 build/
+build-temp/
 _build/
 out/
 
