@@ -97,9 +97,21 @@ else
     aws lambda create-function-url-config \
         --function-name $FUNCTION_NAME \
         --auth-type NONE \
+        --cors '{"AllowOrigins": ["*"], "AllowMethods": ["*"], "AllowHeaders": ["*"]}' \
         --region $REGION \
         --output text > /dev/null
     echo "Function URL created"
+
+    # Add permission for public access
+    echo "Adding public access permission..."
+    aws lambda add-permission \
+        --function-name $FUNCTION_NAME \
+        --statement-id FunctionURLAllowPublicAccess \
+        --action lambda:InvokeFunctionUrl \
+        --principal "*" \
+        --function-url-auth-type NONE \
+        --region $REGION \
+        --output text > /dev/null 2>&1 || echo "  (Permission may already exist)"
 fi
 
 # Get function URL
