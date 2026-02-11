@@ -2,6 +2,7 @@
 set -e
 
 # Configuration
+ZIP_FILE="$1"
 FUNCTION_NAME="boundary-issues-webhook"
 ROLE_NAME="boundary-issues-webhook-role"
 REGION="us-west-2"
@@ -57,23 +58,13 @@ EOF
     rm /tmp/trust-policy.json
 fi
 
-# Build C++ deployment package
-echo "Building C++ deployment package..."
-cd "$(dirname "$0")"
-./build.sh
-if [ ! -f lambda.zip ]; then
-    echo "Error: lambda.zip not found after build"
-    exit 1
-fi
-echo "lambda.zip ready for deployment"
-
 # Check if Lambda function exists
 echo "Checking Lambda function..."
 if aws lambda get-function --function-name $FUNCTION_NAME --region $REGION 2>/dev/null; then
     echo "Updating existing function code..."
     aws lambda update-function-code \
         --function-name $FUNCTION_NAME \
-        --zip-file fileb://lambda.zip \
+        --zip-file "fileb://${ZIP_FILE}" \
         --region $REGION \
         --output text > /dev/null
     echo "Function code updated"
@@ -83,7 +74,8 @@ else
         --function-name $FUNCTION_NAME \
         --runtime $RUNTIME \
         --role $ROLE_ARN \
-        --zip-file fileb://lambda.zip \
+        --handler bootstrap \
+        --zip-file "fileb://${ZIP_FILE}" \
         --region $REGION \
         --timeout 30 \
         --memory-size 128 \
@@ -134,9 +126,6 @@ FUNCTION_URL=$(aws lambda get-function-url-config \
     --region $REGION \
     --query 'FunctionUrl' \
     --output text)
-
-# Note: lambda.zip is kept for future deployments
-# Run ./build.sh to rebuild if needed
 
 echo ""
 echo "========================================="
