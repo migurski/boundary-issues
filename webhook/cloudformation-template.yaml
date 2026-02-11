@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambda webhook for GitHub push events - boundary-issues-webhook'
+
+Parameters:
+  S3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment package
+
+  S3Key:
+    Type: String
+    Description: S3 key for the Lambda deployment package (ZIP file)
+
+  FunctionName:
+    Type: String
+    Default: boundary-issues-webhook
+    Description: Name of the Lambda function
+
+Resources:
+  # IAM Role for Lambda execution
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Application
+          Value: !Ref FunctionName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Lambda Function
+  WebhookFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: provided.al2023
+      Handler: bootstrap
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Ref S3Key
+      Timeout: 30
+      MemorySize: 128
+      Description: GitHub webhook handler for boundary issues
+      Tags:
+        - Key: Application
+          Value: !Ref FunctionName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Lambda Function URL
+  WebhookFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt WebhookFunction.Arn
+      AuthType: NONE
+      Cors:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - '*'
+        AllowHeaders:
+          - '*'
+
+  # Permission for public access via Function URL
+  WebhookFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebhookFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  # Additional permission for public invocation
+  WebhookFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebhookFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+
+Outputs:
+  WebhookUrl:
+    Description: Public URL for the webhook Lambda function
+    Value: !GetAtt WebhookFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-WebhookUrl'
+
+  FunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt WebhookFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionArn'
+
+  FunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref WebhookFunction
+
+  LogGroupName:
+    Description: CloudWatch Log Group name for Lambda logs
+    Value: !Sub '/aws/lambda/${WebhookFunction}'

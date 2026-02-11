@@ -3,141 +3,159 @@ set -e
 
 # Configuration
 ZIP_FILE="$1"
+STACK_NAME="boundary-issues-webhook-stack"
 FUNCTION_NAME="boundary-issues-webhook"
-ROLE_NAME="boundary-issues-webhook-role"
 REGION="us-west-2"
-RUNTIME="provided.al2023"
-# Custom runtime doesn't use HANDLER parameter
+TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
 
-echo "Starting deployment of $FUNCTION_NAME to $REGION..."
-
-# Check if IAM role exists
-echo "Checking IAM role..."
-if aws iam get-role --role-name $ROLE_NAME 2>/dev/null; then
-    echo "IAM role $ROLE_NAME already exists"
-    ROLE_ARN=$(aws iam get-role --role-name $ROLE_NAME --query 'Role.Arn' --output text)
-else
-    echo "Creating IAM role $ROLE_NAME..."
-
-    # Create trust policy
-    cat > /tmp/trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "lambda.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-
-    # Create role
-    ROLE_ARN=$(aws iam create-role \
-        --role-name $ROLE_NAME \
-        --assume-role-policy-document file:///tmp/trust-policy.json \
-        --query 'Role.Arn' \
-        --output text)
-
-    echo "Created role: $ROLE_ARN"
-
-    # Attach basic execution policy
-    aws iam attach-role-policy \
-        --role-name $ROLE_NAME \
-        --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-
-    echo "Attached AWSLambdaBasicExecutionRole policy"
-
-    # Wait for role to be ready
-    echo "Waiting for role to propagate..."
-    sleep 10
-
-    rm /tmp/trust-policy.json
+# Validate ZIP file argument
+if [ -z "$ZIP_FILE" ]; then
+    echo "Error: ZIP file path required"
+    echo "Usage: $0 <path-to-zip-file>"
+    exit 1
 fi
 
-# Check if Lambda function exists
-echo "Checking Lambda function..."
-if aws lambda get-function --function-name $FUNCTION_NAME --region $REGION 2>/dev/null; then
-    echo "Updating existing function code..."
-    aws lambda update-function-code \
-        --function-name $FUNCTION_NAME \
-        --zip-file "fileb://${ZIP_FILE}" \
-        --region $REGION \
-        --output text > /dev/null
-    echo "Function code updated"
-else
-    echo "Creating new Lambda function..."
-    aws lambda create-function \
-        --function-name $FUNCTION_NAME \
-        --runtime $RUNTIME \
-        --role $ROLE_ARN \
-        --handler bootstrap \
-        --zip-file "fileb://${ZIP_FILE}" \
-        --region $REGION \
-        --timeout 30 \
-        --memory-size 128 \
-        --output text > /dev/null
-    echo "Function created"
+if [ ! -f "$ZIP_FILE" ]; then
+    echo "Error: ZIP file not found: $ZIP_FILE"
+    exit 1
 fi
 
-# Check if function URL exists
-echo "Checking function URL..."
-if aws lambda get-function-url-config --function-name $FUNCTION_NAME --region $REGION 2>/dev/null; then
-    echo "Function URL already exists"
+echo "Starting CloudFormation deployment of $FUNCTION_NAME to $REGION..."
+echo ""
+
+# Get AWS account ID for bucket naming
+echo "Getting AWS account ID..."
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+BUCKET_NAME="boundary-issues-lambda-deployments-${ACCOUNT_ID}"
+echo "Using S3 bucket: $BUCKET_NAME"
+
+# Check if S3 bucket exists, create if not
+echo "Checking S3 bucket..."
+if aws s3api head-bucket --bucket "$BUCKET_NAME" --region "$REGION" 2>/dev/null; then
+    echo "S3 bucket $BUCKET_NAME already exists"
 else
-    echo "Creating function URL..."
-    aws lambda create-function-url-config \
-        --function-name $FUNCTION_NAME \
-        --auth-type NONE \
-        --cors '{"AllowOrigins": ["*"], "AllowMethods": ["*"], "AllowHeaders": ["*"]}' \
-        --region $REGION \
-        --output text > /dev/null
-    echo "Function URL created"
+    echo "Creating S3 bucket $BUCKET_NAME..."
+    aws s3api create-bucket \
+        --bucket "$BUCKET_NAME" \
+        --region "$REGION" \
+        --create-bucket-configuration LocationConstraint="$REGION"
+
+    # Enable versioning for better tracking
+    aws s3api put-bucket-versioning \
+        --bucket "$BUCKET_NAME" \
+        --versioning-configuration Status=Enabled \
+        --region "$REGION"
+
+    echo "S3 bucket created with versioning enabled"
 fi
 
-# Add permissions for public access (always run, regardless of whether URL is new)
-echo "Adding public access permissions..."
+# Upload ZIP file to S3 with timestamp-based key
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+S3_KEY="lambda-packages/${FUNCTION_NAME}-${TIMESTAMP}.zip"
+echo ""
+echo "Uploading Lambda package to S3..."
+echo "  Source: $ZIP_FILE"
+echo "  Destination: s3://$BUCKET_NAME/$S3_KEY"
+aws s3 cp "$ZIP_FILE" "s3://$BUCKET_NAME/$S3_KEY" --region "$REGION"
+echo "Upload complete"
 
-# Add InvokeFunctionUrl permission
-aws lambda add-permission \
-    --function-name $FUNCTION_NAME \
-    --statement-id FunctionURLAllowPublicAccess \
-    --action lambda:InvokeFunctionUrl \
-    --principal "*" \
-    --function-url-auth-type NONE \
-    --region $REGION \
-    --output text > /dev/null 2>&1 || echo "  (InvokeFunctionUrl permission may already exist)"
+# Check if CloudFormation stack exists
+echo ""
+echo "Checking CloudFormation stack..."
+if aws cloudformation describe-stacks \
+    --stack-name "$STACK_NAME" \
+    --region "$REGION" &>/dev/null; then
+    echo "Updating existing CloudFormation stack..."
+    OPERATION="update"
 
-# Add InvokeFunction permission (also required for public access)
-aws lambda add-permission \
-    --function-name $FUNCTION_NAME \
-    --statement-id FunctionURLAllowPublicAccess2 \
-    --action lambda:InvokeFunction \
-    --principal "*" \
-    --region $REGION \
-    --output text > /dev/null 2>&1 || echo "  (InvokeFunction permission may already exist)"
+    aws cloudformation update-stack \
+        --stack-name "$STACK_NAME" \
+        --template-body "file://${TEMPLATE_FILE}" \
+        --parameters \
+            ParameterKey=S3Bucket,ParameterValue="$BUCKET_NAME" \
+            ParameterKey=S3Key,ParameterValue="$S3_KEY" \
+            ParameterKey=FunctionName,ParameterValue="$FUNCTION_NAME" \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --region "$REGION" \
+        --output text > /dev/null || {
+            # Check if the error is "No updates to be performed"
+            if aws cloudformation describe-stacks \
+                --stack-name "$STACK_NAME" \
+                --region "$REGION" &>/dev/null; then
+                echo "  (No changes detected - stack is already up to date)"
+                OPERATION="none"
+            else
+                echo "ERROR: Stack update failed"
+                exit 1
+            fi
+        }
+else
+    echo "Creating new CloudFormation stack..."
+    OPERATION="create"
 
-# Get function URL
-FUNCTION_URL=$(aws lambda get-function-url-config \
-    --function-name $FUNCTION_NAME \
-    --region $REGION \
-    --query 'FunctionUrl' \
-    --output text)
+    aws cloudformation create-stack \
+        --stack-name "$STACK_NAME" \
+        --template-body "file://${TEMPLATE_FILE}" \
+        --parameters \
+            ParameterKey=S3Bucket,ParameterValue="$BUCKET_NAME" \
+            ParameterKey=S3Key,ParameterValue="$S3_KEY" \
+            ParameterKey=FunctionName,ParameterValue="$FUNCTION_NAME" \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --region "$REGION" \
+        --output text > /dev/null
+fi
+
+# Wait for stack operation to complete (if there was a change)
+if [ "$OPERATION" = "create" ] || [ "$OPERATION" = "update" ]; then
+    echo "Waiting for stack operation to complete..."
+    if [ "$OPERATION" = "create" ]; then
+        aws cloudformation wait stack-create-complete \
+            --stack-name "$STACK_NAME" \
+            --region "$REGION"
+    else
+        aws cloudformation wait stack-update-complete \
+            --stack-name "$STACK_NAME" \
+            --region "$REGION"
+    fi
+    echo "Stack operation completed successfully"
+fi
+
+# Get outputs from stack
+echo ""
+echo "Retrieving stack outputs..."
+STACK_OUTPUTS=$(aws cloudformation describe-stacks \
+    --stack-name "$STACK_NAME" \
+    --region "$REGION" \
+    --query 'Stacks[0].Outputs')
+
+FUNCTION_URL=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebhookUrl") | .OutputValue')
+ACTUAL_FUNCTION_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="FunctionName") | .OutputValue')
+LOG_GROUP_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="LogGroupName") | .OutputValue')
 
 echo ""
 echo "========================================="
-echo "Deployment complete!"
+echo "CloudFormation Deployment Complete!"
 echo "========================================="
-echo "Function Name: $FUNCTION_NAME"
+echo "Stack Name: $STACK_NAME"
+echo "Function Name: $ACTUAL_FUNCTION_NAME"
 echo "Region: $REGION"
 echo "Function URL: $FUNCTION_URL"
+echo "Log Group: $LOG_GROUP_NAME"
 echo ""
-echo "To configure GitHub webhook, run:"
-echo "  python3 setup_github_webhook.py $FUNCTION_URL"
+echo "Next steps:"
+echo "1. Update trigger-webhook.sh with the Function URL above"
+echo "   Edit line 5 of webhook/trigger-webhook.sh"
 echo ""
-echo "To view logs, run:"
-echo "  aws logs tail /aws/lambda/$FUNCTION_NAME --follow --region $REGION"
+echo "2. To configure GitHub webhook, run:"
+echo "   python3 setup_github_webhook.py $FUNCTION_URL"
+echo ""
+echo "3. To view logs, run:"
+echo "   aws logs tail $LOG_GROUP_NAME --follow --region $REGION"
+echo ""
+echo "4. To retrieve Function URL later, run:"
+echo "   aws cloudformation describe-stacks \\"
+echo "     --stack-name $STACK_NAME \\"
+echo "     --query 'Stacks[0].Outputs[?OutputKey==\\\`WebhookUrl\\\`].OutputValue' \\"
+echo "     --output text \\"
+echo "     --region $REGION"
 echo "========================================="
