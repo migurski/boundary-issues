@@ -101,29 +101,29 @@ else
         --region $REGION \
         --output text > /dev/null
     echo "Function URL created"
-
-    # Add permissions for public access
-    echo "Adding public access permissions..."
-
-    # Add InvokeFunctionUrl permission
-    aws lambda add-permission \
-        --function-name $FUNCTION_NAME \
-        --statement-id FunctionURLAllowPublicAccess \
-        --action lambda:InvokeFunctionUrl \
-        --principal "*" \
-        --function-url-auth-type NONE \
-        --region $REGION \
-        --output text > /dev/null 2>&1 || echo "  (InvokeFunctionUrl permission may already exist)"
-
-    # Add InvokeFunction permission (also required for public access)
-    aws lambda add-permission \
-        --function-name $FUNCTION_NAME \
-        --statement-id FunctionURLAllowPublicAccess2 \
-        --action lambda:InvokeFunction \
-        --principal "*" \
-        --region $REGION \
-        --output text > /dev/null 2>&1 || echo "  (InvokeFunction permission may already exist)"
 fi
+
+# Add permissions for public access (always run, regardless of whether URL is new)
+echo "Adding public access permissions..."
+
+# Add InvokeFunctionUrl permission
+aws lambda add-permission \
+    --function-name $FUNCTION_NAME \
+    --statement-id FunctionURLAllowPublicAccess \
+    --action lambda:InvokeFunctionUrl \
+    --principal "*" \
+    --function-url-auth-type NONE \
+    --region $REGION \
+    --output text > /dev/null 2>&1 || echo "  (InvokeFunctionUrl permission may already exist)"
+
+# Add InvokeFunction permission (also required for public access)
+aws lambda add-permission \
+    --function-name $FUNCTION_NAME \
+    --statement-id FunctionURLAllowPublicAccess2 \
+    --action lambda:InvokeFunction \
+    --principal "*" \
+    --region $REGION \
+    --output text > /dev/null 2>&1 || echo "  (InvokeFunction permission may already exist)"
 
 # Get function URL
 FUNCTION_URL=$(aws lambda get-function-url-config \
