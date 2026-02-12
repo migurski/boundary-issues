@@ -5,8 +5,10 @@ set -e
 ZIP_FILE="$1"
 STACK_NAME="boundary-issues-webhook-stack"
 FUNCTION_NAME="boundary-issues-webhook"
+PROCESSOR_FUNCTION_NAME="boundary-processor"
 REGION="us-west-2"
 TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
+DOCKERFILE_PATH="$(dirname "$0")/../Dockerfile"
 
 # Validate ZIP file argument
 if [ -z "$ZIP_FILE" ]; then
@@ -59,6 +61,55 @@ echo "  Destination: s3://$BUCKET_NAME/$S3_KEY"
 aws s3 cp "$ZIP_FILE" "s3://$BUCKET_NAME/$S3_KEY" --region "$REGION"
 echo "Upload complete"
 
+# Build and push Docker image for processor Lambda
+echo ""
+echo "Building and pushing Docker image for processor Lambda..."
+
+# Check if ECR repository exists, get URI
+ECR_REPO_NAME="${STACK_NAME}-${PROCESSOR_FUNCTION_NAME}"
+echo "Checking ECR repository: $ECR_REPO_NAME"
+ECR_REPO_URI=$(aws ecr describe-repositories \
+    --repository-names "$ECR_REPO_NAME" \
+    --region "$REGION" \
+    --query 'repositories[0].repositoryUri' \
+    --output text 2>/dev/null || echo "")
+
+if [ -z "$ECR_REPO_URI" ]; then
+    echo "Creating ECR repository: $ECR_REPO_NAME"
+    ECR_REPO_URI=$(aws ecr create-repository \
+        --repository-name "$ECR_REPO_NAME" \
+        --region "$REGION" \
+        --image-scanning-configuration scanOnPush=true \
+        --query 'repository.repositoryUri' \
+        --output text)
+    echo "ECR repository created: $ECR_REPO_URI"
+else
+    echo "ECR repository exists: $ECR_REPO_URI"
+fi
+
+# Login to ECR
+echo "Logging in to ECR..."
+aws ecr get-login-password --region "$REGION" | \
+    docker login --username AWS --password-stdin "${ECR_REPO_URI%%/*}"
+
+# Build Docker image
+IMAGE_TAG="${TIMESTAMP}"
+echo "Building Docker image..."
+echo "  Dockerfile: $DOCKERFILE_PATH"
+echo "  Tag: $ECR_REPO_URI:$IMAGE_TAG"
+docker build --platform linux/arm64 -t "$ECR_REPO_URI:$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$(dirname "$DOCKERFILE_PATH")"
+
+# Also tag as latest
+docker tag "$ECR_REPO_URI:$IMAGE_TAG" "$ECR_REPO_URI:latest"
+
+# Push to ECR
+echo "Pushing Docker image to ECR..."
+docker push "$ECR_REPO_URI:$IMAGE_TAG"
+docker push "$ECR_REPO_URI:latest"
+echo "Docker image pushed successfully"
+
+PROCESSOR_IMAGE_URI="$ECR_REPO_URI:$IMAGE_TAG"
+
 # Check if CloudFormation stack exists
 echo ""
 echo "Checking CloudFormation stack..."
@@ -75,6 +126,8 @@ if aws cloudformation describe-stacks \
             ParameterKey=S3Bucket,ParameterValue="$BUCKET_NAME" \
             ParameterKey=S3Key,ParameterValue="$S3_KEY" \
             ParameterKey=FunctionName,ParameterValue="$FUNCTION_NAME" \
+            ParameterKey=ProcessorFunctionName,ParameterValue="$PROCESSOR_FUNCTION_NAME" \
+            ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
         --capabilities CAPABILITY_NAMED_IAM \
         --region "$REGION" \
         --output text > /dev/null || {
@@ -100,6 +153,8 @@ else
             ParameterKey=S3Bucket,ParameterValue="$BUCKET_NAME" \
             ParameterKey=S3Key,ParameterValue="$S3_KEY" \
             ParameterKey=FunctionName,ParameterValue="$FUNCTION_NAME" \
+            ParameterKey=ProcessorFunctionName,ParameterValue="$PROCESSOR_FUNCTION_NAME" \
+            ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
         --capabilities CAPABILITY_NAMED_IAM \
         --region "$REGION" \
         --output text > /dev/null
@@ -131,31 +186,38 @@ STACK_OUTPUTS=$(aws cloudformation describe-stacks \
 FUNCTION_URL=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebhookUrl") | .OutputValue')
 ACTUAL_FUNCTION_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="FunctionName") | .OutputValue')
 LOG_GROUP_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="LogGroupName") | .OutputValue')
+PROCESSOR_FUNCTION_NAME_OUTPUT=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="ProcessorFunctionName") | .OutputValue')
+STATE_MACHINE_ARN=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="StateMachineArn") | .OutputValue')
+DATA_BUCKET_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="DataBucketName") | .OutputValue')
 
 echo ""
 echo "========================================="
 echo "CloudFormation Deployment Complete!"
 echo "========================================="
 echo "Stack Name: $STACK_NAME"
-echo "Function Name: $ACTUAL_FUNCTION_NAME"
 echo "Region: $REGION"
-echo "Function URL: $FUNCTION_URL"
-echo "Log Group: $LOG_GROUP_NAME"
+echo ""
+echo "Webhook Lambda:"
+echo "  Function Name: $ACTUAL_FUNCTION_NAME"
+echo "  Function URL: $FUNCTION_URL"
+echo "  Log Group: $LOG_GROUP_NAME"
+echo ""
+echo "Processor Lambda:"
+echo "  Function Name: $PROCESSOR_FUNCTION_NAME_OUTPUT"
+echo "  Docker Image: $PROCESSOR_IMAGE_URI"
+echo "  Log Group: /aws/lambda/$PROCESSOR_FUNCTION_NAME_OUTPUT"
+echo ""
+echo "Step Functions:"
+echo "  State Machine ARN: $STATE_MACHINE_ARN"
+echo ""
+echo "Storage:"
+echo "  ECR Repository: $ECR_REPO_URI"
+echo "  Data Bucket: $DATA_BUCKET_NAME"
 echo ""
 echo "Next steps:"
 echo "1. Update trigger-webhook.sh with the Function URL above"
 echo "   Edit line 5 of webhook/trigger-webhook.sh"
 echo ""
-echo "2. To configure GitHub webhook, run:"
-echo "   python3 setup_github_webhook.py $FUNCTION_URL"
-echo ""
-echo "3. To view logs, run:"
-echo "   aws logs tail $LOG_GROUP_NAME --follow --region $REGION"
-echo ""
-echo "4. To retrieve Function URL later, run:"
-echo "   aws cloudformation describe-stacks \\"
-echo "     --stack-name $STACK_NAME \\"
-echo "     --query 'Stacks[0].Outputs[?OutputKey==\\\`WebhookUrl\\\`].OutputValue' \\"
-echo "     --output text \\"
-echo "     --region $REGION"
+echo "4. To view processor logs:"
+echo "   aws logs tail /aws/lambda/$PROCESSOR_FUNCTION_NAME_OUTPUT --follow --region $REGION"
 echo "========================================="
