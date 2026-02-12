@@ -17,7 +17,8 @@ jobs:
           GITHUB_DELIVERY: ${{ github.run_id }}
         run: |
           # Create a payload with GitHub event context
-          cat > payload.json << 'EOF'
+          jq -c '{action, number, pull_request: {diff_url: .pull_request.diff_url, base: {sha: .pull_request.base.sha}, head: {sha: .pull_request.head.sha}}}' \
+          > payload.json << 'EOF'
           ${{ toJSON(github.event) }}
           EOF
 
