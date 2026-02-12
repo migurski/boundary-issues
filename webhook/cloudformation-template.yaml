@@ -15,8 +15,35 @@ Parameters:
     Default: boundary-issues-webhook
     Description: Name of the Lambda function
 
+  ProcessorFunctionName:
+    Type: String
+    Default: boundary-processor
+    Description: Name of the Docker Lambda function that processes boundaries
+
+  ProcessorImageUri:
+    Type: String
+    Description: ECR image URI for the Docker Lambda function (e.g., account.dkr.ecr.region.amazonaws.com/repo:tag)
+
 Resources:
-  # IAM Role for Lambda execution
+  # S3 Bucket for data storage
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-data-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Application
+          Value: !Ref ProcessorFunctionName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # IAM Role for Lambda execution (webhook)
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -29,16 +56,26 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: StepFunctionsExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: !GetAtt ProcessorStateMachine.Arn
       Tags:
         - Key: Application
           Value: !Ref FunctionName
         - Key: ManagedBy
           Value: CloudFormation
 
-  # Lambda Function
+  # Lambda Function (webhook)
   WebhookFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName: !Sub '${AWS::StackName}-${FunctionName}'
       Runtime: provided.al2023
       Handler: bootstrap
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -48,6 +85,9 @@ Resources:
       Timeout: 30
       MemorySize: 128
       Description: GitHub webhook handler for boundary issues
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !GetAtt ProcessorStateMachine.Arn
       Tags:
         - Key: Application
           Value: !Ref FunctionName
@@ -85,6 +125,128 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: '*'
 
+  # IAM Role for Docker Lambda (boundary processor)
+  ProcessorExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3DataAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt DataBucket.Arn
+                  - !Sub '${DataBucket.Arn}/*'
+      Tags:
+        - Key: Application
+          Value: !Ref ProcessorFunctionName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Docker Lambda Function (boundary processor)
+  ProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-${ProcessorFunctionName}'
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ProcessorImageUri
+      Role: !GetAtt ProcessorExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 2048
+      Architectures:
+        - arm64
+      Description: Processes country boundary data using GDAL
+      Environment:
+        Variables:
+          DATA_BUCKET: !Ref DataBucket
+          OUTPUT_BUCKET: !Ref DataBucket
+      Tags:
+        - Key: Application
+          Value: !Ref ProcessorFunctionName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Step Functions State Machine
+  ProcessorStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub '${ProcessorFunctionName}-state-machine'
+      RoleArn: !GetAtt StateMachineExecutionRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "A simple state machine that invokes the boundary processor Lambda",
+          "StartAt": "ProcessBoundaries",
+          "States": {
+            "ProcessBoundaries": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${ProcessorFunction.Arn}",
+                "Payload.$": "$"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      Tags:
+        - Key: Application
+          Value: !Ref ProcessorFunctionName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # IAM Role for Step Functions State Machine
+  StateMachineExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt ProcessorFunction.Arn
+      Tags:
+        - Key: Application
+          Value: !Ref ProcessorFunctionName
+        - Key: ManagedBy
+          Value: CloudFormation
+
 Outputs:
   WebhookUrl:
     Description: Public URL for the webhook Lambda function
@@ -105,3 +267,33 @@ Outputs:
   LogGroupName:
     Description: CloudWatch Log Group name for Lambda logs
     Value: !Sub '/aws/lambda/${WebhookFunction}'
+
+  ProcessorFunctionArn:
+    Description: ARN of the boundary processor Lambda function
+    Value: !GetAtt ProcessorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ProcessorFunctionArn'
+
+  ProcessorFunctionName:
+    Description: Name of the boundary processor Lambda function
+    Value: !Ref ProcessorFunction
+
+  ProcessorLogGroupName:
+    Description: CloudWatch Log Group name for processor Lambda logs
+    Value: !Sub '/aws/lambda/${ProcessorFunction}'
+
+  StateMachineArn:
+    Description: ARN of the Step Functions State Machine
+    Value: !GetAtt ProcessorStateMachine.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachineArn'
+
+  StateMachineName:
+    Description: Name of the Step Functions State Machine
+    Value: !GetAtt ProcessorStateMachine.Name
+
+  DataBucketName:
+    Description: Name of the S3 bucket for data storage
+    Value: !Ref DataBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-DataBucketName'

@@ -27,7 +27,7 @@
       "time": "2026-02-11T12:00:00.000Z",
       "timeEpoch": 1739275200000
     },
-    "body": "{\"ref\":\"refs/heads/main\",\"before\":\"0000000000000000000000000000000000000000\",\"after\":\"abc123def456\",\"repository\":{\"id\":12345,\"name\":\"test-repo\",\"full_name\":\"testuser/test-repo\",\"owner\":{\"name\":\"testuser\"}},\"pusher\":{\"name\":\"testuser\",\"email\":\"testuser@example.com\"},\"commits\":[{\"id\":\"abc123def456\",\"message\":\"Test commit\",\"author\":{\"name\":\"Test User\",\"email\":\"testuser@example.com\"}}]}",
+    "body": "{\"action\":\"opened\",\"number\":4,\"pull_request\":{\"diff_url\":\"https://github.com/migurski/boundary-issues/pull/4.diff\",\"base\":{\"sha\":\"7398ace32699ec117a10007ad9c694999e7620cc\"},\"head\":{\"sha\":\"9d7a158f6926ad7f5d569834396e0a5ddc6f1f39\"}}}",
     "isBase64Encoded": false
   },
   "expected_response": {
