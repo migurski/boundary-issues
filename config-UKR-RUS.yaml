@@ -2,13 +2,12 @@ RUS:
   base:
     # Russia includes Crimea in OSM, but this is not widely acknowledged
     - [plus, relation, 60189, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/60189.osm.xml.gz"] # Russia
-    - [minus, relation, 3788824, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3788824.osm.xml.gz"] # Crimea
   perspectives:
     RUS:
-      - [plus, relation, 3788824, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3788824.osm.xml.gz"] # Crimea
-    UKR:
       - [minus, relation, 3788824, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3788824.osm.xml.gz"] # Crimea
-  interior-points:
+    UKR:
+      - [plus, relation, 3788824, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3788824.osm.xml.gz"] # Crimea
+  exterior-points:
     RUS:
       - [34.25, 45.41] # Crimea
 
@@ -16,12 +15,13 @@ UKR:
   base:
     # Ukraine includes Crimea in OSM
     - [plus, relation, 60199, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/60199.osm.xml.gz"] # Ukraine
+    - [minus, relation, 3788824, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3788824.osm.xml.gz"] # Crimea
   perspectives:
     RUS:
-      - [minus, relation, 3788824, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3788824.osm.xml.gz"] # Crimea
-  interior-points:
+      - [plus, relation, 3788824, "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/3788824.osm.xml.gz"] # Crimea
+  exterior-points:
     base:
       - [34.25, 45.41] # Crimea
-  exterior-points:
+  interior-points:
     RUS:
       - [34.25, 45.41] # Crimea
