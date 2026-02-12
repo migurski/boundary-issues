@@ -1,0 +1,25 @@
+name: Trigger Lambda on Pull Request
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  trigger-lambda:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Send pull request event to Lambda
+        env:
+          GITHUB_EVENT: pull_request
+          GITHUB_DELIVERY: ${{ github.run_id }}
+        run: |
+          # Create a payload with GitHub event context
+          cat > payload.json << 'EOF'
+          ${{ toJSON(github.event) }}
+          EOF
+
+          # Call the webhook trigger script
+          ./webhook/trigger-webhook.sh payload.json
