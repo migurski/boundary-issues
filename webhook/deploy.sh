@@ -8,7 +8,7 @@ FUNCTION_NAME="boundary-issues-webhook"
 PROCESSOR_FUNCTION_NAME="boundary-processor"
 REGION="us-west-2"
 TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
-DOCKERFILE_PATH="$(dirname "$0")/../Dockerfile"
+DOCKERFILE_PATH="$(dirname "$0")/Dockerfile"
 
 # Validate ZIP file argument
 if [ -z "$ZIP_FILE" ]; then
