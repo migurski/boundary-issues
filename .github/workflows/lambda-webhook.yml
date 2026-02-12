@@ -1,9 +1,8 @@
-name: Trigger Lambda on Push
+name: Trigger Lambda on Pull Request
 
 on:
-  push:
-    branches:
-      - '**'  # Trigger on all branches
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   trigger-lambda:
@@ -12,9 +11,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Send push event to Lambda
+      - name: Send pull request event to Lambda
         env:
-          GITHUB_EVENT: push
+          GITHUB_EVENT: pull_request
           GITHUB_DELIVERY: ${{ github.run_id }}
         run: |
           # Create a payload with GitHub event context
