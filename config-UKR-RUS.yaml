@@ -40,6 +40,7 @@ UKR:
   base:
     # Ukraine includes Crimea in OSM
     - [plus, relation, 60199] # Ukraine
+    - [minus, relation, 3788824] # Crimea
   perspectives:
     RUS:
       - [minus, relation, 72639] # Crimea
@@ -68,3 +69,5 @@ UKR:
       - [37.80, 48.02] # Donetsk
       - [32.61, 46.64] # Kherson
       - [35.12, 47.85] # Zaporizhia
+
+# File touch change
