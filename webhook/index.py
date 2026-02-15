@@ -42,7 +42,7 @@ def lambda_handler(event, context):
 
     # Start state machine execution
     try:
-        execution_name = f"pr-{payload.get('number', 'unknown')}-{context.request_id[:8]}"
+        execution_name = f"pr-{payload.get('number', 'unknown')}-{context.aws_request_id[:8]}"
         print(f"Starting state machine execution: {execution_name}")
 
         response = sfn.start_execution(

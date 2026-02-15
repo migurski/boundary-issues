@@ -11,7 +11,9 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN pip3 install 'awslambdaric==2.2.1' 'boto3==1.34.34'
 
 # Copy the processor handler
+WORKDIR /var/task
 COPY processor.py /var/task/processor.py
 
-# Set the Lambda handler
+# Set the Lambda handler using awslambdaric
+ENTRYPOINT ["python3", "-m", "awslambdaric"]
 CMD ["processor.handler"]
