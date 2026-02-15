@@ -2,25 +2,12 @@
 set -e
 
 # Configuration
-ZIP_FILE="$1"
 STACK_NAME="boundary-issues-webhook-stack"
 FUNCTION_NAME="boundary-issues-webhook"
 REGION="us-west-2"
 TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
 DOCKERFILE_DIR="$(dirname "$0")"
 ENV_FILE="$(dirname "$0")/../.env"
-
-# Validate ZIP file argument
-if [ -z "$ZIP_FILE" ]; then
-    echo "Error: ZIP file path required"
-    echo "Usage: $0 <path-to-zip-file>"
-    exit 1
-fi
-
-if [ ! -f "$ZIP_FILE" ]; then
-    echo "Error: ZIP file not found: $ZIP_FILE"
-    exit 1
-fi
 
 echo "Starting CloudFormation deployment of $FUNCTION_NAME to $REGION..."
 echo ""
@@ -51,14 +38,15 @@ else
     echo "S3 bucket created with versioning enabled"
 fi
 
-# Upload ZIP file to S3 with timestamp-based key
+# Build and upload ZIP file to S3 with timestamp-based key
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 S3_KEY="lambda-packages/${FUNCTION_NAME}-${TIMESTAMP}.zip"
 echo ""
 echo "Uploading Lambda package to S3..."
-echo "  Source: $ZIP_FILE"
+echo "  Source: index.zip"
 echo "  Destination: s3://$BUCKET_NAME/$S3_KEY"
-aws s3 cp "$ZIP_FILE" "s3://$BUCKET_NAME/$S3_KEY" --region "$REGION"
+make index.zip
+aws s3 cp "index.zip" "s3://$BUCKET_NAME/$S3_KEY" --region "$REGION"
 echo "Upload complete"
 
 # Setup GitHub token in Secrets Manager
