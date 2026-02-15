@@ -27,10 +27,14 @@ Push changes to the `migurski/execute-a-state-machine` branch and sync to `migur
 
 ```bash
 git push origin migurski/execute-a-state-machine
-./push-it.sh
+git checkout migurski/do-not-merge
+sleep 1
+git rebase -i migurski/execute-a-state-machine
+git push -f origin migurski/do-not-merge
+git checkout migurski/execute-a-state-machine
 ```
 
-Wait 30-60 seconds for GitHub Actions to trigger.
+Wait 15-30 seconds for GitHub Actions to trigger.
 
 #### B. Via Manual Test (Development)
 Create a test payload and send it directly:
