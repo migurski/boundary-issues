@@ -174,18 +174,6 @@ def handler(event, context):
             'status': 'error',
             'error': str(e)
         }
-    finally:
-        # Verify built files
-        print(f"Verify *.csv")
-        result = subprocess.run(
-            ['cut', '-c1-80', '*.csv'],
-            cwd=clone_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        print(f"STDOUT: {result.stdout}")
-        print(f"STDERR: {result.stderr}")
 
     # Success!
     return {
