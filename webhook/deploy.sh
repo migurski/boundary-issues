@@ -6,7 +6,7 @@ STACK_NAME="boundary-issues-webhook-stack"
 FUNCTION_NAME="boundary-issues-webhook"
 REGION="us-west-2"
 TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
-DOCKERFILE_DIR="$(dirname "$0")"
+DOCKERFILE_DIR="$(dirname "$0")/.."
 ENV_FILE="$(dirname "$0")/../.env"
 
 echo "Starting CloudFormation deployment of $FUNCTION_NAME to $REGION..."
