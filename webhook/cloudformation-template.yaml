@@ -39,8 +39,8 @@ Resources:
   WebhookFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Runtime: provided.al2023
-      Handler: bootstrap
+      Runtime: python3.14
+      Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
         S3Bucket: !Ref S3Bucket
