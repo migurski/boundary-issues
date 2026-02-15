@@ -156,17 +156,6 @@ def handler(event, context):
             check=True
         )
         print(f"Run output: {result.stdout}")
-
-        # Verify built files
-        result = subprocess.run(
-            ['ls', '-l', '*.csv'],
-            cwd=clone_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        print(f"{result.stdout}")
-
         print(f"Successfully ran build-country-polygon.py")
 
     except subprocess.CalledProcessError as e:
@@ -185,6 +174,18 @@ def handler(event, context):
             'status': 'error',
             'error': str(e)
         }
+    finally:
+        # Verify built files
+        print(f"Verify *.csv")
+        result = subprocess.run(
+            ['cut', '-c1-80', '*.csv'],
+            cwd=clone_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"STDOUT: {result.stdout}")
+        print(f"STDERR: {result.stderr}")
 
     # Success!
     return {
