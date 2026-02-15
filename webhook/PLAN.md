@@ -85,9 +85,13 @@ python3 -m unittest index.py -v
 
 Deploy and test end-to-end:
 ```bash
-make index.zip
-./deploy.sh index.zip
-./push-it.sh  # Sync branches to trigger GitHub Actions
+./deploy.sh
+
+# Sync branches to trigger GitHub Actions on PR #4
+git checkout migurski/do-not-merge
+git rebase -i migurski/execute-a-state-machine
+git push -f origin
+git checkout migurski/execute-a-state-machine
 ```
 
 See TESTING.md for detailed verification procedures and log analysis.
