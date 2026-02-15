@@ -19,6 +19,10 @@ Parameters:
     Type: String
     Description: URI of the Docker image for the processor Lambda function
 
+  GitHubSecretName:
+    Type: String
+    Description: Name of the Secrets Manager secret containing the GitHub token (from bootstrap stack)
+
 Resources:
   # IAM Role for Lambda execution
   LambdaExecutionRole:
@@ -101,18 +105,7 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: '*'
 
-  # ECR Repository for processor Docker image
-  ProcessorRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub '${AWS::StackName}-processor-image'
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      Tags:
-        - Key: Application
-          Value: !Ref FunctionName
-        - Key: ManagedBy
-          Value: CloudFormation
+  # Note: ECR Repository is now managed by the bootstrap stack
 
   # IAM Role for processor Lambda function
   ProcessorFunctionRole:
@@ -136,7 +129,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}/github-token*'
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
       Tags:
         - Key: Application
           Value: !Ref FunctionName
@@ -158,7 +151,7 @@ Resources:
         - arm64
       Environment:
         Variables:
-          GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}/github-token'
+          GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
       Description: Processes GitHub PR events by cloning and checking out commits
       Tags:
         - Key: Application
@@ -270,7 +263,3 @@ Outputs:
   ProcessorLogGroupName:
     Description: CloudWatch Log Group name for processor Lambda logs
     Value: !Sub '/aws/lambda/${ProcessorFunction}'
-
-  ECRRepositoryUri:
-    Description: URI of the ECR repository
-    Value: !GetAtt ProcessorRepository.RepositoryUri
