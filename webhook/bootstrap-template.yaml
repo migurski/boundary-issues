@@ -103,7 +103,7 @@ Outputs:
       Name: !Sub '${AWS::StackName}-GitHubTokenSecretArn'
 
   GitHubTokenSecretName:
-    Description: Name of the GitHub token secret
-    Value: !Ref GitHubTokenSecret
+    Description: Name of the GitHub token secret (not ARN)
+    Value: !Sub '${AWS::StackName}-webhook/github-token'
     Export:
       Name: !Sub '${AWS::StackName}-GitHubTokenSecretName'
