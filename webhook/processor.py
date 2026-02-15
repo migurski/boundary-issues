@@ -3,6 +3,7 @@ import json
 import subprocess
 import os
 import sys
+import urllib.parse
 
 
 def handler(event, context):
@@ -46,23 +47,13 @@ def handler(event, context):
         pr_sha = head_info.get('sha')
         pr_number = event.get('number')
         diff_url = pull_request.get('diff_url', '')
+        repository = event.get('repository', {})
+        clone_url = repository.get('clone_url', '')
 
         if not pr_sha:
             raise ValueError("No PR SHA found in event payload")
 
-        # Extract repository from diff_url (e.g., https://github.com/owner/repo/pull/4.diff)
-        import re
-        match = re.match(r'https://github\.com/([^/]+)/([^/]+)/pull/', diff_url)
-        if match:
-            repo_owner = match.group(1)
-            repo_name = match.group(2)
-            repo_full_name = f"{repo_owner}/{repo_name}"
-        else:
-            # Fallback to hardcoded repo if we can't extract it
-            repo_full_name = "migurski/boundary-issues"
-            print(f"WARNING: Could not extract repo from diff_url: {diff_url}, using fallback: {repo_full_name}")
-
-        print(f"Processing PR #{pr_number}, HEAD SHA: {pr_sha}, Repo: {repo_full_name}")
+        print(f"Processing PR #{pr_number}, HEAD SHA: {pr_sha}, URL: {clone_url}")
 
     except Exception as e:
         print(f"ERROR: Failed to parse PR information: {e}")
@@ -74,7 +65,8 @@ def handler(event, context):
 
     # Clone repository
     try:
-        repo_url = f"https://{github_token}@github.com/{repo_full_name}.git"
+        parsed_url = urllib.parse.urlparse(clone_url)
+        repo_url = urllib.parse.urlunparse((parsed_url.scheme, f'{github_token}@github.com', *parsed_url[2:]))
         clone_dir = '/tmp/repo'
 
         # Clean up any previous clone
