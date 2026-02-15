@@ -145,6 +145,47 @@ def handler(event, context):
             'error': str(e)
         }
 
+    # Run the script
+    try:
+        print(f"Run build-country-polygon.py")
+        result = subprocess.run(
+            ['./build-country-polygon.py'],
+            cwd=clone_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"Run output: {result.stdout}")
+
+        # Verify built files
+        result = subprocess.run(
+            ['ls', '-l', '*.csv'],
+            cwd=clone_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"{result.stdout}")
+
+        print(f"Successfully ran build-country-polygon.py")
+
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: Failed to run build-country-polygon.py: {e}")
+        print(f"STDOUT: {e.stdout}")
+        print(f"STDERR: {e.stderr}")
+        return {
+            'statusCode': 500,
+            'status': 'error',
+            'error': f'Failed to run build-country-polygon.py: {e.stderr}'
+        }
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        return {
+            'statusCode': 500,
+            'status': 'error',
+            'error': str(e)
+        }
+
     # Success!
     return {
         'statusCode': 200,
