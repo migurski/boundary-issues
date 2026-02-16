@@ -252,7 +252,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
         # Execute handler
-        response = lambda_handler(self.success_event, self.mock_context)
+        lambda_handler(self.success_event, self.mock_context)
 
         # Verify GitHub API call
         call_args = mock_urlopen.call_args[0]
@@ -292,7 +292,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
         # Execute handler
-        response = lambda_handler(self.success_event, self.mock_context)
+        lambda_handler(self.success_event, self.mock_context)
 
         # Verify console URL format
         call_args = mock_urlopen.call_args[0]

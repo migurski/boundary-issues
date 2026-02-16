@@ -223,7 +223,7 @@ def write_country_boundaries(dirname, configs):
                 gdf2 = gdf[(gdf.iso3 == iso3b) & gdf.perspectives.str.contains(iso3c)]
                 assert len(gdf1) == 1
                 assert len(gdf2) == 1
-                geom1, geom2 = gdf1.iloc[0].geometry, gdf2.iloc[0].geometry
+                _geom1, _geom2 = gdf1.iloc[0].geometry, gdf2.iloc[0].geometry
                 index1, index2 = int(gdf1.index.values[0]), int(gdf2.index.values[0])
                 row_pairings[iso3c] = (index1, index2)
 

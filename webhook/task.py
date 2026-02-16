@@ -146,7 +146,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_boto_client.return_value = mock_lambda
 
         # Execute handler
-        response = lambda_handler(self.state_machine_event, self.mock_context)
+        lambda_handler(self.state_machine_event, self.mock_context)
 
         # Verify task token was passed to processor
         call_args = mock_lambda.invoke.call_args[1]
@@ -165,7 +165,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_boto_client.return_value = mock_lambda
 
         # Execute handler
-        response = lambda_handler(self.state_machine_event, self.mock_context)
+        lambda_handler(self.state_machine_event, self.mock_context)
 
         # Verify all fields were passed through
         call_args = mock_lambda.invoke.call_args[1]

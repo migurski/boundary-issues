@@ -3,7 +3,6 @@ import json
 import logging
 import subprocess
 import os
-import sys
 import urllib.parse
 
 # Configure logging
@@ -29,7 +28,7 @@ def handler(event, context):
     sfn_client = None
 
     if task_token:
-        logging.info(f"Task token found, will send callback to Step Functions")
+        logging.info("Task token found, will send callback to Step Functions")
         sfn_client = boto3.client('stepfunctions')
 
     # Fetch GitHub token from Secrets Manager
@@ -69,7 +68,6 @@ def handler(event, context):
         head_info = pull_request.get('head', {})
         pr_sha = head_info.get('sha')
         pr_number = event.get('number')
-        diff_url = pull_request.get('diff_url', '')
         repository = event.get('repository', {})
         clone_url = repository.get('clone_url', '')
 
@@ -210,7 +208,7 @@ def handler(event, context):
 
     # Run the script
     try:
-        logging.info(f"Run build-country-polygon.py")
+        logging.info("Run build-country-polygon.py")
         result = subprocess.run(
             ['./build-country-polygon.py'],
             cwd=clone_dir,
@@ -219,7 +217,7 @@ def handler(event, context):
             check=True
         )
         logging.info(f"Run output: {result.stdout}")
-        logging.info(f"Successfully ran build-country-polygon.py")
+        logging.info("Successfully ran build-country-polygon.py")
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to run build-country-polygon.py: {e}")

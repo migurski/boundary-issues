@@ -335,7 +335,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_boto_client.return_value = mock_sfn
 
         # Execute handler
-        response = lambda_handler(self.github_pr_event, self.mock_context)
+        lambda_handler(self.github_pr_event, self.mock_context)
 
         # Verify execution name uses aws_request_id
         call_args = mock_sfn.start_execution.call_args[1]
@@ -373,7 +373,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Test with specific PR number
         event = self.github_pr_event.copy()
-        response = lambda_handler(event, self.mock_context)
+        lambda_handler(event, self.mock_context)
 
         call_args = mock_sfn.start_execution.call_args[1]
         execution_name = call_args['name']
@@ -388,7 +388,7 @@ class TestLambdaHandler(unittest.TestCase):
         }
 
         mock_sfn.reset_mock()
-        response = lambda_handler(event_no_pr, self.mock_context)
+        lambda_handler(event_no_pr, self.mock_context)
 
         call_args = mock_sfn.start_execution.call_args[1]
         execution_name = call_args['name']
