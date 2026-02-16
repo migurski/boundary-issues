@@ -23,7 +23,6 @@ Resources:
   GitHubSecretAccessPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: !Sub '${AWS::StackName}-GitHubSecretAccess'
       Description: Grants access to read GitHub token from Secrets Manager
       PolicyDocument:
         Version: '2012-10-17'
@@ -37,7 +36,6 @@ Resources:
   WebhookFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AWS::StackName}-WebhookFunctionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -113,7 +111,6 @@ Resources:
   FinishFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AWS::StackName}-FinishFunctionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -129,7 +126,6 @@ Resources:
   FinishFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${AWS::StackName}-finish-function'
       Runtime: python3.14
       Handler: finish.lambda_handler
       Role: !GetAtt FinishFunctionRole.Arn
@@ -147,7 +143,6 @@ Resources:
   ProcessorFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AWS::StackName}-ProcessorFunctionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -173,7 +168,6 @@ Resources:
   ProcessorFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${AWS::StackName}-processor-function'
       PackageType: Image
       Code:
         ImageUri: !Ref ProcessorImageUri
@@ -191,7 +185,6 @@ Resources:
   TaskFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AWS::StackName}-TaskFunctionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -215,7 +208,6 @@ Resources:
   TaskFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${AWS::StackName}-task-function'
       Runtime: python3.14
       Handler: task.lambda_handler
       Role: !GetAtt TaskFunctionRole.Arn
@@ -233,7 +225,6 @@ Resources:
   StateMachineRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AWS::StackName}-StateMachineRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -278,7 +269,6 @@ Resources:
   ProcessorStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      StateMachineName: !Sub '${AWS::StackName}-processor'
       RoleArn: !GetAtt StateMachineRole.Arn
       DefinitionString: !Sub |
         {
