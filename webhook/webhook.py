@@ -109,7 +109,7 @@ def do_status(payload):
     try:
         secrets_client = boto3.client('secretsmanager')
         secret_response = secrets_client.get_secret_value(SecretId=github_secret_arn)
-        github_token = json.loads(secret_response['SecretString'])['token']
+        github_token = secret_response['SecretString']
         print("Successfully retrieved GitHub token from Secrets Manager")
     except Exception as e:
         print(f"ERROR: Failed to retrieve GitHub token: {e}")
