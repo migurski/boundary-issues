@@ -14,9 +14,6 @@ def lambda_handler(event, context):
     """
     print(f"Received event: {json.dumps(event)}")
 
-    # Initialize Step Functions client
-    sfn = boto3.client('stepfunctions')
-
     # Get state machine ARN from environment
     state_machine_arn = os.environ.get('STATE_MACHINE_ARN')
     if not state_machine_arn:
@@ -44,6 +41,9 @@ def lambda_handler(event, context):
             'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Invalid JSON in request body'})
         }
+
+    # Initialize Step Functions client
+    sfn = boto3.client('stepfunctions')
 
     # Start state machine execution
     try:
@@ -91,7 +91,6 @@ class TestLambdaHandler(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures"""
-        os.environ['AWS_REGION'] = 'us-west-2'
         self.test_state_machine_arn = 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'
         self.test_execution_arn = 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-12345678'
 
