@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Bootstrap stack for boundary-issues webhook infrastructure - foundational resources'
+
+Parameters:
+  ApplicationName:
+    Type: String
+    Default: boundary-issues-webhook
+    Description: Name of the application for resource tagging
+
+Resources:
+  # S3 Bucket for Lambda deployment packages
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-packages-${AWS::Region}-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Application
+          Value: !Ref ApplicationName
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: StackType
+          Value: Bootstrap
+
+  # ECR Repository for processor Docker images
+  ProcessorRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-images-${AWS::Region}-${AWS::AccountId}'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Application
+          Value: !Ref ApplicationName
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: StackType
+          Value: Bootstrap
+
+  # Secrets Manager secret for GitHub token
+  # Created empty - value will be populated by deploy.sh from .env file
+  GitHubTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-webhook/github-token'
+      Description: !Sub 'GitHub token for ${ApplicationName}'
+      SecretString: '{"token": "placeholder-will-be-updated-by-deploy-script"}'
+      Tags:
+        - Key: Application
+          Value: !Ref ApplicationName
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: StackType
+          Value: Bootstrap
+
+Outputs:
+  DeploymentBucketName:
+    Description: Name of the S3 bucket for Lambda deployment packages
+    Value: !Ref DeploymentBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentBucketName'
+
+  ProcessorRepositoryUri:
+    Description: URI of the ECR repository for processor Docker images
+    Value: !GetAtt ProcessorRepository.RepositoryUri
+    Export:
+      Name: !Sub '${AWS::StackName}-ProcessorRepositoryUri'
+
+  ProcessorRepositoryName:
+    Description: Name of the ECR repository
+    Value: !Ref ProcessorRepository
+    Export:
+      Name: !Sub '${AWS::StackName}-ProcessorRepositoryName'
+
+  GitHubTokenSecretArn:
+    Description: ARN of the GitHub token secret
+    Value: !Ref GitHubTokenSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-GitHubTokenSecretArn'
+
+  GitHubTokenSecretName:
+    Description: Name of the GitHub token secret (not ARN)
+    Value: !Sub '${AWS::StackName}-webhook/github-token'
+    Export:
+      Name: !Sub '${AWS::StackName}-GitHubTokenSecretName'

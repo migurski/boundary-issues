@@ -151,10 +151,10 @@ def validate_areas(configs, areas_path):
 
         if is_in:
             assert make_point(x, y).Within(area_geom), \
-                f"({x}, {y}) should be inside {test_iso3a} from the {test_iso3b} perspective"
+                f"({x}, {y}) should be inside {test_iso3a} ({area_geom.GetEnvelope()}) from the {test_iso3b} perspective"
         else:
             assert not make_point(x, y).Within(area_geom), \
-                f"({x}, {y}) should be outside {test_iso3a} from the {test_iso3b} perspective"
+                f"({x}, {y}) should be outside {test_iso3a} ({area_geom.GetEnvelope()}) from the {test_iso3b} perspective"
 
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
