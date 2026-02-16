@@ -1,97 +1,150 @@
-# State Machine Integration
+# State Machine Restructuring Plan
 
-## Original Goal
+## User Requirements
 
-> We are working in two branches here, and coordinating changes between the two of them in order to test changes in Github Actions. The basic setup is already complete in ../.github/workflows, and you have the permissions you need for AWS in ~/.aws and Github in ../.env. There's a script for pushing to origin in push-it.sh you may want to consult that shows how the branch migurski/do-not-merge (PR #4) is stacked atop the branch migurski/execute-a-state-machine where we are actually working. Our goal is to expand the existing CloudFormation definition to include a state machine, to have the lambda_handler() in index.py execute that state machine with its payload, and to observe that this is successful by looking at logs from Github and from AWS. The state machine should for now be just a single step, running a Docker image Lambda function based on ./Dockerfile that can check out the HEAD of this repo to test that a pull request worked.
+**Initial request:**
+> We are going to restructure our state machine somewhat: we want to re-use index.py so that it can accept different JSON payloads, and be used in the place of the processor function in the state machine. The first new payload will have "action":"build" in place of the current "action":"synchronize" with the same "repository" and "pull_request" dictionaries, and in this new behavior it will invoke the processor function async. index.py will need a test suite to cover these new inputs, that should verify the correct Lambda invoke happened. The function will return quickly, and we will use Step Functions execution tokens to allow the state machine to run to completion.
 
-## Implementation Summary
+**Clarifications:**
+> I see that having "index.py" do double-duty might be confusing, let's update this plan so that our webhook mode looks like the current index.py but renamed to webhook.py, while the task mode looks like planned behavior and named task.py. We can stick them both in the same Lambda zip file and have the two different functions use different handlers.
 
-### Architecture
+> Flows "A" & "B" no longer make sense, there's just one flow and it looks like Flow B. We will no longer need to switch on the value of "action" now that we are planning two different Lambda function definitions with different handlers.
 
-The system implements a GitHub webhook → Lambda → State Machine → Docker Lambda workflow:
+> I would prefer to keep our unittests inside the two function just like we do presently in index.py. We also do not need unit tests for processor.py.
 
-1. **GitHub Actions** (.github/workflows/lambda-webhook.yml) triggers on PR events
-2. **Webhook Lambda** (index.py) receives events, starts Step Functions execution
-3. **Step Functions State Machine** orchestrates single-step workflow
-4. **Processor Lambda** (../processor.py in Docker) clones repo and checks out PR HEAD
+## Architecture Overview
 
-### Components Implemented
+**Two separate Lambda handlers in one deployment package:**
+1. **webhook.py** (renamed from index.py): Entry point for GitHub/external events, starts state machine
+2. **task.py** (new): Called BY state machine with task token, invokes processor async
 
-**webhook/index.py** - Webhook Lambda handler
-- Parses GitHub PR event from request body (handles both string and dict)
-- Uses `context.aws_request_id` to generate unique execution names
-- Starts Step Functions state machine execution
-- Returns execution ARN in response
-- Includes comprehensive unit tests (7 tests covering all error cases)
+## Execution Flow (Unified)
 
-**../processor.py** - Docker Lambda handler (moved to parent directory)
-- Fetches GitHub token from AWS Secrets Manager
-- Extracts repository URL from `repository.clone_url` field
-- Clones repository using authenticated GitHub URL
-- Checks out PR HEAD SHA and verifies checkout
-- Returns success/error status with detailed logging
+```
+GitHub/Trigger → webhook.py → start state machine → return immediately
+                 [async] state machine → task.py + task token → invoke processor async → return immediately
+                 [async] processor → does work → sendTaskSuccess/Failure → state machine completes
+```
 
-**../Dockerfile** - Processor Lambda container (moved to parent directory)
-- Based on Ubuntu 24.04 ARM64
-- Includes Python 3, GDAL, NumPy, git
-- Installs awslambdaric for Lambda runtime
-- Configured with proper ENTRYPOINT and CMD for Lambda execution
+All actions (synchronize, build, future actions) follow this same async pattern.
 
-**webhook/cloudformation-template.yaml** - CloudFormation stack
-- `ProcessorRepository` - ECR repository for Docker images
-- `ProcessorFunction` - Docker-based Lambda (ARM64, 1024MB, 300s timeout)
-- `ProcessorFunctionRole` - IAM role with Secrets Manager read permission
-- `ProcessorStateMachine` - Single-step state machine invoking ProcessorFunction
-- `StateMachineRole` - IAM role for state machine execution
-- Updated `LambdaExecutionRole` - Added states:StartExecution permission
-- All resources use `${AWS::StackName}` prefix for uniqueness
+## Implementation Changes
 
-**webhook/deploy.sh** - Enhanced deployment script
-- Creates/verifies Secrets Manager secret from `../.env`
-- Builds Docker image for linux/arm64 platform
-- Pushes image to ECR (CloudFormation-managed repository)
-- Handles temporary repository for initial deployment
-- Deploys/updates CloudFormation stack with image URI
-- Outputs webhook URL, log groups, and state machine ARN
+### 1. Rename index.py → webhook.py
+- File: `webhook/webhook.py`
+- Minimal changes, just renaming
+- Keep existing lambda_handler function
+- Keep STATE_MACHINE_ARN env var
+- Starts state machine and returns (unchanged behavior)
+- **Keep all existing unit tests** at bottom of file (TestLambdaHandler class)
 
-**webhook/TESTING.md** - Comprehensive testing guide
-- Manual and GitHub Actions testing workflows
-- CloudWatch log verification steps for each component
-- Common issues and solutions from integration testing
-- Security validation procedures
-- Performance benchmarks from actual runs
+### 2. Create task.py
+- File: `webhook/task.py` (NEW)
+- Handler: `lambda_handler(event, context)`
+- Environment: `PROCESSOR_FUNCTION_ARN`
+- Logic: Extract task token, invoke processor async with Event invocation, return immediately
+- **Include unit tests** at bottom of file:
+  - test_invokes_processor_async
+  - test_passes_task_token_to_processor
+  - test_passes_through_event_fields
+  - test_returns_immediately
+  - test_missing_processor_arn_env
 
-### Security Implementation
+### 3. Update processor.py
+- File: `../processor.py`
+- Extract `taskToken` from event
+- On success: call `sfn.send_task_success(taskToken=..., output=...)`
+- On error: call `sfn.send_task_failure(taskToken=..., error=..., cause=...)`
+- Maintain backward compatibility (works with or without task token)
 
-**GitHub Token Protection:**
-- Token stored in `../.env` (gitignored)
-- `deploy.sh` reads token and creates AWS Secrets Manager secret
-- Secret name: `${STACK_NAME}/github-token`
-- Processor Lambda retrieves at runtime via boto3
-- Token never appears in CloudFormation, git, or logs
+### 4. CloudFormation Updates
+- File: `webhook/cloudformation-template.yaml`
 
-**Resource Uniqueness:**
-- All resources prefixed with `${AWS::StackName}`
-- Multiple stacks can coexist without conflicts
-- Clean separation between stack instances
+**Add TaskFunction:**
+- Runtime: python3.14
+- Handler: task.lambda_handler
+- Uses same zip as WebhookFunction
+- Environment: PROCESSOR_FUNCTION_ARN
 
-### Testing
+**Add TaskFunctionRole:**
+- Permission to invoke ProcessorFunction
 
-Run unit tests locally:
+**Update WebhookFunction:**
+- Handler: webhook.lambda_handler (was index.lambda_handler)
+
+**Simplify ProcessorStateMachine:**
+- Remove Choice state logic
+- Single state using waitForTaskToken pattern
+- Invokes TaskFunction with task token
+
+**Update ProcessorFunctionRole:**
+- Add states:SendTaskSuccess and states:SendTaskFailure permissions
+
+**Update StateMachineRole:**
+- Invoke TaskFunction (not ProcessorFunction)
+
+### 5. Build & Test Updates
+
+**Makefile:**
+- Update zip creation to include both webhook.py and task.py
+- Command: `zip webhook.zip webhook.py task.py`
+
+**GitHub Actions:**
+- Run unit tests: `python3 -m unittest webhook.py task.py -v`
+- Runs automatically on PR events
+
+### 6. Documentation
+- Update TESTING.md with async flow verification steps
+- Update this PLAN.md with new architecture
+
+## File Structure
+```
+webhook/
+├── webhook.py              # Webhook handler (renamed from index.py) + tests
+├── task.py                 # NEW: Async processor invoker + tests
+├── cloudformation-template.yaml
+├── Makefile                # Handles zip creation
+├── deploy.sh
+└── trigger-webhook.sh
+
+../
+├── processor.py            # Updated with task token callbacks
+└── Dockerfile
+```
+
+## Implementation Order
+
+1. Create task.py with handler + unit tests
+2. Rename index.py → webhook.py
+3. Update processor.py for task token callbacks
+4. Update Makefile for new zip contents
+5. Add TaskFunction + TaskFunctionRole to CloudFormation
+6. Simplify state machine definition
+7. Update IAM permissions
+8. Deploy and integration test
+9. Update TESTING.md
+
+## Testing Strategy
+
+**Local unit tests:**
 ```bash
 source ../.venv/bin/activate
-python3 -m unittest index.py -v
+python3 -m unittest webhook.py -v
+python3 -m unittest task.py -v
 ```
 
-Deploy and test end-to-end:
-```bash
-./deploy.sh
+**GitHub Actions:** Runs unit tests automatically on PR events
 
-# Sync branches to trigger GitHub Actions on PR #4
-git checkout migurski/do-not-merge
-git rebase -i migurski/execute-a-state-machine
-git push -f origin
-git checkout migurski/execute-a-state-machine
-```
+**Integration testing:**
+- Trigger with action="synchronize" or action="build" payloads
+- Verify webhook returns immediately
+- Verify state machine execution waits for callback
+- Check CloudWatch logs for task.py async invocation
+- Verify processor sends sendTaskSuccess/sendTaskFailure
 
-See TESTING.md for detailed verification procedures and log analysis.
+## Key Benefits
+
+- Clean separation: webhook (entry) → task (orchestrator) → processor (worker)
+- All actions async: Webhook returns immediately
+- Extensible: New actions require no infrastructure changes
+- Tests co-located with handlers
