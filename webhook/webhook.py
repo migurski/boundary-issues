@@ -2,6 +2,8 @@ import json
 import os
 import unittest
 import unittest.mock
+import urllib.request
+import urllib.error
 
 # Note: boto3 is available in AWS Lambda runtime
 # For local testing, install via: pip install boto3
@@ -13,8 +15,6 @@ def lambda_handler(event, context):
     Webhook Lambda handler that receives GitHub events and triggers state machine.
     """
     print(f"Received event: {json.dumps(event)}")
-
-    do_status(event)
 
     # Get state machine ARN from environment
     state_machine_arn = os.environ.get('STATE_MACHINE_ARN')
@@ -43,6 +43,9 @@ def lambda_handler(event, context):
             'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Invalid JSON in request body'})
         }
+
+    # Set GitHub status to pending
+    do_status(payload)
 
     # Initialize Step Functions client
     sfn = boto3.client('stepfunctions')
@@ -79,10 +82,28 @@ def lambda_handler(event, context):
         }
 
 
-def do_status(event):
+def do_status(payload):
+    """
+    Set GitHub PR status to pending.
 
+    Args:
+        payload: Parsed GitHub webhook payload
+    """
     github_secret_arn = os.environ.get('GITHUB_SECRET_ARN')
-    statuses_url = event.get('repository', {}).get('statuses_url')
+    if not github_secret_arn:
+        print("WARNING: GITHUB_SECRET_ARN not set, skipping status update")
+        return
+
+    # Extract required information from payload
+    statuses_url = payload.get('repository', {}).get('statuses_url')
+    if not statuses_url:
+        print("WARNING: repository.statuses_url not found in payload, skipping status update")
+        return
+
+    head_sha = payload.get('pull_request', {}).get('head', {}).get('sha')
+    if not head_sha:
+        print("WARNING: pull_request.head.sha not found in payload, skipping status update")
+        return
 
     # Fetch GitHub token from Secrets Manager
     try:
@@ -131,7 +152,7 @@ def do_status(event):
 
             return {
                 'statusCode': 200,
-                'message': f'GitHub status updated to {status_state}'
+                'message': 'GitHub status updated to pending'
             }
 
     except urllib.error.HTTPError as e:
