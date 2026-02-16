@@ -5,7 +5,17 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  trigger-lambda:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test code
+        run: python -m unittest webhook/index.py
+
+  trigger-webhook:
+    needs: run-tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -17,7 +27,7 @@ jobs:
           GITHUB_DELIVERY: ${{ github.run_id }}
         run: |
           # Create a payload with GitHub event context
-          jq -c '{action, number, pull_request: {diff_url: .pull_request.diff_url, base: {sha: .pull_request.base.sha}, head: {sha: .pull_request.head.sha}}, repository: {clone_url: .repository.clone_url, statuses_url: .repository.statuses_url}}' \
+          jq -c '{action, number, pull_request: {base: {sha: .pull_request.base.sha}, head: {sha: .pull_request.head.sha}}, repository: {clone_url: .repository.clone_url, statuses_url: .repository.statuses_url}}' \
           > payload.json << 'EOF'
           ${{ toJSON(github.event) }}
           EOF

@@ -91,6 +91,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures"""
+        os.environ['AWS_REGION'] = 'us-west-2'
         self.test_state_machine_arn = 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'
         self.test_execution_arn = 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-12345678'
 
