@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import unittest
 import unittest.mock
@@ -7,6 +8,9 @@ import unittest.mock
 # For local testing, install via: pip install boto3
 import boto3
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
 
 def lambda_handler(event, context):
     """
@@ -14,12 +18,12 @@ def lambda_handler(event, context):
     Invokes the processor function asynchronously and returns immediately.
     The processor will call sendTaskSuccess/sendTaskFailure when done.
     """
-    print(f"Received event: {json.dumps(event)}")
+    logging.info(f"Received event: {json.dumps(event)}")
 
     # Get processor function ARN from environment
     processor_arn = os.environ.get('PROCESSOR_FUNCTION_ARN')
     if not processor_arn:
-        print("ERROR: PROCESSOR_FUNCTION_ARN environment variable not set")
+        logging.error("PROCESSOR_FUNCTION_ARN environment variable not set")
         return {
             'statusCode': 500,
             'error': 'PROCESSOR_FUNCTION_ARN not configured'
@@ -28,7 +32,7 @@ def lambda_handler(event, context):
     # Extract task token from event
     task_token = event.get('taskToken')
     if not task_token:
-        print("ERROR: taskToken not found in event")
+        logging.error("taskToken not found in event")
         return {
             'statusCode': 400,
             'error': 'taskToken not found in event'
@@ -38,8 +42,8 @@ def lambda_handler(event, context):
     # Pass through the original event fields plus the task token
     processor_payload = event.copy()
 
-    print(f"Invoking processor function asynchronously: {processor_arn}")
-    print(f"Payload: {json.dumps(processor_payload)}")
+    logging.info(f"Invoking processor function asynchronously: {processor_arn}")
+    logging.info(f"Payload: {json.dumps(processor_payload)}")
 
     # Initialize Lambda client
     lambda_client = boto3.client('lambda')
@@ -52,7 +56,7 @@ def lambda_handler(event, context):
             Payload=json.dumps(processor_payload)
         )
 
-        print(f"Processor invoked successfully, StatusCode: {response['StatusCode']}")
+        logging.info(f"Processor invoked successfully, StatusCode: {response['StatusCode']}")
 
         return {
             'statusCode': 200,
@@ -60,7 +64,7 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        print(f"ERROR: Failed to invoke processor function: {e}")
+        logging.error(f"Failed to invoke processor function: {e}")
         return {
             'statusCode': 500,
             'error': f'Failed to invoke processor: {str(e)}'

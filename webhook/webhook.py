@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import unittest
 import unittest.mock
@@ -9,17 +10,20 @@ import urllib.error
 # For local testing, install via: pip install boto3
 import boto3
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
 
 def lambda_handler(event, context):
     """
     Webhook Lambda handler that receives GitHub events and triggers state machine.
     """
-    print(f"Received event: {json.dumps(event)}")
+    logging.info(f"Received event: {json.dumps(event)}")
 
     # Get state machine ARN from environment
     state_machine_arn = os.environ.get('STATE_MACHINE_ARN')
     if not state_machine_arn:
-        print("ERROR: STATE_MACHINE_ARN environment variable not set")
+        logging.error("STATE_MACHINE_ARN environment variable not set")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},
@@ -34,18 +38,15 @@ def lambda_handler(event, context):
         else:
             payload = body
 
-        print(f"Parsed payload: {json.dumps(payload)}")
+        logging.info(f"Parsed payload: {json.dumps(payload)}")
 
     except json.JSONDecodeError as e:
-        print(f"ERROR: Failed to parse request body: {e}")
+        logging.error(f"Failed to parse request body: {e}")
         return {
             'statusCode': 400,
             'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'error': 'Invalid JSON in request body'})
         }
-
-    # Set GitHub status to pending
-    do_status(payload)
 
     # Initialize Step Functions client
     sfn = boto3.client('stepfunctions')
@@ -53,7 +54,7 @@ def lambda_handler(event, context):
     # Start state machine execution
     try:
         execution_name = f"pr-{payload.get('number', 'unknown')}-{context.aws_request_id[:8]}"
-        print(f"Starting state machine execution: {execution_name}")
+        logging.info(f"Starting state machine execution: {execution_name}")
 
         response = sfn.start_execution(
             stateMachineArn=state_machine_arn,
@@ -62,7 +63,10 @@ def lambda_handler(event, context):
         )
 
         execution_arn = response['executionArn']
-        print(f"State machine execution started: {execution_arn}")
+        logging.info(f"State machine execution started: {execution_arn}")
+
+        # Set GitHub status to pending with execution URL
+        do_status(payload, execution_arn)
 
         return {
             'statusCode': 200,
@@ -74,7 +78,7 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        print(f"ERROR: Failed to start state machine execution: {e}")
+        logging.error(f"Failed to start state machine execution: {e}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},
@@ -82,27 +86,28 @@ def lambda_handler(event, context):
         }
 
 
-def do_status(payload):
+def do_status(payload, execution_arn):
     """
     Set GitHub PR status to pending.
 
     Args:
         payload: Parsed GitHub webhook payload
+        execution_arn: ARN of the started Step Functions execution
     """
     github_secret_arn = os.environ.get('GITHUB_SECRET_ARN')
     if not github_secret_arn:
-        print("WARNING: GITHUB_SECRET_ARN not set, skipping status update")
+        logging.warning("GITHUB_SECRET_ARN not set, skipping status update")
         return
 
     # Extract required information from payload
     statuses_url = payload.get('repository', {}).get('statuses_url')
     if not statuses_url:
-        print("WARNING: repository.statuses_url not found in payload, skipping status update")
+        logging.warning("repository.statuses_url not found in payload, skipping status update")
         return
 
     head_sha = payload.get('pull_request', {}).get('head', {}).get('sha')
     if not head_sha:
-        print("WARNING: pull_request.head.sha not found in payload, skipping status update")
+        logging.warning("pull_request.head.sha not found in payload, skipping status update")
         return
 
     # Fetch GitHub token from Secrets Manager
@@ -110,9 +115,9 @@ def do_status(payload):
         secrets_client = boto3.client('secretsmanager')
         secret_response = secrets_client.get_secret_value(SecretId=github_secret_arn)
         github_token = secret_response['SecretString']
-        print("Successfully retrieved GitHub token from Secrets Manager")
+        logging.info("Successfully retrieved GitHub token from Secrets Manager")
     except Exception as e:
-        print(f"ERROR: Failed to retrieve GitHub token: {e}")
+        logging.error(f"Failed to retrieve GitHub token: {e}")
         return {
             'statusCode': 500,
             'error': f'Failed to retrieve GitHub token: {str(e)}'
@@ -120,7 +125,16 @@ def do_status(payload):
 
     # Replace {sha} placeholder in statuses_url with actual SHA
     status_api_url = statuses_url.replace('{sha}', head_sha)
-    print(f"Status API URL: {status_api_url}")
+    logging.info(f"Status API URL: {status_api_url}")
+
+    # Construct AWS console URL for the execution
+    if execution_arn:
+        # Extract region from ARN: arn:aws:states:REGION:...
+        arn_parts = execution_arn.split(':')
+        region = arn_parts[3] if len(arn_parts) > 3 else 'us-west-2'
+        target_url = f"https://{region}.console.aws.amazon.com/states/home?region={region}#/v2/executions/details/{execution_arn}"
+    else:
+        target_url = None
 
     # Create GitHub status
     status_payload = {
@@ -128,8 +142,10 @@ def do_status(payload):
         'description': 'Boundary issues check pending',
         'context': 'boundary-issues-processor'
     }
+    if target_url:
+        status_payload['target_url'] = target_url
 
-    print(f"Creating GitHub status: {json.dumps(status_payload)}")
+    logging.info(f"Creating GitHub status: {json.dumps(status_payload)}")
 
     try:
         # Create HTTP request
@@ -148,7 +164,7 @@ def do_status(payload):
         # Send request
         with urllib.request.urlopen(request) as response:
             response_data = response.read()
-            print(f"GitHub API response: {response_data.decode('utf-8')}")
+            logging.info(f"GitHub API response: {response_data.decode('utf-8')}")
 
             return {
                 'statusCode': 200,
@@ -157,14 +173,14 @@ def do_status(payload):
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8')
-        print(f"ERROR: GitHub API request failed: {e.code} {e.reason}")
-        print(f"Response body: {error_body}")
+        logging.error(f"GitHub API request failed: {e.code} {e.reason}")
+        logging.error(f"Response body: {error_body}")
         return {
             'statusCode': 500,
             'error': f'GitHub API request failed: {e.code} {e.reason}'
         }
     except Exception as e:
-        print(f"ERROR: Failed to create GitHub status: {e}")
+        logging.error(f"Failed to create GitHub status: {e}")
         return {
             'statusCode': 500,
             'error': f'Failed to create GitHub status: {str(e)}'

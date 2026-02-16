@@ -19,10 +19,25 @@ Parameters:
     Description: Name of the Secrets Manager secret containing the GitHub token (from bootstrap stack)
 
 Resources:
-  # IAM Role for Lambda execution
-  LambdaExecutionRole:
+  # Shared managed policy for GitHub secret access
+  GitHubSecretAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${AWS::StackName}-GitHubSecretAccess'
+      Description: Grants access to read GitHub token from Secrets Manager
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
+
+  # IAM Role for Webhook Lambda function
+  WebhookFunctionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub '${AWS::StackName}-WebhookFunctionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -32,6 +47,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref GitHubSecretAccessPolicy
       Policies:
         - PolicyName: StartStateMachineExecution
           PolicyDocument:
@@ -41,19 +57,6 @@ Resources:
                 Action:
                   - states:StartExecution
                 Resource: !GetAtt ProcessorStateMachine.Arn
-        - PolicyName: ReadGitHubSecret
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-WebhookFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # Lambda Function
   WebhookFunction:
@@ -61,7 +64,7 @@ Resources:
     Properties:
       Runtime: python3.14
       Handler: webhook.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt WebhookFunctionRole.Arn
       Code:
         S3Bucket: !Ref BootstrapS3Bucket
         S3Key: !Ref WebhookZipS3Key
@@ -72,11 +75,6 @@ Resources:
         Variables:
           STATE_MACHINE_ARN: !GetAtt ProcessorStateMachine.Arn
           GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-WebhookFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # Lambda Function URL
   WebhookFunctionUrl:
@@ -125,20 +123,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: ReadGitHubSecret
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-FinishFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
+        - !Ref GitHubSecretAccessPolicy
 
   # Finish Lambda function for updating GitHub PR status
   FinishFunction:
@@ -157,11 +142,6 @@ Resources:
       Environment:
         Variables:
           GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-FinishFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # IAM Role for processor Lambda function
   ProcessorFunctionRole:
@@ -177,15 +157,8 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref GitHubSecretAccessPolicy
       Policies:
-        - PolicyName: ReadGitHubSecret
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
         - PolicyName: StepFunctionsTaskCallbacks
           PolicyDocument:
             Version: '2012-10-17'
@@ -195,11 +168,6 @@ Resources:
                   - states:SendTaskSuccess
                   - states:SendTaskFailure
                 Resource: '*'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-ProcessorFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # Docker Lambda function for processing PRs
   ProcessorFunction:
@@ -218,11 +186,6 @@ Resources:
         Variables:
           GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
       Description: Processes GitHub PR events by cloning and checking out commits
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-ProcessorFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # IAM Role for Task Lambda function
   TaskFunctionRole:
@@ -247,11 +210,6 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: !GetAtt ProcessorFunction.Arn
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-TaskFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # Task Lambda function for async processor invocation
   TaskFunction:
@@ -270,11 +228,6 @@ Resources:
       Environment:
         Variables:
           PROCESSOR_FUNCTION_ARN: !GetAtt ProcessorFunction.Arn
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-TaskFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # IAM Role for Step Functions state machine
   StateMachineRole:
@@ -320,11 +273,6 @@ Resources:
                   - logs:DescribeResourcePolicies
                   - logs:DescribeLogGroups
                 Resource: '*'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-StateMachine'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # Step Functions state machine
   ProcessorStateMachine:
@@ -394,11 +342,6 @@ Resources:
             }
           }
         }
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-StateMachine'
-        - Key: ManagedBy
-          Value: CloudFormation
 
 Outputs:
   WebhookUrl:

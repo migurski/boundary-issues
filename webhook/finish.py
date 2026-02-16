@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import unittest
 import unittest.mock
@@ -9,18 +10,21 @@ import urllib.error
 # For local testing, install via: pip install boto3
 import boto3
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
 
 def lambda_handler(event, context):
     """
     Finish Lambda handler that updates GitHub PR status with state machine result.
     Called by the state machine after task completion (success or failure).
     """
-    print(f"Received event: {json.dumps(event)}")
+    logging.info(f"Received event: {json.dumps(event)}")
 
     # Get GitHub secret ARN from environment
     github_secret_arn = os.environ.get('GITHUB_SECRET_ARN')
     if not github_secret_arn:
-        print("ERROR: GITHUB_SECRET_ARN environment variable not set")
+        logging.error("GITHUB_SECRET_ARN environment variable not set")
         return {
             'statusCode': 500,
             'error': 'GITHUB_SECRET_ARN not configured'
@@ -33,14 +37,14 @@ def lambda_handler(event, context):
     head_sha = event.get('pull_request', {}).get('head', {}).get('sha')
 
     if not statuses_url:
-        print("ERROR: repository.statuses_url not found in event")
+        logging.error("repository.statuses_url not found in event")
         return {
             'statusCode': 400,
             'error': 'repository.statuses_url not found in event'
         }
 
     if not head_sha:
-        print("ERROR: pull_request.head.sha not found in event")
+        logging.error("pull_request.head.sha not found in event")
         return {
             'statusCode': 400,
             'error': 'pull_request.head.sha not found in event'
@@ -66,9 +70,9 @@ def lambda_handler(event, context):
         secrets_client = boto3.client('secretsmanager')
         secret_response = secrets_client.get_secret_value(SecretId=github_secret_arn)
         github_token = secret_response['SecretString']
-        print("Successfully retrieved GitHub token from Secrets Manager")
+        logging.info("Successfully retrieved GitHub token from Secrets Manager")
     except Exception as e:
-        print(f"ERROR: Failed to retrieve GitHub token: {e}")
+        logging.error(f"Failed to retrieve GitHub token: {e}")
         return {
             'statusCode': 500,
             'error': f'Failed to retrieve GitHub token: {str(e)}'
@@ -76,7 +80,7 @@ def lambda_handler(event, context):
 
     # Replace {sha} placeholder in statuses_url with actual SHA
     status_api_url = statuses_url.replace('{sha}', head_sha)
-    print(f"Status API URL: {status_api_url}")
+    logging.info(f"Status API URL: {status_api_url}")
 
     # Create GitHub status
     status_payload = {
@@ -87,7 +91,7 @@ def lambda_handler(event, context):
     if target_url:
         status_payload['target_url'] = target_url
 
-    print(f"Creating GitHub status: {json.dumps(status_payload)}")
+    logging.info(f"Creating GitHub status: {json.dumps(status_payload)}")
 
     try:
         # Create HTTP request
@@ -106,7 +110,7 @@ def lambda_handler(event, context):
         # Send request
         with urllib.request.urlopen(request) as response:
             response_data = response.read()
-            print(f"GitHub API response: {response_data.decode('utf-8')}")
+            logging.info(f"GitHub API response: {response_data.decode('utf-8')}")
 
             return {
                 'statusCode': 200,
@@ -115,14 +119,14 @@ def lambda_handler(event, context):
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8')
-        print(f"ERROR: GitHub API request failed: {e.code} {e.reason}")
-        print(f"Response body: {error_body}")
+        logging.error(f"GitHub API request failed: {e.code} {e.reason}")
+        logging.error(f"Response body: {error_body}")
         return {
             'statusCode': 500,
             'error': f'GitHub API request failed: {e.code} {e.reason}'
         }
     except Exception as e:
-        print(f"ERROR: Failed to create GitHub status: {e}")
+        logging.error(f"Failed to create GitHub status: {e}")
         return {
             'statusCode': 500,
             'error': f'Failed to create GitHub status: {str(e)}'
