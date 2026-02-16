@@ -1,9 +1,13 @@
 import boto3
 import json
+import logging
 import subprocess
 import os
 import sys
 import urllib.parse
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 
 def handler(event, context):
@@ -18,14 +22,14 @@ def handler(event, context):
     5. Logs success/failure
     6. Sends task success/failure to Step Functions (if taskToken present)
     """
-    print(f"Received event: {json.dumps(event)}")
+    logging.info(f"Received event: {json.dumps(event)}")
 
     # Extract task token if present (for Step Functions integration)
     task_token = event.get('taskToken')
     sfn_client = None
 
     if task_token:
-        print(f"Task token found, will send callback to Step Functions")
+        logging.info(f"Task token found, will send callback to Step Functions")
         sfn_client = boto3.client('stepfunctions')
 
     # Fetch GitHub token from Secrets Manager
@@ -36,13 +40,13 @@ def handler(event, context):
         if not secret_arn:
             raise ValueError("GITHUB_SECRET_ARN environment variable not set")
 
-        print(f"Fetching secret from: {secret_arn}")
+        logging.info(f"Fetching secret from: {secret_arn}")
         secret_response = secrets_client.get_secret_value(SecretId=secret_arn)
         github_token = secret_response['SecretString']
-        print("Successfully retrieved GitHub token from Secrets Manager")
+        logging.info("Successfully retrieved GitHub token from Secrets Manager")
 
     except Exception as e:
-        print(f"ERROR: Failed to retrieve GitHub token: {e}")
+        logging.error(f"Failed to retrieve GitHub token: {e}")
         error_response = {
             'statusCode': 500,
             'status': 'error',
@@ -72,10 +76,10 @@ def handler(event, context):
         if not pr_sha:
             raise ValueError("No PR SHA found in event payload")
 
-        print(f"Processing PR #{pr_number}, HEAD SHA: {pr_sha}, URL: {clone_url}")
+        logging.info(f"Processing PR #{pr_number}, HEAD SHA: {pr_sha}, URL: {clone_url}")
 
     except Exception as e:
-        print(f"ERROR: Failed to parse PR information: {e}")
+        logging.error(f"Failed to parse PR information: {e}")
         error_response = {
             'statusCode': 400,
             'status': 'error',
@@ -101,19 +105,19 @@ def handler(event, context):
         # Clean up any previous clone
         subprocess.run(['rm', '-rf', clone_dir], check=False)
 
-        print(f"Cloning repository to {clone_dir}")
+        logging.info(f"Cloning repository to {clone_dir}")
         result = subprocess.run(
             ['git', 'clone', '--depth', '1', repo_url, clone_dir],
             capture_output=True,
             text=True,
             check=True
         )
-        print(f"Clone output: {result.stdout}")
+        logging.info(f"Clone output: {result.stdout}")
 
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: Failed to clone repository: {e}")
-        print(f"STDOUT: {e.stdout}")
-        print(f"STDERR: {e.stderr}")
+        logging.error(f"Failed to clone repository: {e}")
+        logging.error(f"STDOUT: {e.stdout}")
+        logging.error(f"STDERR: {e.stderr}")
         error_response = {
             'statusCode': 500,
             'status': 'error',
@@ -132,7 +136,7 @@ def handler(event, context):
 
     # Checkout PR HEAD
     try:
-        print(f"Checking out commit {pr_sha}")
+        logging.info(f"Checking out commit {pr_sha}")
         result = subprocess.run(
             ['git', 'fetch', 'origin', pr_sha],
             cwd=clone_dir,
@@ -140,7 +144,7 @@ def handler(event, context):
             text=True,
             check=True
         )
-        print(f"Fetch output: {result.stdout}")
+        logging.info(f"Fetch output: {result.stdout}")
 
         result = subprocess.run(
             ['git', 'checkout', pr_sha],
@@ -149,7 +153,7 @@ def handler(event, context):
             text=True,
             check=True
         )
-        print(f"Checkout output: {result.stdout}")
+        logging.info(f"Checkout output: {result.stdout}")
 
         # Verify checkout
         result = subprocess.run(
@@ -160,17 +164,17 @@ def handler(event, context):
             check=True
         )
         current_sha = result.stdout.strip()
-        print(f"Current HEAD: {current_sha}")
+        logging.info(f"Current HEAD: {current_sha}")
 
         if current_sha != pr_sha:
             raise ValueError(f"Checkout verification failed: expected {pr_sha}, got {current_sha}")
 
-        print(f"Successfully checked out PR #{pr_number} at {pr_sha}")
+        logging.info(f"Successfully checked out PR #{pr_number} at {pr_sha}")
 
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: Failed to checkout commit: {e}")
-        print(f"STDOUT: {e.stdout}")
-        print(f"STDERR: {e.stderr}")
+        logging.error(f"Failed to checkout commit: {e}")
+        logging.error(f"STDOUT: {e.stdout}")
+        logging.error(f"STDERR: {e.stderr}")
         error_response = {
             'statusCode': 500,
             'status': 'error',
@@ -187,7 +191,7 @@ def handler(event, context):
 
         return error_response
     except ValueError as e:
-        print(f"ERROR: {e}")
+        logging.error(f"{e}")
         error_response = {
             'statusCode': 500,
             'status': 'error',
@@ -206,7 +210,7 @@ def handler(event, context):
 
     # Run the script
     try:
-        print(f"Run build-country-polygon.py")
+        logging.info(f"Run build-country-polygon.py")
         result = subprocess.run(
             ['./build-country-polygon.py'],
             cwd=clone_dir,
@@ -214,13 +218,13 @@ def handler(event, context):
             text=True,
             check=True
         )
-        print(f"Run output: {result.stdout}")
-        print(f"Successfully ran build-country-polygon.py")
+        logging.info(f"Run output: {result.stdout}")
+        logging.info(f"Successfully ran build-country-polygon.py")
 
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: Failed to run build-country-polygon.py: {e}")
-        print(f"STDOUT: {e.stdout}")
-        print(f"STDERR: {e.stderr}")
+        logging.error(f"Failed to run build-country-polygon.py: {e}")
+        logging.error(f"STDOUT: {e.stdout}")
+        logging.error(f"STDERR: {e.stderr}")
         error_response = {
             'statusCode': 500,
             'status': 'error',
@@ -237,7 +241,7 @@ def handler(event, context):
 
         return error_response
     except ValueError as e:
-        print(f"ERROR: {e}")
+        logging.error(f"{e}")
         error_response = {
             'statusCode': 500,
             'status': 'error',
