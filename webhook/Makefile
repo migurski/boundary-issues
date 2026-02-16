@@ -1,2 +1,2 @@
-index.zip: index.py
-	zip -j index.zip index.py
+index.zip: webhook.py task.py
+	zip -j index.zip webhook.py task.py

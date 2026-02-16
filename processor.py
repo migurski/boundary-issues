@@ -16,8 +16,17 @@ def handler(event, context):
     3. Clones the repository
     4. Checks out the PR HEAD commit
     5. Logs success/failure
+    6. Sends task success/failure to Step Functions (if taskToken present)
     """
     print(f"Received event: {json.dumps(event)}")
+
+    # Extract task token if present (for Step Functions integration)
+    task_token = event.get('taskToken')
+    sfn_client = None
+
+    if task_token:
+        print(f"Task token found, will send callback to Step Functions")
+        sfn_client = boto3.client('stepfunctions')
 
     # Fetch GitHub token from Secrets Manager
     try:
@@ -34,11 +43,21 @@ def handler(event, context):
 
     except Exception as e:
         print(f"ERROR: Failed to retrieve GitHub token: {e}")
-        return {
+        error_response = {
             'statusCode': 500,
             'status': 'error',
             'error': f'Failed to retrieve GitHub token: {str(e)}'
         }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='GitHubTokenError',
+                cause=str(e)
+            )
+            return error_response
+
+        return error_response
 
     # Extract PR information
     try:
@@ -57,11 +76,21 @@ def handler(event, context):
 
     except Exception as e:
         print(f"ERROR: Failed to parse PR information: {e}")
-        return {
+        error_response = {
             'statusCode': 400,
             'status': 'error',
             'error': f'Failed to parse PR information: {str(e)}'
         }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='PRParseError',
+                cause=str(e)
+            )
+            return error_response
+
+        return error_response
 
     # Clone repository
     try:
@@ -85,11 +114,21 @@ def handler(event, context):
         print(f"ERROR: Failed to clone repository: {e}")
         print(f"STDOUT: {e.stdout}")
         print(f"STDERR: {e.stderr}")
-        return {
+        error_response = {
             'statusCode': 500,
             'status': 'error',
             'error': f'Failed to clone repository: {e.stderr}'
         }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='GitCloneError',
+                cause=e.stderr or str(e)
+            )
+            return error_response
+
+        return error_response
 
     # Checkout PR HEAD
     try:
@@ -132,18 +171,38 @@ def handler(event, context):
         print(f"ERROR: Failed to checkout commit: {e}")
         print(f"STDOUT: {e.stdout}")
         print(f"STDERR: {e.stderr}")
-        return {
+        error_response = {
             'statusCode': 500,
             'status': 'error',
             'error': f'Failed to checkout commit: {e.stderr}'
         }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='GitCheckoutError',
+                cause=e.stderr or str(e)
+            )
+            return error_response
+
+        return error_response
     except ValueError as e:
         print(f"ERROR: {e}")
-        return {
+        error_response = {
             'statusCode': 500,
             'status': 'error',
             'error': str(e)
         }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='CheckoutVerificationError',
+                cause=str(e)
+            )
+            return error_response
+
+        return error_response
 
     # Run the script
     try:
@@ -162,24 +221,53 @@ def handler(event, context):
         print(f"ERROR: Failed to run build-country-polygon.py: {e}")
         print(f"STDOUT: {e.stdout}")
         print(f"STDERR: {e.stderr}")
-        return {
+        error_response = {
             'statusCode': 500,
             'status': 'error',
             'error': f'Failed to run build-country-polygon.py: {e.stderr}'
         }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='ScriptExecutionError',
+                cause=e.stderr or str(e)
+            )
+            return error_response
+
+        return error_response
     except ValueError as e:
         print(f"ERROR: {e}")
-        return {
+        error_response = {
             'statusCode': 500,
             'status': 'error',
             'error': str(e)
         }
 
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='ScriptValidationError',
+                cause=str(e)
+            )
+            return error_response
+
+        return error_response
+
     # Success!
-    return {
+    success_response = {
         'statusCode': 200,
         'status': 'success',
         'pr_number': pr_number,
         'sha': pr_sha,
         'message': f'Successfully processed PR #{pr_number} at {pr_sha}'
     }
+
+    if task_token and sfn_client:
+        sfn_client.send_task_success(
+            taskToken=task_token,
+            output=json.dumps(success_response)
+        )
+        return success_response
+
+    return success_response
