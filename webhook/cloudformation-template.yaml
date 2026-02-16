@@ -2,18 +2,13 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Lambda webhook for GitHub push events - boundary-issues-webhook'
 
 Parameters:
-  S3Bucket:
+  BootstrapS3Bucket:
     Type: String
     Description: S3 bucket containing the Lambda deployment package
 
-  S3Key:
+  WebhookZipS3Key:
     Type: String
     Description: S3 key for the Lambda deployment package (ZIP file)
-
-  FunctionName:
-    Type: String
-    Default: boundary-issues-webhook
-    Description: Name of the Lambda function
 
   ProcessorImageUri:
     Type: String
@@ -48,7 +43,7 @@ Resources:
                 Resource: !GetAtt ProcessorStateMachine.Arn
       Tags:
         - Key: Application
-          Value: !Ref FunctionName
+          Value: !Sub '${AWS::StackName}-WebhookFunction'
         - Key: ManagedBy
           Value: CloudFormation
 
@@ -60,8 +55,8 @@ Resources:
       Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
-        S3Bucket: !Ref S3Bucket
-        S3Key: !Ref S3Key
+        S3Bucket: !Ref BootstrapS3Bucket
+        S3Key: !Ref WebhookZipS3Key
       Timeout: 30
       MemorySize: 128
       Description: GitHub webhook handler for boundary issues
@@ -70,7 +65,7 @@ Resources:
           STATE_MACHINE_ARN: !GetAtt ProcessorStateMachine.Arn
       Tags:
         - Key: Application
-          Value: !Ref FunctionName
+          Value: !Sub '${AWS::StackName}-WebhookFunction'
         - Key: ManagedBy
           Value: CloudFormation
 
@@ -132,7 +127,7 @@ Resources:
                 Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
       Tags:
         - Key: Application
-          Value: !Ref FunctionName
+          Value: !Sub '${AWS::StackName}-ProcessorFunction'
         - Key: ManagedBy
           Value: CloudFormation
 
@@ -155,7 +150,7 @@ Resources:
       Description: Processes GitHub PR events by cloning and checking out commits
       Tags:
         - Key: Application
-          Value: !Ref FunctionName
+          Value: !Sub '${AWS::StackName}-ProcessorFunction'
         - Key: ManagedBy
           Value: CloudFormation
 
@@ -197,7 +192,7 @@ Resources:
                 Resource: '*'
       Tags:
         - Key: Application
-          Value: !Ref FunctionName
+          Value: !Sub '${AWS::StackName}-StateMachine'
         - Key: ManagedBy
           Value: CloudFormation
 
@@ -225,7 +220,7 @@ Resources:
         }
       Tags:
         - Key: Application
-          Value: !Ref FunctionName
+          Value: !Sub '${AWS::StackName}-StateMachine'
         - Key: ManagedBy
           Value: CloudFormation
 
@@ -241,14 +236,6 @@ Outputs:
     Value: !GetAtt WebhookFunction.Arn
     Export:
       Name: !Sub '${AWS::StackName}-FunctionArn'
-
-  FunctionName:
-    Description: Name of the Lambda function
-    Value: !Ref WebhookFunction
-
-  LogGroupName:
-    Description: CloudWatch Log Group name for Lambda logs
-    Value: !Sub '/aws/lambda/${WebhookFunction}'
 
   StateMachineArn:
     Description: ARN of the Step Functions state machine

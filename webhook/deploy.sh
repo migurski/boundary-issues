@@ -2,15 +2,15 @@
 set -e
 
 # Configuration
-STACK_NAME="boundary-issues-webhook-stack"
-FUNCTION_NAME="boundary-issues-webhook"
 REGION="us-west-2"
-TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
 DOCKERFILE_DIR="$(dirname "$0")/.."
 ENV_FILE="$(dirname "$0")/../.env"
 
-echo "Starting CloudFormation deployment of $FUNCTION_NAME to $REGION..."
-echo ""
+BOOTSTRAP_STACK_NAME="boundary-issues-bootstrap"
+BOOTSTRAP_TEMPLATE_FILE="$(dirname "$0")/bootstrap-template.yaml"
+
+WEBHOOK_STACK_NAME="boundary-issues-webhook"
+WEBHOOK_TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
 
 # Get AWS account ID
 echo "Getting AWS account ID..."
@@ -20,9 +20,6 @@ echo "Account ID: $ACCOUNT_ID"
 # ============================================================================
 # PHASE 1: Deploy Bootstrap Stack (foundational resources)
 # ============================================================================
-BOOTSTRAP_STACK_NAME="${STACK_NAME}-bootstrap"
-BOOTSTRAP_TEMPLATE_FILE="$(dirname "$0")/bootstrap-template.yaml"
-
 echo ""
 echo "========================================="
 echo "PHASE 1: Bootstrap Stack Deployment"
@@ -169,7 +166,7 @@ echo "PHASE 4: Build and Upload Lambda Package"
 echo "========================================="
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-S3_KEY="lambda-packages/${FUNCTION_NAME}-${TIMESTAMP}.zip"
+S3_KEY="lambda-packages/webhook-index-${TIMESTAMP}.zip"
 echo "Building Lambda package..."
 make index.zip
 echo "Uploading to S3..."
@@ -185,22 +182,21 @@ echo ""
 echo "========================================="
 echo "PHASE 5: Deploy Main Application Stack"
 echo "========================================="
-echo "Application stack: $STACK_NAME"
+echo "Application stack: $WEBHOOK_STACK_NAME"
 
 # Check if CloudFormation stack exists
 if aws cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
+    --stack-name "$WEBHOOK_STACK_NAME" \
     --region "$REGION" &>/dev/null; then
     echo "Updating existing CloudFormation stack..."
     OPERATION="update"
 
     aws cloudformation update-stack \
-        --stack-name "$STACK_NAME" \
-        --template-body "file://${TEMPLATE_FILE}" \
+        --stack-name "$WEBHOOK_STACK_NAME" \
+        --template-body "file://${WEBHOOK_TEMPLATE_FILE}" \
         --parameters \
-            ParameterKey=S3Bucket,ParameterValue="$BUCKET_NAME" \
-            ParameterKey=S3Key,ParameterValue="$S3_KEY" \
-            ParameterKey=FunctionName,ParameterValue="$FUNCTION_NAME" \
+            ParameterKey=BootstrapS3Bucket,ParameterValue="$BUCKET_NAME" \
+            ParameterKey=WebhookZipS3Key,ParameterValue="$S3_KEY" \
             ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
             ParameterKey=GitHubSecretName,ParameterValue="$SECRET_NAME" \
         --capabilities CAPABILITY_NAMED_IAM \
@@ -208,7 +204,7 @@ if aws cloudformation describe-stacks \
         --output text > /dev/null || {
             # Check if the error is "No updates to be performed"
             if aws cloudformation describe-stacks \
-                --stack-name "$STACK_NAME" \
+                --stack-name "$WEBHOOK_STACK_NAME" \
                 --region "$REGION" &>/dev/null; then
                 echo "  (No changes detected - stack is already up to date)"
                 OPERATION="none"
@@ -222,12 +218,11 @@ else
     OPERATION="create"
 
     aws cloudformation create-stack \
-        --stack-name "$STACK_NAME" \
-        --template-body "file://${TEMPLATE_FILE}" \
+        --stack-name "$WEBHOOK_STACK_NAME" \
+        --template-body "file://${WEBHOOK_TEMPLATE_FILE}" \
         --parameters \
-            ParameterKey=S3Bucket,ParameterValue="$BUCKET_NAME" \
-            ParameterKey=S3Key,ParameterValue="$S3_KEY" \
-            ParameterKey=FunctionName,ParameterValue="$FUNCTION_NAME" \
+            ParameterKey=BootstrapS3Bucket,ParameterValue="$BUCKET_NAME" \
+            ParameterKey=WebhookZipS3Key,ParameterValue="$S3_KEY" \
             ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
             ParameterKey=GitHubSecretName,ParameterValue="$SECRET_NAME" \
         --capabilities CAPABILITY_NAMED_IAM \
@@ -240,11 +235,11 @@ if [ "$OPERATION" = "create" ] || [ "$OPERATION" = "update" ]; then
     echo "Waiting for stack operation to complete..."
     if [ "$OPERATION" = "create" ]; then
         aws cloudformation wait stack-create-complete \
-            --stack-name "$STACK_NAME" \
+            --stack-name "$WEBHOOK_STACK_NAME" \
             --region "$REGION"
     else
         aws cloudformation wait stack-update-complete \
-            --stack-name "$STACK_NAME" \
+            --stack-name "$WEBHOOK_STACK_NAME" \
             --region "$REGION"
     fi
     echo "Stack operation completed successfully"
@@ -254,13 +249,11 @@ fi
 echo ""
 echo "Retrieving stack outputs..."
 STACK_OUTPUTS=$(aws cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
+    --stack-name "$WEBHOOK_STACK_NAME" \
     --region "$REGION" \
     --query 'Stacks[0].Outputs')
 
 FUNCTION_URL=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="WebhookUrl") | .OutputValue')
-ACTUAL_FUNCTION_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="FunctionName") | .OutputValue')
-LOG_GROUP_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="LogGroupName") | .OutputValue')
 STATE_MACHINE_ARN=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="StateMachineArn") | .OutputValue')
 PROCESSOR_FUNCTION_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="ProcessorFunctionName") | .OutputValue')
 PROCESSOR_LOG_GROUP_NAME=$(echo "$STACK_OUTPUTS" | jq -r '.[] | select(.OutputKey=="ProcessorLogGroupName") | .OutputValue')
@@ -270,7 +263,7 @@ echo "========================================="
 echo "CloudFormation Deployment Complete!"
 echo "========================================="
 echo "Bootstrap Stack: $BOOTSTRAP_STACK_NAME"
-echo "Application Stack: $STACK_NAME"
+echo "Application Stack: $WEBHOOK_STACK_NAME"
 echo "Region: $REGION"
 echo ""
 echo "Bootstrap Resources:"
@@ -279,13 +272,10 @@ echo "  ECR Repository: $ECR_REPO_NAME"
 echo "  GitHub Secret: $SECRET_NAME"
 echo ""
 echo "Webhook Lambda:"
-echo "  Function Name: $ACTUAL_FUNCTION_NAME"
 echo "  Function URL: $FUNCTION_URL"
-echo "  Log Group: $LOG_GROUP_NAME"
 echo ""
 echo "Processor Lambda:"
 echo "  Function Name: $PROCESSOR_FUNCTION_NAME"
-echo "  Log Group: $PROCESSOR_LOG_GROUP_NAME"
 echo ""
 echo "State Machine:"
 echo "  ARN: $STATE_MACHINE_ARN"
@@ -302,11 +292,4 @@ echo "   aws logs tail $PROCESSOR_LOG_GROUP_NAME --follow --region $REGION"
 echo ""
 echo "4. To view state machine executions, run:"
 echo "   aws stepfunctions list-executions --state-machine-arn \"$STATE_MACHINE_ARN\" --region $REGION"
-echo ""
-echo "5. To retrieve Function URL later, run:"
-echo "   aws cloudformation describe-stacks \\"
-echo "     --stack-name $STACK_NAME \\"
-echo "     --query 'Stacks[0].Outputs[?OutputKey==\\\`WebhookUrl\\\`].OutputValue' \\"
-echo "     --output text \\"
-echo "     --region $REGION"
 echo "========================================"

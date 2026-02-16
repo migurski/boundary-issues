@@ -2,7 +2,7 @@
 set -e
 
 # Lambda function URL - update this when redeploying
-LAMBDA_URL="https://wxni4zacfed6xbe3m5gsbju7im0zhiqt.lambda-url.us-west-2.on.aws/"
+LAMBDA_URL="https://a7k64ccuvmrw2flfvwa55ydviy0utlrl.lambda-url.us-west-2.on.aws/"
 
 # Read payload from stdin or file
 if [ -n "$1" ]; then

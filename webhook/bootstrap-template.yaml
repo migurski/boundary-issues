@@ -12,7 +12,7 @@ Resources:
   DeploymentBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'boundary-issues-lambda-deployments-${AWS::AccountId}'
+      BucketName: !Sub '${AWS::StackName}-packages-${AWS::Region}-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -32,7 +32,7 @@ Resources:
   ProcessorRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: !Sub '${AWS::StackName}-processor-image'
+      RepositoryName: !Sub '${AWS::StackName}-images-${AWS::Region}-${AWS::AccountId}'
       ImageScanningConfiguration:
         ScanOnPush: true
       LifecyclePolicy:
