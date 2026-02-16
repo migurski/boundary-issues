@@ -102,6 +102,58 @@ Resources:
 
   # Note: ECR Repository is now managed by the bootstrap stack
 
+  # IAM Role for finish Lambda function
+  FinishFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-FinishFunctionRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadGitHubSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
+      Tags:
+        - Key: Application
+          Value: !Sub '${AWS::StackName}-FinishFunction'
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Finish Lambda function for updating GitHub PR status
+  FinishFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-finish-function'
+      Runtime: python3.14
+      Handler: finish.lambda_handler
+      Role: !GetAtt FinishFunctionRole.Arn
+      Code:
+        S3Bucket: !Ref BootstrapS3Bucket
+        S3Key: !Ref WebhookZipS3Key
+      Timeout: 30
+      MemorySize: 128
+      Description: Updates GitHub PR status with state machine execution result
+      Environment:
+        Variables:
+          GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
+      Tags:
+        - Key: Application
+          Value: !Sub '${AWS::StackName}-FinishFunction'
+        - Key: ManagedBy
+          Value: CloudFormation
+
   # IAM Role for processor Lambda function
   ProcessorFunctionRole:
     Type: AWS::IAM::Role
@@ -236,6 +288,14 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: !GetAtt TaskFunction.Arn
+        - PolicyName: InvokeFinishFunction
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt FinishFunction.Arn
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: '2012-10-17'
@@ -275,6 +335,45 @@ Resources:
                 "FunctionName": "${TaskFunction.Arn}",
                 "Payload": {
                   "taskToken.$": "$$.Task.Token",
+                  "action.$": "$.action",
+                  "number.$": "$.number",
+                  "pull_request.$": "$.pull_request",
+                  "repository.$": "$.repository"
+                }
+              },
+              "Next": "ReportSuccess",
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "ReportFailure",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "ReportSuccess": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${FinishFunction.Arn}",
+                "Payload": {
+                  "status": "success",
+                  "executionArn.$": "$$.Execution.Id",
+                  "action.$": "$.action",
+                  "number.$": "$.number",
+                  "pull_request.$": "$.pull_request",
+                  "repository.$": "$.repository"
+                }
+              },
+              "End": true
+            },
+            "ReportFailure": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${FinishFunction.Arn}",
+                "Payload": {
+                  "status": "failure",
+                  "executionArn.$": "$$.Execution.Id",
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
