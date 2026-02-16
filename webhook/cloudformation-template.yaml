@@ -341,6 +341,7 @@ Resources:
                   "repository.$": "$.repository"
                 }
               },
+              "ResultPath": "$.taskResult",
               "Next": "ReportSuccess",
               "Catch": [
                 {
