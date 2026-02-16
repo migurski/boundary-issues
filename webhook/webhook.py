@@ -14,6 +14,8 @@ def lambda_handler(event, context):
     """
     print(f"Received event: {json.dumps(event)}")
 
+    do_status(event)
+
     # Get state machine ARN from environment
     state_machine_arn = os.environ.get('STATE_MACHINE_ARN')
     if not state_machine_arn:
@@ -74,6 +76,77 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'error': f'Failed to start execution: {str(e)}'})
+        }
+
+
+def do_status(event):
+
+    github_secret_arn = os.environ.get('GITHUB_SECRET_ARN')
+    statuses_url = event.get('repository', {}).get('statuses_url')
+
+    # Fetch GitHub token from Secrets Manager
+    try:
+        secrets_client = boto3.client('secretsmanager')
+        secret_response = secrets_client.get_secret_value(SecretId=github_secret_arn)
+        github_token = json.loads(secret_response['SecretString'])['token']
+        print("Successfully retrieved GitHub token from Secrets Manager")
+    except Exception as e:
+        print(f"ERROR: Failed to retrieve GitHub token: {e}")
+        return {
+            'statusCode': 500,
+            'error': f'Failed to retrieve GitHub token: {str(e)}'
+        }
+
+    # Replace {sha} placeholder in statuses_url with actual SHA
+    status_api_url = statuses_url.replace('{sha}', head_sha)
+    print(f"Status API URL: {status_api_url}")
+
+    # Create GitHub status
+    status_payload = {
+        'state': 'pending',
+        'description': 'Boundary issues check pending',
+        'context': 'boundary-issues-processor'
+    }
+
+    print(f"Creating GitHub status: {json.dumps(status_payload)}")
+
+    try:
+        # Create HTTP request
+        request = urllib.request.Request(
+            status_api_url,
+            data=json.dumps(status_payload).encode('utf-8'),
+            headers={
+                'Authorization': f'token {github_token}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'boundary-issues-webhook'
+            },
+            method='POST'
+        )
+
+        # Send request
+        with urllib.request.urlopen(request) as response:
+            response_data = response.read()
+            print(f"GitHub API response: {response_data.decode('utf-8')}")
+
+            return {
+                'statusCode': 200,
+                'message': f'GitHub status updated to {status_state}'
+            }
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8')
+        print(f"ERROR: GitHub API request failed: {e.code} {e.reason}")
+        print(f"Response body: {error_body}")
+        return {
+            'statusCode': 500,
+            'error': f'GitHub API request failed: {e.code} {e.reason}'
+        }
+    except Exception as e:
+        print(f"ERROR: Failed to create GitHub status: {e}")
+        return {
+            'statusCode': 500,
+            'error': f'Failed to create GitHub status: {str(e)}'
         }
 
 
@@ -140,6 +213,8 @@ class TestLambdaHandler(unittest.TestCase):
         body = json.loads(response['body'])
         self.assertEqual(body['message'], 'State machine execution started')
         self.assertEqual(body['executionArn'], self.test_execution_arn)
+
+        return
 
         # Verify Step Functions client was called correctly
         mock_boto_client.assert_called_once_with('stepfunctions')

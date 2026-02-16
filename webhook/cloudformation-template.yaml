@@ -41,6 +41,14 @@ Resources:
                 Action:
                   - states:StartExecution
                 Resource: !GetAtt ProcessorStateMachine.Arn
+        - PolicyName: ReadGitHubSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
       Tags:
         - Key: Application
           Value: !Sub '${AWS::StackName}-WebhookFunction'
@@ -63,6 +71,7 @@ Resources:
       Environment:
         Variables:
           STATE_MACHINE_ARN: !GetAtt ProcessorStateMachine.Arn
+          GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
       Tags:
         - Key: Application
           Value: !Sub '${AWS::StackName}-WebhookFunction'
