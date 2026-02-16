@@ -29,7 +29,7 @@ Push changes to the `migurski/execute-a-state-machine` branch and sync to `migur
 git push origin migurski/execute-a-state-machine
 git checkout migurski/do-not-merge
 sleep 1
-git rebase -i migurski/execute-a-state-machine
+git rebase --onto migurski/execute-a-state-machine HEAD~1 # just one commit
 git push -f origin migurski/do-not-merge
 git checkout migurski/execute-a-state-machine
 ```
