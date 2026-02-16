@@ -10,7 +10,7 @@ BOOTSTRAP_STACK_NAME="boundary-issues-bootstrap"
 BOOTSTRAP_TEMPLATE_FILE="$(dirname "$0")/bootstrap-template.yaml"
 
 WEBHOOK_STACK_NAME="boundary-issues-webhook"
-WEBHOOK_TEMPLATE_FILE="$(dirname "$0")/cloudformation-template.yaml"
+WEBHOOK_TEMPLATE_FILE="$(dirname "$0")/webhook-template.yaml"
 
 # Get AWS account ID
 echo "Getting AWS account ID..."

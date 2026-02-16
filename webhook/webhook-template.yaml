@@ -19,8 +19,21 @@ Parameters:
     Description: Name of the Secrets Manager secret containing the GitHub token (from bootstrap stack)
 
 Resources:
-  # IAM Role for Lambda execution
-  LambdaExecutionRole:
+  # Shared managed policy for GitHub secret access
+  GitHubSecretAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Grants access to read GitHub token from Secrets Manager
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
+
+  # IAM Role for Webhook Lambda function
+  WebhookFunctionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -32,6 +45,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref GitHubSecretAccessPolicy
       Policies:
         - PolicyName: StartStateMachineExecution
           PolicyDocument:
@@ -41,19 +55,14 @@ Resources:
                 Action:
                   - states:StartExecution
                 Resource: !GetAtt ProcessorStateMachine.Arn
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-WebhookFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # Lambda Function
   WebhookFunction:
     Type: AWS::Lambda::Function
     Properties:
       Runtime: python3.14
-      Handler: index.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Handler: webhook.lambda_handler
+      Role: !GetAtt WebhookFunctionRole.Arn
       Code:
         S3Bucket: !Ref BootstrapS3Bucket
         S3Key: !Ref WebhookZipS3Key
@@ -63,11 +72,7 @@ Resources:
       Environment:
         Variables:
           STATE_MACHINE_ARN: !GetAtt ProcessorStateMachine.Arn
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-WebhookFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
+          GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
 
   # Lambda Function URL
   WebhookFunctionUrl:
@@ -102,11 +107,10 @@ Resources:
 
   # Note: ECR Repository is now managed by the bootstrap stack
 
-  # IAM Role for processor Lambda function
-  ProcessorFunctionRole:
+  # IAM Role for finish Lambda function
+  FinishFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AWS::StackName}-ProcessorFunctionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -116,26 +120,54 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref GitHubSecretAccessPolicy
+
+  # Finish Lambda function for updating GitHub PR status
+  FinishFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.14
+      Handler: finish.lambda_handler
+      Role: !GetAtt FinishFunctionRole.Arn
+      Code:
+        S3Bucket: !Ref BootstrapS3Bucket
+        S3Key: !Ref WebhookZipS3Key
+      Timeout: 30
+      MemorySize: 128
+      Description: Updates GitHub PR status with state machine execution result
+      Environment:
+        Variables:
+          GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
+
+  # IAM Role for processor Lambda function
+  ProcessorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref GitHubSecretAccessPolicy
       Policies:
-        - PolicyName: ReadGitHubSecret
+        - PolicyName: StepFunctionsTaskCallbacks
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-ProcessorFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                Resource: '*'
 
   # Docker Lambda function for processing PRs
   ProcessorFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${AWS::StackName}-processor-function'
       PackageType: Image
       Code:
         ImageUri: !Ref ProcessorImageUri
@@ -148,24 +180,20 @@ Resources:
         Variables:
           GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
       Description: Processes GitHub PR events by cloning and checking out commits
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-ProcessorFunction'
-        - Key: ManagedBy
-          Value: CloudFormation
 
-  # IAM Role for Step Functions state machine
-  StateMachineRole:
+  # IAM Role for Task Lambda function
+  TaskFunctionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${AWS::StackName}-StateMachineRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: states.amazonaws.com
+              Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: InvokeProcessorFunction
           PolicyDocument:
@@ -175,6 +203,52 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: !GetAtt ProcessorFunction.Arn
+
+  # Task Lambda function for async processor invocation
+  TaskFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.14
+      Handler: task.lambda_handler
+      Role: !GetAtt TaskFunctionRole.Arn
+      Code:
+        S3Bucket: !Ref BootstrapS3Bucket
+        S3Key: !Ref WebhookZipS3Key
+      Timeout: 30
+      MemorySize: 128
+      Description: Invokes processor function asynchronously with task token
+      Environment:
+        Variables:
+          PROCESSOR_FUNCTION_ARN: !GetAtt ProcessorFunction.Arn
+
+  # IAM Role for Step Functions state machine
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeTaskFunction
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt TaskFunction.Arn
+        - PolicyName: InvokeFinishFunction
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt FinishFunction.Arn
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: '2012-10-17'
@@ -190,39 +264,74 @@ Resources:
                   - logs:DescribeResourcePolicies
                   - logs:DescribeLogGroups
                 Resource: '*'
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-StateMachine'
-        - Key: ManagedBy
-          Value: CloudFormation
 
   # Step Functions state machine
   ProcessorStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      StateMachineName: !Sub '${AWS::StackName}-processor'
       RoleArn: !GetAtt StateMachineRole.Arn
       DefinitionString: !Sub |
         {
-          "Comment": "Process GitHub PR events",
-          "StartAt": "ProcessPR",
+          "Comment": "Process GitHub PR events asynchronously with task token callback",
+          "StartAt": "InvokeTask",
           "States": {
-            "ProcessPR": {
+            "InvokeTask": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+              "Parameters": {
+                "FunctionName": "${TaskFunction.Arn}",
+                "Payload": {
+                  "taskToken.$": "$$.Task.Token",
+                  "action.$": "$.action",
+                  "number.$": "$.number",
+                  "pull_request.$": "$.pull_request",
+                  "repository.$": "$.repository"
+                }
+              },
+              "ResultPath": "$.taskResult",
+              "Next": "ReportSuccess",
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "ReportFailure",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "ReportSuccess": {
               "Type": "Task",
               "Resource": "arn:aws:states:::lambda:invoke",
               "Parameters": {
-                "FunctionName": "${ProcessorFunction.Arn}",
-                "Payload.$": "$"
+                "FunctionName": "${FinishFunction.Arn}",
+                "Payload": {
+                  "status": "success",
+                  "executionArn.$": "$$.Execution.Id",
+                  "action.$": "$.action",
+                  "number.$": "$.number",
+                  "pull_request.$": "$.pull_request",
+                  "repository.$": "$.repository"
+                }
+              },
+              "End": true
+            },
+            "ReportFailure": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${FinishFunction.Arn}",
+                "Payload": {
+                  "status": "failure",
+                  "executionArn.$": "$$.Execution.Id",
+                  "action.$": "$.action",
+                  "number.$": "$.number",
+                  "pull_request.$": "$.pull_request",
+                  "repository.$": "$.repository"
+                }
               },
               "End": true
             }
           }
         }
-      Tags:
-        - Key: Application
-          Value: !Sub '${AWS::StackName}-StateMachine'
-        - Key: ManagedBy
-          Value: CloudFormation
 
 Outputs:
   WebhookUrl:

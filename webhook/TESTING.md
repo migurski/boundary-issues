@@ -4,11 +4,19 @@ This document describes how to test the complete GitHub webhook → Lambda → S
 
 ## Overview
 
-The system has four main components:
+The system has five main components working asynchronously:
 1. **GitHub Actions** - Triggers on PR events, sends payload to webhook
-2. **Webhook Lambda** - Receives GitHub events, starts state machine
-3. **Step Functions State Machine** - Orchestrates the processor
-4. **Processor Lambda** - Clones repo and checks out PR HEAD
+2. **Webhook Lambda** (webhook.py) - Receives GitHub events, starts state machine, returns immediately
+3. **Step Functions State Machine** - Waits for task token callback
+4. **Task Lambda** (task.py) - Invokes processor asynchronously with task token, returns immediately
+5. **Processor Lambda** (processor.py) - Clones repo, checks out PR HEAD, sends task success/failure callback to state machine
+
+**Execution Flow:**
+```
+GitHub → webhook.py → start state machine → return immediately
+         [async] state machine → task.py + task token → invoke processor async → return immediately
+         [async] processor → does work → sendTaskSuccess/Failure → state machine completes
+```
 
 ## Prerequisites
 
@@ -29,7 +37,7 @@ Push changes to the `migurski/execute-a-state-machine` branch and sync to `migur
 git push origin migurski/execute-a-state-machine
 git checkout migurski/do-not-merge
 sleep 1
-git rebase -i migurski/execute-a-state-machine
+git rebase --onto migurski/execute-a-state-machine HEAD~1 # just one commit
 git push -f origin migurski/do-not-merge
 git checkout migurski/execute-a-state-machine
 ```
@@ -88,9 +96,47 @@ State machine execution started: arn:aws:states:us-west-2:101696101272:execution
 - ✅ State machine execution started with ARN returned
 - ❌ No errors about `context.request_id` (should use `aws_request_id`)
 
-### 3. Check State Machine Executions
+### 3. Check Task Lambda Logs
 
-Verify the state machine execution status:
+Verify the task function invoked the processor asynchronously:
+
+```bash
+# Get task function log stream
+TASK_LOG_STREAM=$(aws logs describe-log-streams \
+  --log-group-name /aws/lambda/boundary-issues-webhook-task-function \
+  --order-by LastEventTime \
+  --descending \
+  --max-items 1 \
+  --region "$REGION" \
+  --query 'logStreams[0].logStreamName' \
+  --output text)
+
+# Check task function logs
+aws logs get-log-events \
+  --log-group-name /aws/lambda/boundary-issues-webhook-task-function \
+  --log-stream-name "$TASK_LOG_STREAM" \
+  --region "$REGION" \
+  --query 'events[*].message' \
+  --output text
+```
+
+**Expected output:**
+```
+Received event: {"taskToken": "...", "action": "synchronize", "number": 4, ...}
+Invoking processor function asynchronously: arn:aws:lambda:us-west-2:101696101272:function:boundary-issues-webhook-processor-function
+Payload: {"taskToken": "...", "action": "synchronize", ...}
+Processor invoked successfully, StatusCode: 202
+```
+
+**Key validations:**
+- ✅ Task token received in event
+- ✅ Processor invoked with InvocationType: Event (async)
+- ✅ StatusCode 202 (async invocation accepted)
+- ✅ Function returns immediately
+
+### 4. Check State Machine Executions
+
+Verify the state machine execution is waiting for task token callback:
 
 ```bash
 # Get state machine ARN
@@ -109,7 +155,14 @@ aws stepfunctions list-executions \
   --output table
 ```
 
-**Expected output:**
+**Expected output (while processor is running):**
+```
++---------------+-------------+------------------+
+|  pr-4-58533593|  RUNNING    |  1771182257.924  |
++---------------+-------------+------------------+
+```
+
+**Expected output (after processor completes):**
 ```
 +---------------+-------------+------------------+
 |  pr-4-58533593|  SUCCEEDED  |  1771182257.924  |
@@ -117,12 +170,32 @@ aws stepfunctions list-executions \
 ```
 
 **Key validations:**
-- ✅ Status is `SUCCEEDED` (not `FAILED`)
+- ✅ Status is `RUNNING` (waiting for task token callback from processor)
+- ✅ Status becomes `SUCCEEDED` or `FAILED` after processor sends callback
 - ✅ Execution name follows pattern `pr-{number}-{request_id}`
+- ✅ State machine uses waitForTaskToken pattern
 
-### 4. Check Processor Lambda Logs
+**To view execution history:**
+```bash
+aws stepfunctions get-execution-history \
+  --execution-arn "arn:aws:states:us-west-2:101696101272:execution:boundary-issues-webhook-processor:pr-4-58533593" \
+  --region "$REGION" \
+  --query 'events[*].[timestamp,type]' \
+  --output table
+```
 
-Verify the processor cloned the repository and checked out the commit:
+Expected events:
+- ExecutionStarted
+- TaskStateEntered
+- TaskScheduled (with waitForTaskToken)
+- TaskStarted
+- TaskSubmitted (processor invoked)
+- TaskSucceeded/TaskFailed (callback from processor)
+- ExecutionSucceeded/ExecutionFailed
+
+### 5. Check Processor Lambda Logs
+
+Verify the processor received the task token and sends callbacks to Step Functions:
 
 ```bash
 # Get processor log group name
@@ -143,10 +216,11 @@ aws logs filter-log-events \
 
 **Expected output:**
 ```
-Received event: {"action": "synchronize", "number": 4, ...}
-Fetching secret from: arn:aws:secretsmanager:us-west-2:101696101272:secret:boundary-issues-webhook-stack/github-token
+Received event: {"taskToken": "...", "action": "synchronize", "number": 4, ...}
+Task token found, will send callback to Step Functions
+Fetching secret from: arn:aws:secretsmanager:us-west-2:101696101272:secret:boundary-issues-bootstrap-webhook/github-token
 Successfully retrieved GitHub token from Secrets Manager
-Processing PR #4, HEAD SHA: a4051323948dd82dbd7bf47b694adf191c29da55, Repo: migurski/boundary-issues
+Processing PR #4, HEAD SHA: a4051323948dd82dbd7bf47b694adf191c29da55, URL: https://github.com/migurski/boundary-issues.git
 Cloning repository to /tmp/repo
 Clone output:
 Checking out commit a4051323948dd82dbd7bf47b694adf191c29da55
@@ -154,20 +228,25 @@ Fetch output:
 Checkout output:
 Current HEAD: a4051323948dd82dbd7bf47b694adf191c29da55
 Successfully checked out PR #4 at a4051323948dd82dbd7bf47b694adf191c29da55
+Run build-country-polygon.py
+Successfully ran build-country-polygon.py
 ```
 
 **Key validations:**
+- ✅ Task token received in event
+- ✅ Step Functions client initialized for callbacks
 - ✅ GitHub token retrieved from Secrets Manager
-- ✅ Repository extracted from `diff_url` (not hardcoded)
 - ✅ Repository cloned successfully (no "Repository not found" error)
 - ✅ Commit checked out matches PR HEAD SHA
 - ✅ Verification confirms `git rev-parse HEAD` matches expected SHA
+- ✅ On success: calls sfn.send_task_success() with task token
+- ✅ On error: calls sfn.send_task_failure() with task token and error details
 - ❌ No runtime entrypoint errors (Docker image must use proper awslambdaric configuration)
 
 ## Common Issues and Solutions
 
 ### Issue: "LambdaContext object has no attribute 'request_id'"
-**Solution:** Use `context.aws_request_id` instead of `context.request_id` in index.py
+**Solution:** Use `context.aws_request_id` instead of `context.request_id` in webhook.py
 
 ### Issue: "Runtime.InvalidEntrypoint"
 **Solution:** Ensure Dockerfile has proper ENTRYPOINT and CMD:
@@ -184,6 +263,20 @@ CMD ["processor.handler"]
 - GitHub token not in Secrets Manager
 - Invalid repository URL
 - Git clone timeout (increase Lambda timeout)
+- Processor failed to send task callback (check IAM permissions for states:SendTaskSuccess/SendTaskFailure)
+
+### Issue: State machine stuck in RUNNING state
+**Solution:** This means the processor never sent a task callback. Check:
+1. Processor Lambda logs for errors or timeouts
+2. ProcessorFunctionRole has states:SendTaskSuccess and states:SendTaskFailure permissions
+3. Task token was passed correctly from state machine → task.py → processor.py
+4. Processor code calls sfn.send_task_success() or sfn.send_task_failure() with the task token
+
+### Issue: Task function fails to invoke processor
+**Solution:** Check:
+1. TaskFunctionRole has lambda:InvokeFunction permission for ProcessorFunction
+2. PROCESSOR_FUNCTION_ARN environment variable is set correctly
+3. Task function logs show StatusCode 202 (async invocation accepted)
 
 ## Security Validations
 
@@ -241,4 +334,5 @@ Before pushing to production:
 - [ ] State machine execution status is SUCCEEDED
 - [ ] No GitHub token leakage in logs
 - [ ] All resources have unique stack-scoped names
-- [ ] Unit tests pass (`python -m unittest webhook/index.py`)
+- [ ] Unit tests pass for webhook (`python -m unittest webhook/webhook.py`)
+- [ ] Unit tests pass for task handler (`python -m unittest webhook/task.py`)
