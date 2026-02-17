@@ -6,7 +6,8 @@ import os
 import urllib.parse
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(format='%(levelname)s: %(message)s')
+logging.getLogger().setLevel(logging.INFO)
 
 
 def handler(event, context):

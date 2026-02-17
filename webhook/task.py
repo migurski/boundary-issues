@@ -9,7 +9,8 @@ import unittest.mock
 import boto3
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(format='%(levelname)s: %(message)s')
+logging.getLogger().setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
