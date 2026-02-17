@@ -3,6 +3,7 @@ import logging
 import os
 import unittest
 import unittest.mock
+import urllib.parse
 import urllib.request
 import urllib.error
 
@@ -57,10 +58,8 @@ def lambda_handler(event, context):
         execution_name = f"pr-{payload.get('number', 'unknown')}-{context.aws_request_id[:8]}"
         logging.info(f"Starting state machine execution: {execution_name}")
 
-        stepfunctions_payload = {
-            "destination": f"s3://{os.environ.get('DATA_BUCKET')}/{context.aws_request_id[:8]}/",
-            **payload,
-        }
+        destination_prefix = f"s3://{os.environ.get('DATA_BUCKET')}/{context.aws_request_id[:8]}/"
+        stepfunctions_payload = {"destination": destination_prefix, **payload}
 
         response = sfn.start_execution(
             stateMachineArn=state_machine_arn,
@@ -72,7 +71,7 @@ def lambda_handler(event, context):
         logging.info(f"State machine execution started: {execution_arn}")
 
         # Set GitHub status to pending with execution URL
-        do_status(payload, execution_arn)
+        do_status(payload, destination_prefix)
 
         return {
             'statusCode': 200,
@@ -92,13 +91,13 @@ def lambda_handler(event, context):
         }
 
 
-def do_status(payload, execution_arn):
+def do_status(payload, destination_prefix):
     """
     Set GitHub PR status to pending.
 
     Args:
         payload: Parsed GitHub webhook payload
-        execution_arn: ARN of the started Step Functions execution
+        destination_prefix: s3:// URL where results go
     """
     github_secret_arn = os.environ.get('GITHUB_SECRET_ARN')
     if not github_secret_arn:
@@ -134,11 +133,21 @@ def do_status(payload, execution_arn):
     logging.info(f"Status API URL: {status_api_url}")
 
     # Construct AWS console URL for the execution
-    if execution_arn:
-        # Extract region from ARN: arn:aws:states:REGION:...
-        arn_parts = execution_arn.split(':')
-        region = arn_parts[3] if len(arn_parts) > 3 else 'us-west-2'
-        target_url = f"https://{region}.console.aws.amazon.com/states/home?region={region}#/v2/executions/details/{execution_arn}"
+    if destination_prefix:
+        parsed_url = urllib.parse.urlparse(destination_prefix)
+        s3_client = boto3.client('s3')
+        region_name = s3_client.get_bucket_location(Bucket=parsed_url.netloc)['LocationConstraint']
+        target_host = f"{parsed_url.netloc}.s3.{region_name}.amazonaws.com"
+        target_path = os.path.join(parsed_url.path, 'index.html')
+        target_url = urllib.parse.urlunparse(('https', target_host, target_path, None, None, None))
+        s3_client.put_object(
+            Bucket=parsed_url.netloc,
+            Key=target_path.lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body='Coming soon'.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
     else:
         target_url = None
 

@@ -54,6 +54,7 @@ Resources:
           - Effect: Allow
             Action:
               - s3:ListBucket
+              - s3:GetBucketLocation
             Resource: !Sub 'arn:aws:s3:::${DataBucket}'
 
   # IAM Role for Webhook Lambda function

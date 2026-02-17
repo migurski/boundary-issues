@@ -267,7 +267,7 @@ def handler(event, context):
                 Filename=os.path.join(clone_dir, name),
                 Bucket=parsed.netloc,
                 Key=os.path.join(parsed.path, name).lstrip('/'),
-                ExtraArgs=dict(ACL='public-read'),
+                ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
             )
     except Exception as e:
         logging.error(f"{e}")
