@@ -56,10 +56,15 @@ def lambda_handler(event, context):
         execution_name = f"pr-{payload.get('number', 'unknown')}-{context.aws_request_id[:8]}"
         logging.info(f"Starting state machine execution: {execution_name}")
 
+        stepfunctions_payload = {
+            "destination": f"s3://{os.environ.get('DATA_BUCKET')}/{context.aws_request_id[:8]}/",
+            **payload,
+        }
+
         response = sfn.start_execution(
             stateMachineArn=state_machine_arn,
             name=execution_name,
-            input=json.dumps(payload)
+            input=json.dumps(stepfunctions_payload)
         )
 
         execution_arn = response['executionArn']

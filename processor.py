@@ -256,6 +256,36 @@ def handler(event, context):
 
         return error_response
 
+    try:
+        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+        parsed = urllib.parse.urlparse(destination)
+        s3_client = boto3.client('s3')
+        for name in ('country-areas.csv', 'country-boundaries.csv'):
+            logging.info(f"Uploading {name} to {destination}")
+            s3_client.upload_file(
+                Filename=os.path.join(clone_dir, name),
+                Bucket=parsed.netloc,
+                Key=os.path.join(parsed.path, name).lstrip('/'),
+                ExtraArgs=dict(ACL='public-read'),
+            )
+    except Exception as e:
+        logging.error(f"{e}")
+        error_response = {
+            'statusCode': 500,
+            'status': 'error',
+            'error': str(e)
+        }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='ScriptValidationError',
+                cause=str(e)
+            )
+            return error_response
+
+        return error_response
+
     # Success!
     success_response = {
         'statusCode': 200,

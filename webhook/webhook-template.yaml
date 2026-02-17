@@ -48,6 +48,7 @@ Resources:
             Action:
               - s3:GetObject
               - s3:PutObject
+              - s3:PutObjectAcl
               - s3:DeleteObject
             Resource: !Sub 'arn:aws:s3:::${DataBucket}/*'
           - Effect: Allow
@@ -316,7 +317,8 @@ Resources:
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
-                  "repository.$": "$.repository"
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination"
                 }
               },
               "ResultPath": "$.taskResult",
@@ -340,7 +342,8 @@ Resources:
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
-                  "repository.$": "$.repository"
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination"
                 }
               },
               "End": true
@@ -356,7 +359,8 @@ Resources:
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
-                  "repository.$": "$.repository"
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination"
                 }
               },
               "End": true
