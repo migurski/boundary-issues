@@ -339,7 +339,6 @@ Resources:
                 "FunctionName": "${FinishFunction.Arn}",
                 "Payload": {
                   "status": "success",
-                  "executionArn.$": "$$.Execution.Id",
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
@@ -356,7 +355,6 @@ Resources:
                 "FunctionName": "${FinishFunction.Arn}",
                 "Payload": {
                   "status": "failure",
-                  "executionArn.$": "$$.Execution.Id",
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",

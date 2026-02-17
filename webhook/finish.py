@@ -3,6 +3,7 @@ import logging
 import os
 import unittest
 import unittest.mock
+import urllib.parse
 import urllib.request
 import urllib.error
 
@@ -33,7 +34,7 @@ def lambda_handler(event, context):
 
     # Extract required fields from event
     status_state = event.get('status', 'failure')  # 'success' or 'failure'
-    execution_arn = event.get('executionArn')
+    destination_prefix = event.get('destination')
     statuses_url = event.get('repository', {}).get('statuses_url')
     head_sha = event.get('pull_request', {}).get('head', {}).get('sha')
 
@@ -52,11 +53,21 @@ def lambda_handler(event, context):
         }
 
     # Construct AWS console URL for the execution
-    if execution_arn:
-        # Extract region from ARN: arn:aws:states:REGION:...
-        arn_parts = execution_arn.split(':')
-        region = arn_parts[3] if len(arn_parts) > 3 else 'us-west-2'
-        target_url = f"https://{region}.console.aws.amazon.com/states/home?region={region}#/v2/executions/details/{execution_arn}"
+    if destination_prefix:
+        parsed_url = urllib.parse.urlparse(destination_prefix)
+        s3_client = boto3.client('s3')
+        region_name = s3_client.get_bucket_location(Bucket=parsed_url.netloc)['LocationConstraint']
+        target_host = f"{parsed_url.netloc}.s3.{region_name}.amazonaws.com"
+        target_path = os.path.join(parsed_url.path, 'index.html')
+        target_url = urllib.parse.urlunparse(('https', target_host, target_path, None, None, None))
+        s3_client.put_object(
+            Bucket=parsed_url.netloc,
+            Key=target_path.lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body=f'All done with {status_state}'.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
     else:
         target_url = None
 
@@ -151,7 +162,6 @@ class TestLambdaHandler(unittest.TestCase):
         """Set up test fixtures"""
         self.test_github_secret_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'
         self.test_github_token = 'ghp_test1234567890abcdefghijklmnopqrstuvwxyz'
-        self.test_execution_arn = 'arn:aws:states:us-west-2:101696101272:execution:boundary-issues-webhook-processor:pr-4-9e59f95b'
 
         # Mock context object
         self.mock_context = unittest.mock.Mock()
@@ -160,7 +170,7 @@ class TestLambdaHandler(unittest.TestCase):
         # Sample success event
         self.success_event = {
             'status': 'success',
-            'executionArn': self.test_execution_arn,
+            'destination': "s3://boundary-issues/123abc/",
             'action': 'synchronize',
             'number': 4,
             'pull_request': {
@@ -203,7 +213,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertIn('GitHub status updated to success', response['message'])
 
         # Verify Secrets Manager was called
-        mock_boto_client.assert_called_once_with('secretsmanager')
+        mock_boto_client.assert_any_call('secretsmanager')
         mock_secrets.get_secret_value.assert_called_once_with(
             SecretId=self.test_github_secret_arn
         )
@@ -272,8 +282,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(payload['state'], 'success')
         self.assertEqual(payload['context'], 'boundary-issues-processor')
         self.assertEqual(payload['description'], 'Boundary issues check passed')
-        self.assertIn('console.aws.amazon.com', payload['target_url'])
-        self.assertIn(self.test_execution_arn, payload['target_url'])
+        self.assertIn('boundary-issues', payload['target_url'])
 
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
@@ -285,7 +294,9 @@ class TestLambdaHandler(unittest.TestCase):
         mock_secrets.get_secret_value.return_value = {
             'SecretString': self.test_github_token
         }
-        mock_boto_client.return_value = mock_secrets
+        mock_s3 = unittest.mock.MagicMock()
+        mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-0'}
+        mock_boto_client.side_effect = [mock_s3, mock_secrets]
 
         # Mock urllib response
         mock_response = unittest.mock.MagicMock()
@@ -300,7 +311,7 @@ class TestLambdaHandler(unittest.TestCase):
         request = call_args[0]
         payload = json.loads(request.data.decode('utf-8'))
 
-        expected_url = f'https://us-west-2.console.aws.amazon.com/states/home?region=us-west-2#/v2/executions/details/{self.test_execution_arn}'
+        expected_url = f'https://boundary-issues.s3.us-west-0.amazonaws.com/123abc/index.html'
         self.assertEqual(payload['target_url'], expected_url)
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)
@@ -316,7 +327,6 @@ class TestLambdaHandler(unittest.TestCase):
         """Test error when repository.statuses_url is missing from event"""
         event_without_statuses_url = {
             'status': 'success',
-            'executionArn': self.test_execution_arn,
             'pull_request': {
                 'head': {'sha': 'abc123'}
             },
@@ -335,7 +345,6 @@ class TestLambdaHandler(unittest.TestCase):
         """Test error when pull_request.head.sha is missing from event"""
         event_without_sha = {
             'status': 'success',
-            'executionArn': self.test_execution_arn,
             'pull_request': {},
             'repository': {
                 'statuses_url': 'https://api.github.com/repos/migurski/boundary-issues/statuses/{sha}'
@@ -393,7 +402,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_event_without_execution_arn(self, mock_boto_client, mock_urlopen):
+    def test_event_without_destination(self, mock_boto_client, mock_urlopen):
         """Test that handler works even without execution ARN (no target_url)"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()
@@ -407,12 +416,12 @@ class TestLambdaHandler(unittest.TestCase):
         mock_response.read.return_value = json.dumps({'state': 'success'}).encode('utf-8')
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
-        # Event without executionArn
-        event_without_arn = self.success_event.copy()
-        del event_without_arn['executionArn']
+        # Event without destination
+        event_without_dest = self.success_event.copy()
+        del event_without_dest['destination']
 
         # Execute handler
-        response = lambda_handler(event_without_arn, self.mock_context)
+        response = lambda_handler(event_without_dest, self.mock_context)
 
         # Verify response
         self.assertEqual(response['statusCode'], 200)

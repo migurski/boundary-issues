@@ -67,8 +67,7 @@ def lambda_handler(event, context):
             input=json.dumps(stepfunctions_payload)
         )
 
-        execution_arn = response['executionArn']
-        logging.info(f"State machine execution started: {execution_arn}")
+        logging.info(f"State machine execution started: {response['executionArn']}")
 
         # Set GitHub status to pending with execution URL
         do_status(payload, destination_prefix)
@@ -76,10 +75,7 @@ def lambda_handler(event, context):
         return {
             'statusCode': 200,
             'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({
-                'message': 'State machine execution started',
-                'executionArn': execution_arn
-            })
+            'body': json.dumps({'message': 'State machine execution started'})
         }
 
     except Exception as e:
@@ -264,9 +260,6 @@ class TestLambdaHandler(unittest.TestCase):
 
         body = json.loads(response['body'])
         self.assertEqual(body['message'], 'State machine execution started')
-        self.assertEqual(body['executionArn'], self.test_execution_arn)
-
-        return
 
         # Verify Step Functions client was called correctly
         mock_boto_client.assert_called_once_with('stepfunctions')
