@@ -306,9 +306,38 @@ Resources:
       DefinitionString: !Sub |
         {
           "Comment": "Process GitHub PR events asynchronously with task token callback",
-          "StartAt": "InvokeTask",
+          "StartAt": "FirstInvokeTask",
           "States": {
-            "InvokeTask": {
+            "FirstInvokeTask": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+              "Parameters": {
+                "FunctionName": "${TaskFunction.Arn}",
+                "Payload": {
+                  "taskToken.$": "$$.Task.Token",
+                  "action.$": "$.action",
+                  "number.$": "$.number",
+                  "pull_request.$": "$.pull_request",
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination"
+                }
+              },
+              "ResultPath": "$.taskResult",
+              "Next": "Wait5Seconds",
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "ReportFailure",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "Wait5Seconds": {
+              "Type": "Wait",
+              "Seconds": 5,
+              "Next": "SecondInvokeTask"
+            },
+            "SecondInvokeTask": {
               "Type": "Task",
               "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
               "Parameters": {
