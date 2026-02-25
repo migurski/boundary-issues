@@ -9,6 +9,7 @@ import gzip
 import os
 import sys
 import tempfile
+import time
 import unittest
 import urllib.request
 
@@ -162,16 +163,28 @@ def make_point(x, y):
 
 def load_shape(el_type: str, osm_id: int|str, ignore_locals: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
-    if ignore_locals or not os.path.exists(local_path):
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        with gzip.open(local_path, "wb", compresslevel=9) as file:
-            url = f"https://api.openstreetmap.org/api/0.6/{el_type}/{osm_id}/full"
-            print("Downloading", url, file=sys.stderr)
-            file.write(urllib.request.urlopen(url).read())
-    ds = osgeo.ogr.Open(f"/vsigzip/{local_path}")
-    lyr = ds.GetLayer("multipolygons")
-    geometries = [feat.GetGeometryRef().Clone() for feat in lyr]
-    return functools.reduce(lambda g1, g2: g1.Union(g2), geometries)
+    for attempt in (1, 2, 3):
+        newly_downloaded = False
+        try:
+            if ignore_locals or not os.path.exists(local_path):
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                with gzip.open(local_path, "wb", compresslevel=9) as file:
+                    url = f"https://api.openstreetmap.org/api/0.6/{el_type}/{osm_id}/full"
+                    print("Downloading", url, file=sys.stderr)
+                    file.write(urllib.request.urlopen(url).read())
+                    newly_downloaded = True
+            ds = osgeo.ogr.Open(f"/vsigzip/{local_path}")
+            lyr = ds.GetLayer("multipolygons")
+            geometries = [feat.GetGeometryRef().Clone() for feat in lyr]
+        except Exception:
+            if newly_downloaded and attempt < 3:
+                print("Must retry", url, file=sys.stderr)
+                time.sleep(15)
+            else:
+                print("Failed to download", url, file=sys.stderr)
+                raise
+        else:
+            return functools.reduce(lambda g1, g2: g1.Union(g2), geometries)
 
 def combine_shapes(shapes: list[tuple[str, str, int|str]], ignore_locals: bool) -> osgeo.ogr.Geometry:
     assert shapes[0][0] == "plus"
