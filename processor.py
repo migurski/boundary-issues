@@ -13,10 +13,19 @@ logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
 
 
+FailCallable = typing.Callable[[str, str], None]
+
+
 def run_in(cmd: list[str], dirname: str) -> subprocess.CompletedProcess[str]:
     """ Run a command in a directory
     """
     return subprocess.run(cmd, cwd=dirname, capture_output=True, text=True, check=True)
+
+
+def make_error(message: str) -> dict:
+    """ Make a standard error dictionary
+    """
+    return {'statusCode': 500, 'status': 'error', 'error': message}
 
 
 def handler(event: dict, context: typing.Any) -> dict:
@@ -41,28 +50,37 @@ def handler(event: dict, context: typing.Any) -> dict:
         logging.info("Task token found, will send callback to Step Functions")
         sfn_client = boto3.client('stepfunctions')
 
+    # Create failure callback for Step Functions
+    def on_failure(error: str, cause: str) -> None:
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error=error,
+                cause=cause
+            )
+
     # Fetch GitHub token from Secrets Manager
-    err1, github_token = fetch_github_token(task_token, sfn_client)
+    err1, github_token = fetch_github_token(on_failure)
     if err1:
         return err1
 
     # Extract PR information
-    err2, (pull_request, pr_sha, pr_number, clone_url) = extract_pr_information(event, task_token, sfn_client)
+    err2, (pull_request, pr_sha, pr_number, clone_url) = extract_pr_information(event, on_failure)
     if err2:
         return err2
 
     # Clone repository
-    err3, clone_dir = clone_repository(clone_url, github_token, task_token, sfn_client)
+    err3, clone_dir = clone_repository(clone_url, github_token, on_failure)
     if err3:
         return err3
 
     # Checkout PR HEAD
-    err4, _ = checkout_pr_head(clone_dir, pr_sha, pr_number, task_token, sfn_client)
+    err4, _ = checkout_pr_head(clone_dir, pr_sha, pr_number, on_failure)
     if err4:
         return err4
 
     # Find changed config files
-    err5, changed_configs = find_changed_configs(pull_request, clone_dir, task_token, sfn_client)
+    err5, changed_configs = find_changed_configs(pull_request, clone_dir, on_failure)
     if err5:
         return err5
 
@@ -71,12 +89,12 @@ def handler(event: dict, context: typing.Any) -> dict:
     logging.info(f"Ignore local files: {ignore_locals}")
 
     # Run the script
-    err6, _ = run_build_script(changed_configs, ignore_locals, clone_dir, task_token, sfn_client)
+    err6, _ = run_build_script(changed_configs, ignore_locals, clone_dir, on_failure)
     if err6:
         return err6
 
     # Upload to S3
-    err7, _ = upload_to_s3(event, clone_dir, task_token, sfn_client)
+    err7, _ = upload_to_s3(event, clone_dir, on_failure)
     if err7:
         return err7
 
@@ -98,7 +116,7 @@ def handler(event: dict, context: typing.Any) -> dict:
     return success_response
 
 
-def fetch_github_token(task_token: str|None, sfn_client: typing.Any) -> tuple[dict|None, str|None]:
+def fetch_github_token(on_failure: FailCallable) -> tuple[dict|None, str|None]:
     """ Fetch GitHub token from Secrets Manager """
     try:
         secrets_client = boto3.client('secretsmanager')
@@ -115,23 +133,11 @@ def fetch_github_token(task_token: str|None, sfn_client: typing.Any) -> tuple[di
 
     except Exception as e:
         logging.error(f"Failed to retrieve GitHub token: {e}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': f'Failed to retrieve GitHub token: {str(e)}'
-        }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='GitHubTokenError',
-                cause=str(e)
-            )
-
-        return error_response, None
+        on_failure('GitHubTokenError', str(e))
+        return make_error(f'Failed to retrieve GitHub token: {str(e)}'), None
 
 
-def extract_pr_information(event: dict, task_token: str|None, sfn_client: typing.Any) -> tuple[dict|None, tuple[dict, str, int, str] | tuple[None, None, None, None]]:
+def extract_pr_information(event: dict, on_failure: FailCallable) -> tuple[dict|None, tuple[dict, str, int, str] | tuple[None, None, None, None]]:
     """ Extract PR information from event """
     try:
         pull_request = event.get('pull_request', {})
@@ -154,18 +160,11 @@ def extract_pr_information(event: dict, task_token: str|None, sfn_client: typing
             'status': 'error',
             'error': f'Failed to parse PR information: {str(e)}'
         }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='PRParseError',
-                cause=str(e)
-            )
-
+        on_failure('PRParseError', str(e))
         return error_response, (None, None, None, None)
 
 
-def clone_repository(clone_url: str, github_token: str, task_token: str|None, sfn_client: typing.Any) -> tuple[dict|None, str|None]:
+def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict|None, str|None]:
     """ Clone repository to /tmp/repo """
     try:
         parsed_url = urllib.parse.urlparse(clone_url)
@@ -184,23 +183,11 @@ def clone_repository(clone_url: str, github_token: str, task_token: str|None, sf
         logging.error(f"Failed to clone repository: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': f'Failed to clone repository: {e.stderr}'
-        }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='GitCloneError',
-                cause=e.stderr or str(e)
-            )
-
-        return error_response, None
+        on_failure('GitCloneError', e.stderr or str(e))
+        return make_error(f'Failed to clone repository: {e.stderr}'), None
 
 
-def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, task_token: str|None, sfn_client: typing.Any) -> tuple[dict|None, None]:
+def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, on_failure: FailCallable) -> tuple[dict|None, None]:
     """ Checkout PR HEAD commit """
     try:
         logging.info(f"Checking out commit {pr_sha}")
@@ -225,39 +212,15 @@ def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, task_token: st
         logging.error(f"Failed to checkout commit: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': f'Failed to checkout commit: {e.stderr}'
-        }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='GitCheckoutError',
-                cause=e.stderr or str(e)
-            )
-
-        return error_response, None
+        on_failure('GitCheckoutError', e.stderr or str(e))
+        return make_error(f'Failed to checkout commit: {e.stderr}'), None
     except ValueError as e:
         logging.error(f"{e}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': str(e)
-        }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='CheckoutVerificationError',
-                cause=str(e)
-            )
-
-        return error_response, None
+        on_failure('CheckoutVerificationError', str(e))
+        return make_error(str(e)), None
 
 
-def find_changed_configs(pull_request: dict, clone_dir: str, task_token: str|None, sfn_client: typing.Any) -> tuple[dict|None, list[str]|None]:
+def find_changed_configs(pull_request: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, list[str]|None]:
     """ Find changed config files in the PR """
     try:
         base_sha = pull_request.get('base', {}).get('sha')
@@ -279,39 +242,14 @@ def find_changed_configs(pull_request: dict, clone_dir: str, task_token: str|Non
         logging.error(f"Failed to find changed configs: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': f'Failed to find changed configs: {e.stderr}'
-        }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='GitDiffError',
-                cause=e.stderr or str(e)
-            )
-
-        return error_response, None
+        on_failure('GitDiffError', e.stderr or str(e))
+        return make_error(f'Failed to find changed configs: {e.stderr}'), None
     except ValueError as e:
         logging.error(f"{e}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': str(e)
-        }
+        on_failure('GitDiffValidationError', str(e))
+        return make_error(str(e)), None
 
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='GitDiffValidationError',
-                cause=str(e)
-            )
-
-        return error_response, None
-
-
-def run_build_script(changed_configs: list[str], ignore_locals: bool, clone_dir: str, task_token: str|None, sfn_client: typing.Any) -> tuple[dict|None, None]:
+def run_build_script(changed_configs: list[str], ignore_locals: bool, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
     """ Run build-country-polygon.py with appropriate arguments """
     try:
         if not changed_configs:
@@ -328,44 +266,18 @@ def run_build_script(changed_configs: list[str], ignore_locals: bool, clone_dir:
             logging.info(f"Run output: {result.stdout}")
             logging.info("Successfully ran build-country-polygon.py")
         return None, None
-
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to run build-country-polygon.py: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': f'Failed to run build-country-polygon.py: {e.stderr}'
-        }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='ScriptExecutionError',
-                cause=e.stderr or str(e)
-            )
-
-        return error_response, None
+        on_failure('ScriptExecutionError', e.stderr or str(e))
+        return make_error(f'Failed to run build-country-polygon.py: {e.stderr}'), None
     except ValueError as e:
         logging.error(f"{e}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': str(e)
-        }
+        on_failure('ScriptValidationError', str(e))
+        return make_error(str(e)), None
 
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='ScriptValidationError',
-                cause=str(e)
-            )
-
-        return error_response, None
-
-
-def upload_to_s3(event: dict, clone_dir: str, task_token: str|None, sfn_client: typing.Any) -> tuple[dict|None, None]:
+def upload_to_s3(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
     """ Upload generated CSV files to S3 """
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
@@ -384,20 +296,7 @@ def upload_to_s3(event: dict, clone_dir: str, task_token: str|None, sfn_client: 
                 ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
             )
         return None, None
-
     except Exception as e:
         logging.error(f"{e}")
-        error_response = {
-            'statusCode': 500,
-            'status': 'error',
-            'error': str(e)
-        }
-
-        if task_token and sfn_client:
-            sfn_client.send_task_failure(
-                taskToken=task_token,
-                error='ScriptValidationError',
-                cause=str(e)
-            )
-
-        return error_response, None
+        on_failure('ScriptValidationError', str(e))
+        return make_error(str(e)), None
