@@ -10,6 +10,11 @@ logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
 
 
+def run_in(cmd, dirname):
+    """ Run a command in a directory
+    """
+    return subprocess.run(cmd, cwd=dirname, capture_output=True, text=True, check=True)
+
 def handler(event, context):
     """
     Docker Lambda handler that processes GitHub PR events.
@@ -105,12 +110,7 @@ def handler(event, context):
         subprocess.run(['rm', '-rf', clone_dir], check=False)
 
         logging.info(f"Cloning repository to {clone_dir}")
-        result = subprocess.run(
-            ['git', 'clone', '--depth', '1', repo_url, clone_dir],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = run_in(['git', 'clone', '--depth', '1', repo_url, clone_dir], '.')
         logging.info(f"Clone output: {result.stdout}")
 
     except subprocess.CalledProcessError as e:
@@ -136,32 +136,14 @@ def handler(event, context):
     # Checkout PR HEAD
     try:
         logging.info(f"Checking out commit {pr_sha}")
-        result = subprocess.run(
-            ['git', 'fetch', 'origin', pr_sha],
-            cwd=clone_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = run_in(['git', 'fetch', 'origin', pr_sha], clone_dir)
         logging.info(f"Fetch output: {result.stdout}")
 
-        result = subprocess.run(
-            ['git', 'checkout', pr_sha],
-            cwd=clone_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = run_in(['git', 'checkout', pr_sha], clone_dir)
         logging.info(f"Checkout output: {result.stdout}")
 
         # Verify checkout
-        result = subprocess.run(
-            ['git', 'rev-parse', 'HEAD'],
-            cwd=clone_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        result = run_in(['git', 'rev-parse', 'HEAD'], clone_dir)
         current_sha = result.stdout.strip()
         logging.info(f"Current HEAD: {current_sha}")
 
@@ -221,13 +203,7 @@ def handler(event, context):
             raise ValueError("Missing base or head SHA for diff")
 
         logging.info(f"Finding changed configs between {base_sha} and {head_sha}")
-        diff_result = subprocess.run(
-            ['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'],
-            cwd=clone_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        diff_result = run_in(['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'], clone_dir)
 
         changed_files = diff_result.stdout.strip().split('\n')
         changed_configs = [f for f in changed_files if f.startswith('config') and f.endswith('.yaml')]
@@ -241,22 +217,10 @@ def handler(event, context):
         else:
             if ignore_locals:
                 logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --ignore-locals")
-                result = subprocess.run(
-                    ['./build-country-polygon.py', '--configs'] + changed_configs + ['--ignore-locals'],
-                    cwd=clone_dir,
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
+                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs + ['--ignore-locals'], clone_dir)
             else:
                 logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)}")
-                result = subprocess.run(
-                    ['./build-country-polygon.py', '--configs'] + changed_configs,
-                    cwd=clone_dir,
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
+                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs, clone_dir)
             logging.info(f"Run output: {result.stdout}")
             logging.info("Successfully ran build-country-polygon.py with fresh OSM data")
 
