@@ -80,6 +80,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - states:StartExecution
+                  - states:ListExecutions
+                  - states:StopExecution
                 Resource: !GetAtt ProcessorStateMachine.Arn
 
   # Lambda Function
