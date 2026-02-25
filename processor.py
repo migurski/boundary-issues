@@ -213,33 +213,33 @@ def handler(event, context):
 
     # Run the script
     try:
-        if ignore_locals:
-            # Find changed config files
-            base_sha = pull_request.get('base', {}).get('sha')
-            head_sha = pull_request.get('head', {}).get('sha')
+        # Find changed config files
+        base_sha = pull_request.get('base', {}).get('sha')
+        head_sha = pull_request.get('head', {}).get('sha')
 
-            if not base_sha or not head_sha:
-                raise ValueError("Missing base or head SHA for diff")
+        if not base_sha or not head_sha:
+            raise ValueError("Missing base or head SHA for diff")
 
-            logging.info(f"Finding changed configs between {base_sha} and {head_sha}")
-            diff_result = subprocess.run(
-                ['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'],
-                cwd=clone_dir,
-                capture_output=True,
-                text=True,
-                check=True
-            )
+        logging.info(f"Finding changed configs between {base_sha} and {head_sha}")
+        diff_result = subprocess.run(
+            ['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'],
+            cwd=clone_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
 
-            changed_files = diff_result.stdout.strip().split('\n')
-            changed_configs = [f for f in changed_files if f.startswith('config') and f.endswith('.yaml')]
+        changed_files = diff_result.stdout.strip().split('\n')
+        changed_configs = [f for f in changed_files if f.startswith('config') and f.endswith('.yaml')]
 
-            logging.info(f"Changed config files: {changed_configs}")
+        logging.info(f"Changed config files: {changed_configs}")
 
-            if not changed_configs:
-                logging.info("No config files changed, skipping build-country-polygon.py")
-                # Successfully skip processing - nothing to do
-                pass
-            else:
+        if not changed_configs:
+            logging.info("No config files changed, skipping build-country-polygon.py")
+            # Successfully skip processing - nothing to do
+            pass
+        else:
+            if ignore_locals:
                 logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --ignore-locals")
                 result = subprocess.run(
                     ['./build-country-polygon.py', '--configs'] + changed_configs + ['--ignore-locals'],
@@ -248,20 +248,17 @@ def handler(event, context):
                     text=True,
                     check=True
                 )
-                logging.info(f"Run output: {result.stdout}")
-                logging.info("Successfully ran build-country-polygon.py with fresh OSM data")
-        else:
-            # First invocation - run normally with all configs
-            logging.info("Running build-country-polygon.py (first invocation, all configs)")
-            result = subprocess.run(
-                ['./build-country-polygon.py'],
-                cwd=clone_dir,
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            else:
+                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)}")
+                result = subprocess.run(
+                    ['./build-country-polygon.py', '--configs'] + changed_configs,
+                    cwd=clone_dir,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
             logging.info(f"Run output: {result.stdout}")
-            logging.info("Successfully ran build-country-polygon.py")
+            logging.info("Successfully ran build-country-polygon.py with fresh OSM data")
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to run build-country-polygon.py: {e}")
@@ -305,9 +302,13 @@ def handler(event, context):
         parsed = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
         for name in ('country-areas.csv', 'country-boundaries.csv'):
-            logging.info(f"Uploading {name} to {destination}")
+            local_path = os.path.join(clone_dir, name)
+            if not os.path.exists(local_path):
+                logging.info(f"Skipping nonexistent {local_path}")
+                continue
+            logging.info(f"Uploading {local_path} to {destination}")
             s3_client.upload_file(
-                Filename=os.path.join(clone_dir, name),
+                Filename=local_path,
                 Bucket=parsed.netloc,
                 Key=os.path.join(parsed.path, name).lstrip('/'),
                 ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
