@@ -81,8 +81,11 @@ Resources:
                 Action:
                   - states:StartExecution
                   - states:ListExecutions
-                  - states:StopExecution
                 Resource: !GetAtt ProcessorStateMachine.Arn
+              - Effect: Allow
+                Action:
+                  - states:StopExecution
+                Resource: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProcessorStateMachine.Name}:*'
 
   # Lambda Function
   WebhookFunction:
