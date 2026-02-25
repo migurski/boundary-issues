@@ -207,13 +207,13 @@ def handler(event, context):
 
         return error_response
 
-    # Determine if this is the second invocation
-    is_second_invocation = 'taskResult' in event
-    logging.info(f"Is second invocation: {is_second_invocation}")
+    # Determine if we should ignore local files
+    ignore_locals = event.get('ignoreLocals', False)
+    logging.info(f"Ignore local files: {ignore_locals}")
 
     # Run the script
     try:
-        if is_second_invocation:
+        if ignore_locals:
             # Find changed config files
             base_sha = pull_request.get('base', {}).get('sha')
             head_sha = pull_request.get('head', {}).get('sha')
@@ -236,8 +236,9 @@ def handler(event, context):
             logging.info(f"Changed config files: {changed_configs}")
 
             if not changed_configs:
-                logging.info("No config files changed, skipping second invocation processing")
-                # Still considered success - just nothing to do
+                logging.info("No config files changed, skipping build-country-polygon.py")
+                # Successfully skip processing - nothing to do
+                pass
             else:
                 logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --ignore-locals")
                 result = subprocess.run(

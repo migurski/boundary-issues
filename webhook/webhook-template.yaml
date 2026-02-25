@@ -349,7 +349,7 @@ Resources:
                   "pull_request.$": "$.pull_request",
                   "repository.$": "$.repository",
                   "destination.$": "$.destination",
-                  "taskResult.$": "$.taskResult"
+                  "ignoreLocals": true
                 }
               },
               "ResultPath": "$.taskResult",
