@@ -323,7 +323,7 @@ Resources:
                 }
               },
               "ResultPath": "$.taskResult",
-              "Next": "Wait5Seconds",
+              "Next": "CheckIfConfigsChanged",
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
@@ -331,6 +331,17 @@ Resources:
                   "ResultPath": "$.error"
                 }
               ]
+            },
+            "CheckIfConfigsChanged": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.taskResult.changedConfigs[0]",
+                  "IsPresent": true,
+                  "Next": "Wait5Seconds"
+                }
+              ],
+              "Default": "ReportSuccess"
             },
             "Wait5Seconds": {
               "Type": "Wait",

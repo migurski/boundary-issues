@@ -189,13 +189,8 @@ def handler(event, context):
 
         return error_response
 
-    # Determine if we should ignore local files
-    ignore_locals = event.get('ignoreLocals', False)
-    logging.info(f"Ignore local files: {ignore_locals}")
-
-    # Run the script
+    # Find changed config files (always, for both first and second invocations)
     try:
-        # Find changed config files
         base_sha = pull_request.get('base', {}).get('sha')
         head_sha = pull_request.get('head', {}).get('sha')
 
@@ -209,7 +204,49 @@ def handler(event, context):
         changed_configs = [f for f in changed_files if f.startswith('config') and f.endswith('.yaml')]
 
         logging.info(f"Changed config files: {changed_configs}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to find changed configs: {e}")
+        logging.error(f"STDOUT: {e.stdout}")
+        logging.error(f"STDERR: {e.stderr}")
+        error_response = {
+            'statusCode': 500,
+            'status': 'error',
+            'error': f'Failed to find changed configs: {e.stderr}'
+        }
 
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='GitDiffError',
+                cause=e.stderr or str(e)
+            )
+            return error_response
+
+        return error_response
+    except ValueError as e:
+        logging.error(f"{e}")
+        error_response = {
+            'statusCode': 500,
+            'status': 'error',
+            'error': str(e)
+        }
+
+        if task_token and sfn_client:
+            sfn_client.send_task_failure(
+                taskToken=task_token,
+                error='GitDiffValidationError',
+                cause=str(e)
+            )
+            return error_response
+
+        return error_response
+
+    # Determine if we should ignore local files
+    ignore_locals = event.get('ignoreLocals', False)
+    logging.info(f"Ignore local files: {ignore_locals}")
+
+    # Run the script
+    try:
         if not changed_configs:
             logging.info("No config files changed, skipping build-country-polygon.py")
             # Successfully skip processing - nothing to do
@@ -222,7 +259,7 @@ def handler(event, context):
                 logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)}")
                 result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs, clone_dir)
             logging.info(f"Run output: {result.stdout}")
-            logging.info("Successfully ran build-country-polygon.py with fresh OSM data")
+            logging.info("Successfully ran build-country-polygon.py")
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to run build-country-polygon.py: {e}")
@@ -301,7 +338,8 @@ def handler(event, context):
         'status': 'success',
         'pr_number': pr_number,
         'sha': pr_sha,
-        'message': f'Successfully processed PR #{pr_number} at {pr_sha}'
+        'message': f'Successfully processed PR #{pr_number} at {pr_sha}',
+        'changedConfigs': changed_configs
     }
 
     if task_token and sfn_client:
