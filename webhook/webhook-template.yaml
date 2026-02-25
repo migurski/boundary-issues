@@ -348,7 +348,8 @@ Resources:
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
                   "repository.$": "$.repository",
-                  "destination.$": "$.destination"
+                  "destination.$": "$.destination",
+                  "taskResult.$": "$.taskResult"
                 }
               },
               "ResultPath": "$.taskResult",

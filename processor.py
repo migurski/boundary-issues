@@ -207,18 +207,60 @@ def handler(event, context):
 
         return error_response
 
+    # Determine if this is the second invocation
+    is_second_invocation = 'taskResult' in event
+    logging.info(f"Is second invocation: {is_second_invocation}")
+
     # Run the script
     try:
-        logging.info("Run build-country-polygon.py")
-        result = subprocess.run(
-            ['./build-country-polygon.py'],
-            cwd=clone_dir,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        logging.info(f"Run output: {result.stdout}")
-        logging.info("Successfully ran build-country-polygon.py")
+        if is_second_invocation:
+            # Find changed config files
+            base_sha = pull_request.get('base', {}).get('sha')
+            head_sha = pull_request.get('head', {}).get('sha')
+
+            if not base_sha or not head_sha:
+                raise ValueError("Missing base or head SHA for diff")
+
+            logging.info(f"Finding changed configs between {base_sha} and {head_sha}")
+            diff_result = subprocess.run(
+                ['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'],
+                cwd=clone_dir,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            changed_files = diff_result.stdout.strip().split('\n')
+            changed_configs = [f for f in changed_files if f.startswith('config') and f.endswith('.yaml')]
+
+            logging.info(f"Changed config files: {changed_configs}")
+
+            if not changed_configs:
+                logging.info("No config files changed, skipping second invocation processing")
+                # Still considered success - just nothing to do
+            else:
+                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --ignore-locals")
+                result = subprocess.run(
+                    ['./build-country-polygon.py', '--configs'] + changed_configs + ['--ignore-locals'],
+                    cwd=clone_dir,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                logging.info(f"Run output: {result.stdout}")
+                logging.info("Successfully ran build-country-polygon.py with fresh OSM data")
+        else:
+            # First invocation - run normally with all configs
+            logging.info("Running build-country-polygon.py (first invocation, all configs)")
+            result = subprocess.run(
+                ['./build-country-polygon.py'],
+                cwd=clone_dir,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            logging.info(f"Run output: {result.stdout}")
+            logging.info("Successfully ran build-country-polygon.py")
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to run build-country-polygon.py: {e}")
