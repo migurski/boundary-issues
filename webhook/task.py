@@ -3,6 +3,7 @@ import logging
 import os
 import unittest
 import unittest.mock
+import urllib.parse
 
 # Note: boto3 is available in AWS Lambda runtime
 # For local testing, install via: pip install boto3
@@ -11,6 +12,37 @@ import boto3
 # Configure logging
 logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
+
+
+def write_index_html(destination, message):
+    """
+    Write a message to index.html in the S3 destination.
+
+    Args:
+        destination: s3:// URL where results go
+        message: Message to write to index.html
+    """
+    try:
+        parsed_url = urllib.parse.urlparse(destination)
+        s3_client = boto3.client('s3')
+        region_name = s3_client.get_bucket_location(Bucket=parsed_url.netloc)['LocationConstraint']
+        target_path = os.path.join(parsed_url.path, 'index.html')
+
+        s3_client.put_object(
+            Bucket=parsed_url.netloc,
+            Key=target_path.lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body=message.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
+
+        logging.info(f"Successfully wrote to index.html: {message}")
+
+    except Exception as e:
+        logging.error(f"Failed to write to index.html: {e}")
+        # Don't fail the whole handler if S3 write fails
+        pass
 
 
 def lambda_handler(event, context):
@@ -41,7 +73,14 @@ def lambda_handler(event, context):
 
     # Prepare payload for processor
     # Pass through the original event fields plus the task token
+    # Convert taskSequence to ignoreLocals for processor
+    task_sequence = event.get('taskSequence')
     processor_payload = event.copy()
+
+    # Remove taskSequence and add ignoreLocals instead
+    processor_payload.pop('taskSequence', None)
+    if task_sequence == 'second':
+        processor_payload['ignoreLocals'] = True
 
     logging.info(f"Invoking processor function asynchronously: {processor_arn}")
     logging.info(f"Payload: {json.dumps(processor_payload)}")
@@ -58,6 +97,14 @@ def lambda_handler(event, context):
         )
 
         logging.info(f"Processor invoked successfully, StatusCode: {response['StatusCode']}")
+
+        # Write to index.html if this is the first task
+        task_sequence = event.get('taskSequence')
+        destination = event.get('destination')
+
+        if task_sequence == 'first' and destination:
+            logging.info("Writing 'Settling in for a long wait' to index.html")
+            write_index_html(destination, 'Settling in for a long wait')
 
         return {
             'statusCode': 200,
@@ -106,7 +153,9 @@ class TestLambdaHandler(unittest.TestCase):
             },
             'repository': {
                 'full_name': 'migurski/boundary-issues'
-            }
+            },
+            'destination': 's3://test-bucket/test-path/',
+            'taskSequence': 'first'
         }
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
@@ -118,7 +167,20 @@ class TestLambdaHandler(unittest.TestCase):
         mock_lambda.invoke.return_value = {
             'StatusCode': 202
         }
-        mock_boto_client.return_value = mock_lambda
+
+        # Mock S3 client
+        mock_s3 = unittest.mock.MagicMock()
+        mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
+
+        # Configure boto3.client to return the appropriate mock
+        def client_factory(service_name):
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
 
         # Execute handler
         response = lambda_handler(self.state_machine_event, self.mock_context)
@@ -128,7 +190,6 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(response['message'], 'Processor invoked asynchronously')
 
         # Verify Lambda client was called correctly
-        mock_boto_client.assert_called_once_with('lambda')
         mock_lambda.invoke.assert_called_once()
 
         call_args = mock_lambda.invoke.call_args[1]
@@ -144,7 +205,20 @@ class TestLambdaHandler(unittest.TestCase):
         mock_lambda.invoke.return_value = {
             'StatusCode': 202
         }
-        mock_boto_client.return_value = mock_lambda
+
+        # Mock S3 client
+        mock_s3 = unittest.mock.MagicMock()
+        mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
+
+        # Configure boto3.client to return the appropriate mock
+        def client_factory(service_name):
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
 
         # Execute handler
         lambda_handler(self.state_machine_event, self.mock_context)
@@ -163,7 +237,20 @@ class TestLambdaHandler(unittest.TestCase):
         mock_lambda.invoke.return_value = {
             'StatusCode': 202
         }
-        mock_boto_client.return_value = mock_lambda
+
+        # Mock S3 client
+        mock_s3 = unittest.mock.MagicMock()
+        mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
+
+        # Configure boto3.client to return the appropriate mock
+        def client_factory(service_name):
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
 
         # Execute handler
         lambda_handler(self.state_machine_event, self.mock_context)
@@ -188,7 +275,20 @@ class TestLambdaHandler(unittest.TestCase):
         mock_lambda.invoke.return_value = {
             'StatusCode': 202  # Accepted for async invocation
         }
-        mock_boto_client.return_value = mock_lambda
+
+        # Mock S3 client
+        mock_s3 = unittest.mock.MagicMock()
+        mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
+
+        # Configure boto3.client to return the appropriate mock
+        def client_factory(service_name):
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
 
         # Execute handler
         response = lambda_handler(self.state_machine_event, self.mock_context)
@@ -236,6 +336,110 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(response['statusCode'], 500)
         self.assertIn('Failed to invoke processor', response['error'])
         self.assertIn('Lambda service unavailable', response['error'])
+
+    @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
+    @unittest.mock.patch('boto3.client')
+    def test_writes_to_index_html_for_first_task(self, mock_boto_client):
+        """Test that index.html is written when taskSequence='first'"""
+        # Mock Lambda client
+        mock_lambda = unittest.mock.MagicMock()
+        mock_lambda.invoke.return_value = {'StatusCode': 202}
+
+        # Mock S3 client
+        mock_s3 = unittest.mock.MagicMock()
+        mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
+
+        # Configure boto3.client to return the appropriate mock
+        def client_factory(service_name):
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
+
+        # Execute handler with taskSequence='first'
+        response = lambda_handler(self.state_machine_event, self.mock_context)
+
+        # Verify success
+        self.assertEqual(response['statusCode'], 200)
+
+        # Verify S3 put_object was called
+        mock_s3.put_object.assert_called_once()
+        call_kwargs = mock_s3.put_object.call_args[1]
+        self.assertEqual(call_kwargs['Bucket'], 'test-bucket')
+        self.assertEqual(call_kwargs['Key'], 'test-path/index.html')
+        self.assertEqual(call_kwargs['Body'], b'Settling in for a long wait')
+        self.assertEqual(call_kwargs['ContentType'], 'text/html')
+
+    @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
+    @unittest.mock.patch('boto3.client')
+    def test_does_not_write_to_index_html_for_second_task(self, mock_boto_client):
+        """Test that index.html is NOT written when taskSequence='second'"""
+        # Mock Lambda client
+        mock_lambda = unittest.mock.MagicMock()
+        mock_lambda.invoke.return_value = {'StatusCode': 202}
+
+        # Mock S3 client
+        mock_s3 = unittest.mock.MagicMock()
+
+        # Configure boto3.client to return the appropriate mock
+        def client_factory(service_name):
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
+
+        # Modify event to have taskSequence='second'
+        event = self.state_machine_event.copy()
+        event['taskSequence'] = 'second'
+
+        # Execute handler
+        response = lambda_handler(event, self.mock_context)
+
+        # Verify success
+        self.assertEqual(response['statusCode'], 200)
+
+        # Verify S3 put_object was NOT called
+        mock_s3.put_object.assert_not_called()
+
+    @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
+    @unittest.mock.patch('boto3.client')
+    def test_does_not_write_to_index_html_without_task_sequence(self, mock_boto_client):
+        """Test that index.html is NOT written when taskSequence is missing"""
+        # Mock Lambda client
+        mock_lambda = unittest.mock.MagicMock()
+        mock_lambda.invoke.return_value = {'StatusCode': 202}
+
+        # Mock S3 client
+        mock_s3 = unittest.mock.MagicMock()
+
+        # Configure boto3.client to return the appropriate mock
+        def client_factory(service_name):
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
+
+        # Modify event to remove taskSequence
+        event = self.state_machine_event.copy()
+        del event['taskSequence']
+
+        # Execute handler
+        response = lambda_handler(event, self.mock_context)
+
+        # Verify success
+        self.assertEqual(response['statusCode'], 200)
+
+        # Verify S3 put_object was NOT called
+        mock_s3.put_object.assert_not_called()
 
 
 if __name__ == '__main__':
