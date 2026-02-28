@@ -16,6 +16,9 @@ logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
 
 
+EXECUTION_NAME_PAT = "PR{0}-{1}"
+
+
 def stop_existing_executions_for_pr(pr_number, state_machine_arn, sfn_client):
     """
     Stop any currently running state machine executions for the given PR number.
@@ -28,7 +31,7 @@ def stop_existing_executions_for_pr(pr_number, state_machine_arn, sfn_client):
     Returns:
         Number of executions stopped
     """
-    execution_prefix = f"pr-{pr_number}-"
+    execution_prefix = EXECUTION_NAME_PAT.format(pr_number, '')
     logging.info(f"Looking for running executions with prefix: {execution_prefix}")
 
     try:
@@ -111,7 +114,7 @@ def lambda_handler(event, context):
     # Start state machine execution
     try:
         pr_number = payload.get('number', 'unknown')
-        execution_name = f"pr-{pr_number}-{context.aws_request_id[:8]}"
+        execution_name = EXECUTION_NAME_PAT.format(pr_number, context.aws_request_id[:8])
 
         # Stop any existing running executions for this PR
         if pr_number != 'unknown':
@@ -274,7 +277,7 @@ class TestLambdaHandler(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.test_state_machine_arn = 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'
-        self.test_execution_arn = 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-12345678'
+        self.test_execution_arn = 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-12345678'
 
         # Mock context object with aws_request_id (learned from logs)
         self.mock_context = unittest.mock.Mock()
@@ -328,7 +331,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         call_args = mock_sfn.start_execution.call_args[1]
         self.assertEqual(call_args['stateMachineArn'], self.test_state_machine_arn)
-        self.assertEqual(call_args['name'], 'pr-4-12345678')
+        self.assertEqual(call_args['name'], 'PR4-12345678')
 
         # Verify payload was passed correctly
         input_payload = json.loads(call_args['input'])
@@ -410,9 +413,9 @@ class TestLambdaHandler(unittest.TestCase):
         call_args = mock_sfn.start_execution.call_args[1]
         execution_name = call_args['name']
 
-        # Should be pr-4-12345678 (first 8 chars of aws_request_id)
-        self.assertEqual(execution_name, 'pr-4-12345678')
-        self.assertTrue(execution_name.startswith('pr-4-'))
+        # Should be PR4-12345678 (first 8 chars of aws_request_id)
+        self.assertEqual(execution_name, 'PR4-12345678')
+        self.assertTrue(execution_name.startswith('PR4-'))
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
@@ -433,7 +436,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
     def test_execution_name_format(self, mock_boto_client):
-        """Test execution name follows expected format: pr-{number}-{request_id[:8]}"""
+        """Test execution name follows expected format: PR{number}-{request_id[:8]}"""
         mock_sfn = unittest.mock.MagicMock()
         mock_sfn.start_execution.return_value = {
             'executionArn': self.test_execution_arn
@@ -449,7 +452,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Verify format
         import re
-        self.assertIsNotNone(re.match(r'^pr-\d+-[a-f0-9]{8}$', execution_name))
+        self.assertIsNotNone(re.match(r'^PR\d+-[a-f0-9]{8}$', execution_name))
 
         # Test with missing PR number (should use 'unknown')
         event_no_pr = {
@@ -461,7 +464,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         call_args = mock_sfn.start_execution.call_args[1]
         execution_name = call_args['name']
-        self.assertTrue(execution_name.startswith('pr-unknown-'))
+        self.assertTrue(execution_name.startswith('PRunknown-'))
 
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
@@ -475,16 +478,16 @@ class TestLambdaHandler(unittest.TestCase):
         mock_sfn.list_executions.return_value = {
             'executions': [
                 {
-                    'name': 'pr-4-abcd1234',
-                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-abcd1234'
+                    'name': 'PR4-abcd1234',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-abcd1234'
                 },
                 {
-                    'name': 'pr-4-efgh5678',
-                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-efgh5678'
+                    'name': 'PR4-efgh5678',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-efgh5678'
                 },
                 {
-                    'name': 'pr-5-ijkl9012',  # Different PR, should not be stopped
-                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-5-ijkl9012'
+                    'name': 'PR5-ijkl9012',  # Different PR, should not be stopped
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR5-ijkl9012'
                 }
             ]
         }
@@ -507,17 +510,17 @@ class TestLambdaHandler(unittest.TestCase):
             statusFilter='RUNNING'
         )
 
-        # Verify stop_execution was called exactly twice (for pr-4 executions only)
+        # Verify stop_execution was called exactly twice (for PR4 executions only)
         self.assertEqual(mock_sfn.stop_execution.call_count, 2)
 
         # Verify the correct executions were stopped
         stop_calls = mock_sfn.stop_execution.call_args_list
         stopped_arns = [call[1]['executionArn'] for call in stop_calls]
-        self.assertIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-abcd1234', stopped_arns)
-        self.assertIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-efgh5678', stopped_arns)
+        self.assertIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-abcd1234', stopped_arns)
+        self.assertIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-efgh5678', stopped_arns)
 
         # Verify PR 5's execution was not stopped
-        self.assertNotIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-5-ijkl9012', stopped_arns)
+        self.assertNotIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:PR5-ijkl9012', stopped_arns)
 
         # Verify new execution was started
         mock_sfn.start_execution.assert_called_once()
@@ -566,8 +569,8 @@ class TestLambdaHandler(unittest.TestCase):
         mock_sfn.list_executions.return_value = {
             'executions': [
                 {
-                    'name': 'pr-4-abcd1234',
-                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-abcd1234'
+                    'name': 'PR4-abcd1234',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-abcd1234'
                 }
             ]
         }
@@ -632,12 +635,12 @@ class TestLambdaHandler(unittest.TestCase):
         mock_sfn.list_executions.return_value = {
             'executions': [
                 {
-                    'name': 'pr-10-test1234',
-                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test:pr-10-test1234'
+                    'name': 'PR10-test1234',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test:PR10-test1234'
                 },
                 {
-                    'name': 'pr-10-test5678',
-                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test:pr-10-test5678'
+                    'name': 'PR10-test5678',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test:PR10-test5678'
                 }
             ]
         }
