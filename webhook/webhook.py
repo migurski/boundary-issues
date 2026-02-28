@@ -3,6 +3,7 @@ import logging
 import os
 import unittest
 import unittest.mock
+import urllib.parse
 import urllib.request
 import urllib.error
 
@@ -11,7 +12,66 @@ import urllib.error
 import boto3
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(format='%(levelname)s: %(message)s')
+logging.getLogger().setLevel(logging.INFO)
+
+
+EXECUTION_NAME_PAT = "PR{0}-{1}"
+
+
+def stop_existing_executions_for_pr(pr_number, state_machine_arn, sfn_client):
+    """
+    Stop any currently running state machine executions for the given PR number.
+
+    Args:
+        pr_number: The PR number (int or string)
+        state_machine_arn: ARN of the state machine
+        sfn_client: Boto3 Step Functions client
+
+    Returns:
+        Number of executions stopped
+    """
+    execution_prefix = EXECUTION_NAME_PAT.format(pr_number, '')
+    logging.info(f"Looking for running executions with prefix: {execution_prefix}")
+
+    try:
+        # List running executions
+        response = sfn_client.list_executions(
+            stateMachineArn=state_machine_arn,
+            statusFilter='RUNNING'
+        )
+
+        running_executions = response.get('executions', [])
+        stopped_count = 0
+
+        for execution in running_executions:
+            execution_name = execution['name']
+            execution_arn = execution['executionArn']
+
+            # Check if this execution is for the same PR
+            if execution_name.startswith(execution_prefix):
+                logging.info(f"Stopping existing execution: {execution_name} ({execution_arn})")
+                try:
+                    sfn_client.stop_execution(
+                        executionArn=execution_arn,
+                        error='Superseded',
+                        cause=f'New commit pushed to PR #{pr_number}'
+                    )
+                    stopped_count += 1
+                except Exception as e:
+                    logging.warning(f"Failed to stop execution {execution_name}: {e}")
+
+        if stopped_count > 0:
+            logging.info(f"Stopped {stopped_count} existing execution(s) for PR #{pr_number}")
+        else:
+            logging.info(f"No existing running executions found for PR #{pr_number}")
+
+        return stopped_count
+
+    except Exception as e:
+        logging.error(f"Error listing/stopping executions: {e}")
+        # Don't fail the webhook if we can't stop existing executions
+        return 0
 
 
 def lambda_handler(event, context):
@@ -53,28 +113,33 @@ def lambda_handler(event, context):
 
     # Start state machine execution
     try:
-        execution_name = f"pr-{payload.get('number', 'unknown')}-{context.aws_request_id[:8]}"
+        pr_number = payload.get('number', 'unknown')
+        execution_name = EXECUTION_NAME_PAT.format(pr_number, context.aws_request_id[:8])
+
+        # Stop any existing running executions for this PR
+        if pr_number != 'unknown':
+            stop_existing_executions_for_pr(pr_number, state_machine_arn, sfn)
+
         logging.info(f"Starting state machine execution: {execution_name}")
+
+        destination_prefix = f"s3://{os.environ.get('DATA_BUCKET')}/{context.aws_request_id[:8]}/"
+        stepfunctions_payload = {"destination": destination_prefix, **payload}
 
         response = sfn.start_execution(
             stateMachineArn=state_machine_arn,
             name=execution_name,
-            input=json.dumps(payload)
+            input=json.dumps(stepfunctions_payload)
         )
 
-        execution_arn = response['executionArn']
-        logging.info(f"State machine execution started: {execution_arn}")
+        logging.info(f"State machine execution started: {response['executionArn']}")
 
         # Set GitHub status to pending with execution URL
-        do_status(payload, execution_arn)
+        do_status(payload, destination_prefix)
 
         return {
             'statusCode': 200,
             'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({
-                'message': 'State machine execution started',
-                'executionArn': execution_arn
-            })
+            'body': json.dumps({'message': 'State machine execution started'})
         }
 
     except Exception as e:
@@ -86,13 +151,13 @@ def lambda_handler(event, context):
         }
 
 
-def do_status(payload, execution_arn):
+def do_status(payload, destination_prefix):
     """
     Set GitHub PR status to pending.
 
     Args:
         payload: Parsed GitHub webhook payload
-        execution_arn: ARN of the started Step Functions execution
+        destination_prefix: s3:// URL where results go
     """
     github_secret_arn = os.environ.get('GITHUB_SECRET_ARN')
     if not github_secret_arn:
@@ -128,11 +193,21 @@ def do_status(payload, execution_arn):
     logging.info(f"Status API URL: {status_api_url}")
 
     # Construct AWS console URL for the execution
-    if execution_arn:
-        # Extract region from ARN: arn:aws:states:REGION:...
-        arn_parts = execution_arn.split(':')
-        region = arn_parts[3] if len(arn_parts) > 3 else 'us-west-2'
-        target_url = f"https://{region}.console.aws.amazon.com/states/home?region={region}#/v2/executions/details/{execution_arn}"
+    if destination_prefix:
+        parsed_url = urllib.parse.urlparse(destination_prefix)
+        s3_client = boto3.client('s3')
+        region_name = s3_client.get_bucket_location(Bucket=parsed_url.netloc)['LocationConstraint']
+        target_host = f"{parsed_url.netloc}.s3.{region_name}.amazonaws.com"
+        target_path = os.path.join(parsed_url.path, 'index.html')
+        target_url = urllib.parse.urlunparse(('https', target_host, target_path, None, None, None))
+        s3_client.put_object(
+            Bucket=parsed_url.netloc,
+            Key=target_path.lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body='Coming soon'.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
     else:
         target_url = None
 
@@ -202,7 +277,7 @@ class TestLambdaHandler(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.test_state_machine_arn = 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'
-        self.test_execution_arn = 'arn:aws:states:us-west-2:123456789012:execution:test-processor:pr-4-12345678'
+        self.test_execution_arn = 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-12345678'
 
         # Mock context object with aws_request_id (learned from logs)
         self.mock_context = unittest.mock.Mock()
@@ -249,9 +324,6 @@ class TestLambdaHandler(unittest.TestCase):
 
         body = json.loads(response['body'])
         self.assertEqual(body['message'], 'State machine execution started')
-        self.assertEqual(body['executionArn'], self.test_execution_arn)
-
-        return
 
         # Verify Step Functions client was called correctly
         mock_boto_client.assert_called_once_with('stepfunctions')
@@ -259,7 +331,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         call_args = mock_sfn.start_execution.call_args[1]
         self.assertEqual(call_args['stateMachineArn'], self.test_state_machine_arn)
-        self.assertEqual(call_args['name'], 'pr-4-12345678')
+        self.assertEqual(call_args['name'], 'PR4-12345678')
 
         # Verify payload was passed correctly
         input_payload = json.loads(call_args['input'])
@@ -341,9 +413,9 @@ class TestLambdaHandler(unittest.TestCase):
         call_args = mock_sfn.start_execution.call_args[1]
         execution_name = call_args['name']
 
-        # Should be pr-4-12345678 (first 8 chars of aws_request_id)
-        self.assertEqual(execution_name, 'pr-4-12345678')
-        self.assertTrue(execution_name.startswith('pr-4-'))
+        # Should be PR4-12345678 (first 8 chars of aws_request_id)
+        self.assertEqual(execution_name, 'PR4-12345678')
+        self.assertTrue(execution_name.startswith('PR4-'))
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
@@ -364,7 +436,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
     def test_execution_name_format(self, mock_boto_client):
-        """Test execution name follows expected format: pr-{number}-{request_id[:8]}"""
+        """Test execution name follows expected format: PR{number}-{request_id[:8]}"""
         mock_sfn = unittest.mock.MagicMock()
         mock_sfn.start_execution.return_value = {
             'executionArn': self.test_execution_arn
@@ -380,7 +452,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Verify format
         import re
-        self.assertIsNotNone(re.match(r'^pr-\d+-[a-f0-9]{8}$', execution_name))
+        self.assertIsNotNone(re.match(r'^PR\d+-[a-f0-9]{8}$', execution_name))
 
         # Test with missing PR number (should use 'unknown')
         event_no_pr = {
@@ -392,7 +464,202 @@ class TestLambdaHandler(unittest.TestCase):
 
         call_args = mock_sfn.start_execution.call_args[1]
         execution_name = call_args['name']
-        self.assertTrue(execution_name.startswith('pr-unknown-'))
+        self.assertTrue(execution_name.startswith('PRunknown-'))
+
+
+    @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
+    @unittest.mock.patch('boto3.client')
+    def test_stops_existing_executions_for_same_pr(self, mock_boto_client):
+        """Test that existing running executions for the same PR are stopped"""
+        # Mock Step Functions client
+        mock_sfn = unittest.mock.MagicMock()
+
+        # Mock list_executions to return two running executions for PR 4
+        mock_sfn.list_executions.return_value = {
+            'executions': [
+                {
+                    'name': 'PR4-abcd1234',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-abcd1234'
+                },
+                {
+                    'name': 'PR4-efgh5678',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-efgh5678'
+                },
+                {
+                    'name': 'PR5-ijkl9012',  # Different PR, should not be stopped
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR5-ijkl9012'
+                }
+            ]
+        }
+
+        mock_sfn.start_execution.return_value = {
+            'executionArn': self.test_execution_arn
+        }
+
+        mock_boto_client.return_value = mock_sfn
+
+        # Execute handler
+        response = lambda_handler(self.github_pr_event, self.mock_context)
+
+        # Verify response is successful
+        self.assertEqual(response['statusCode'], 200)
+
+        # Verify list_executions was called
+        mock_sfn.list_executions.assert_called_once_with(
+            stateMachineArn=self.test_state_machine_arn,
+            statusFilter='RUNNING'
+        )
+
+        # Verify stop_execution was called exactly twice (for PR4 executions only)
+        self.assertEqual(mock_sfn.stop_execution.call_count, 2)
+
+        # Verify the correct executions were stopped
+        stop_calls = mock_sfn.stop_execution.call_args_list
+        stopped_arns = [call[1]['executionArn'] for call in stop_calls]
+        self.assertIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-abcd1234', stopped_arns)
+        self.assertIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-efgh5678', stopped_arns)
+
+        # Verify PR 5's execution was not stopped
+        self.assertNotIn('arn:aws:states:us-west-2:123456789012:execution:test-processor:PR5-ijkl9012', stopped_arns)
+
+        # Verify new execution was started
+        mock_sfn.start_execution.assert_called_once()
+
+    @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
+    @unittest.mock.patch('boto3.client')
+    def test_no_error_when_no_existing_executions(self, mock_boto_client):
+        """Test that webhook succeeds when no existing executions are running"""
+        # Mock Step Functions client
+        mock_sfn = unittest.mock.MagicMock()
+
+        # Mock list_executions to return empty list
+        mock_sfn.list_executions.return_value = {
+            'executions': []
+        }
+
+        mock_sfn.start_execution.return_value = {
+            'executionArn': self.test_execution_arn
+        }
+
+        mock_boto_client.return_value = mock_sfn
+
+        # Execute handler
+        response = lambda_handler(self.github_pr_event, self.mock_context)
+
+        # Verify response is successful
+        self.assertEqual(response['statusCode'], 200)
+
+        # Verify list_executions was called
+        mock_sfn.list_executions.assert_called_once()
+
+        # Verify stop_execution was not called
+        mock_sfn.stop_execution.assert_not_called()
+
+        # Verify new execution was still started
+        mock_sfn.start_execution.assert_called_once()
+
+    @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
+    @unittest.mock.patch('boto3.client')
+    def test_continues_even_if_stop_fails(self, mock_boto_client):
+        """Test that webhook continues and starts new execution even if stopping old ones fails"""
+        # Mock Step Functions client
+        mock_sfn = unittest.mock.MagicMock()
+
+        # Mock list_executions to return running execution
+        mock_sfn.list_executions.return_value = {
+            'executions': [
+                {
+                    'name': 'PR4-abcd1234',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-abcd1234'
+                }
+            ]
+        }
+
+        # Mock stop_execution to raise exception
+        mock_sfn.stop_execution.side_effect = Exception('Failed to stop')
+
+        mock_sfn.start_execution.return_value = {
+            'executionArn': self.test_execution_arn
+        }
+
+        mock_boto_client.return_value = mock_sfn
+
+        # Execute handler
+        response = lambda_handler(self.github_pr_event, self.mock_context)
+
+        # Verify response is still successful
+        self.assertEqual(response['statusCode'], 200)
+
+        # Verify new execution was still started
+        mock_sfn.start_execution.assert_called_once()
+
+    @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
+    @unittest.mock.patch('boto3.client')
+    def test_skips_stopping_for_unknown_pr_number(self, mock_boto_client):
+        """Test that stopping is skipped when PR number is 'unknown'"""
+        # Mock Step Functions client
+        mock_sfn = unittest.mock.MagicMock()
+
+        mock_sfn.start_execution.return_value = {
+            'executionArn': self.test_execution_arn
+        }
+
+        mock_boto_client.return_value = mock_sfn
+
+        # Event without PR number
+        event_no_pr = {
+            'body': json.dumps({'action': 'opened'})
+        }
+
+        # Execute handler
+        response = lambda_handler(event_no_pr, self.mock_context)
+
+        # Verify response is successful
+        self.assertEqual(response['statusCode'], 200)
+
+        # Verify list_executions was NOT called
+        mock_sfn.list_executions.assert_not_called()
+
+        # Verify stop_execution was NOT called
+        mock_sfn.stop_execution.assert_not_called()
+
+        # Verify new execution was still started
+        mock_sfn.start_execution.assert_called_once()
+
+    def test_stop_existing_executions_for_pr_function(self):
+        """Test the stop_existing_executions_for_pr function directly"""
+        # Create mock SFN client
+        mock_sfn = unittest.mock.MagicMock()
+
+        # Mock list_executions response
+        mock_sfn.list_executions.return_value = {
+            'executions': [
+                {
+                    'name': 'PR10-test1234',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test:PR10-test1234'
+                },
+                {
+                    'name': 'PR10-test5678',
+                    'executionArn': 'arn:aws:states:us-west-2:123456789012:execution:test:PR10-test5678'
+                }
+            ]
+        }
+
+        state_machine_arn = 'arn:aws:states:us-west-2:123456789012:stateMachine:test'
+
+        count = stop_existing_executions_for_pr(10, state_machine_arn, mock_sfn)
+
+        # Verify it returned correct count
+        self.assertEqual(count, 2)
+
+        # Verify list_executions was called correctly
+        mock_sfn.list_executions.assert_called_once_with(
+            stateMachineArn=state_machine_arn,
+            statusFilter='RUNNING'
+        )
+
+        # Verify stop_execution was called twice
+        self.assertEqual(mock_sfn.stop_execution.call_count, 2)
 
 
 if __name__ == '__main__':
