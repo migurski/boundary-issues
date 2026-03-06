@@ -3,23 +3,22 @@ package com.example.politicalviews;
 import com.onthegomap.planetiler.ForwardingProfile;
 import com.onthegomap.planetiler.Planetiler;
 import com.onthegomap.planetiler.config.Arguments;
-import com.protomaps.basemap.layers.Landcover;
 import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Custom Planetiler profile that uses only the Landcover layer from Protomaps Basemap.
+ * Custom Planetiler profile that processes landcover data from Daylight.
  *
- * This demonstrates using protomaps-basemaps as a third-party library, similar to how
- * protomaps-basemaps uses Planetiler as a library.
+ * This profile depends only on Planetiler and implements a landcover layer
+ * that processes ESA WorldCover data from the daylight-landcover.gpkg source.
  */
 public class PoliticalViewsProfile extends ForwardingProfile {
 
   public PoliticalViewsProfile() {
-    // Register the Landcover layer from protomaps-basemaps
+    // Register the Landcover layer
     var landcover = new Landcover();
     registerHandler(landcover);
-    registerSourceHandler("landcover", landcover::processLandcover);
+    registerSourceHandler("landcover", landcover::process_landcover);
   }
 
   @Override
@@ -29,7 +28,7 @@ public class PoliticalViewsProfile extends ForwardingProfile {
 
   @Override
   public String description() {
-    return "Minimal profile using only landcover layer from Protomaps Basemap";
+    return "Minimal profile using Planetiler to generate landcover tiles from Daylight";
   }
 
   @Override

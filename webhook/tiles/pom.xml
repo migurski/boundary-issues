@@ -46,13 +46,6 @@
   </repositories>
 
   <dependencies>
-    <!-- Protomaps Basemap as a library -->
-    <dependency>
-      <groupId>com.protomaps.basemap</groupId>
-      <artifactId>protomaps-basemap</artifactId>
-      <version>HEAD</version>
-    </dependency>
-
     <!-- Planetiler core for building the tiles -->
     <dependency>
       <groupId>com.onthegomap.planetiler</groupId>
