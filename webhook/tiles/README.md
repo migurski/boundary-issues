@@ -1,28 +1,23 @@
 # Political Views Tiles
 
-A demonstration project showing how to use [Protomaps Basemaps](https://github.com/protomaps/basemaps) as a third-party library in another Java application. This project creates PMTiles files containing only the landcover layer, rendered up to zoom level 7.
+A minimal Planetiler-based project that generates PMTiles files containing landcover data from [Daylight](https://daylightmap.org/)'s ESA WorldCover dataset, rendered up to zoom level 7.
 
 ## Overview
 
-This project mirrors the relationship between Protomaps Basemaps and Planetiler:
-- **Planetiler** is a framework published to Maven Central
-- **Protomaps Basemaps** uses Planetiler as a library and extends it with map-specific layers
-- **This project** uses Protomaps Basemaps as a library and selectively uses its layers
-
-By depending on `com.protomaps.basemap:protomaps-basemap:HEAD`, we gain access to all the layer implementations (Water, Roads, Buildings, Landcover, etc.) and can cherry-pick which ones to use in our custom profile.
+This project demonstrates building custom vector tiles with [Planetiler](https://github.com/onthegomap/planetiler), implementing a single landcover layer that processes GeoPackage data. The implementation is based on the landcover layer from [Protomaps Basemaps](https://github.com/protomaps/basemaps) but depends only on Planetiler.
 
 ## What's Included
 
-This minimal profile includes only:
-- **Landcover layer** from Protomaps Basemaps
-  - Data source: [Daylight Landcover](https://r2-public.protomaps.com/datasets/daylight-landcover.gpkg) (ESA WorldCover)
+This minimal profile includes:
+- **Landcover layer** processing ESA WorldCover data
+  - Data source: [Daylight Landcover](https://r2-public.protomaps.com/datasets/daylight-landcover.gpkg) (36MB download)
   - Zoom levels: 0-7
   - Feature types: urban_area, farmland, grassland, forest, glacier, scrub, barren
   - ~144k features processed into ~9k tiles
 
 ## Prerequisites
 
-1. **Java 21+** - Required by Planetiler and Protomaps Basemaps
+1. **Java 21+** - Required by Planetiler
    ```bash
    java --version
    ```
@@ -31,13 +26,6 @@ This minimal profile includes only:
    ```bash
    mvn --version
    ```
-
-3. **Protomaps Basemaps** - Must be installed to local Maven repository
-   ```bash
-   cd ~/Documents/protomaps-basemaps/tiles
-   mvn clean install
-   ```
-   This installs `com.protomaps.basemap:protomaps-basemap:HEAD` to `~/.m2/repository/`
 
 ## Building
 
@@ -48,8 +36,10 @@ mvn clean package
 ```
 
 This creates:
-- `target/political-views-tiles-1.0.0.jar` - Small JAR (5.3 KB)
+- `target/political-views-tiles-1.0.0.jar` - Small JAR (6 KB)
 - `target/political-views-tiles-1.0.0-with-deps.jar` - Executable fat JAR (~83 MB)
+
+Build time: ~17 seconds
 
 ## Usage
 
@@ -67,6 +57,8 @@ java -jar target/political-views-tiles-1.0.0-with-deps.jar \\
 - `--force` - Overwrite existing output file
 - `--download` - Download data sources if not present
 - `--maxzoom=<n>` - Maximum zoom level (default: 7, landcover only goes to z7)
+
+All standard [Planetiler options](https://github.com/onthegomap/planetiler#usage) are supported.
 
 ### View help
 
@@ -86,12 +78,11 @@ Running the default build:
 
 ```
 Building PoliticalViewsProfile profile into landcover-test.pmtiles
-  download: Download sources [landcover]
   landcover: Process features in data/sources/daylight-landcover.gpkg
   sort: Sort rendered features by tile ID
   archive: Encode each tile and write to PMTiles
 
-Finished in 34s
+Finished in 24s
   # features: 144,514
   # tiles: 8,934
   archive: 11MB
@@ -103,12 +94,12 @@ Finished in 34s
 .
 ├── pom.xml                           # Maven configuration
 ├── README.md                         # This file
-├── src/main/java/
-│   └── com/example/politicalviews/
-│       └── PoliticalViewsProfile.java   # Custom Planetiler profile
+├── src/main/java/com/example/politicalviews/
+│   ├── Landcover.java                # Landcover layer implementation
+│   └── PoliticalViewsProfile.java    # Planetiler profile
 ├── data/
 │   └── sources/
-│       └── daylight-landcover.gpkg     # Downloaded data (36MB)
+│       └── daylight-landcover.gpkg   # Downloaded data (36MB)
 └── target/
     ├── political-views-tiles-1.0.0-with-deps.jar  # Executable JAR
     └── landcover-test.pmtiles                      # Generated tiles (11MB)
@@ -116,95 +107,98 @@ Finished in 34s
 
 ## Architecture
 
-### How This Works
+### Planetiler Profile
 
-1. **Dependency Chain:**
-   ```
-   This Project
-     └─ depends on ─> Protomaps Basemaps (local Maven)
-                        └─ depends on ─> Planetiler (Maven Central)
-   ```
+The core of this project is `PoliticalViewsProfile`, a custom Planetiler profile:
 
-2. **Custom Profile (PoliticalViewsProfile.java):**
-   ```java
-   public class PoliticalViewsProfile extends ForwardingProfile {
-     public PoliticalViewsProfile() {
-       // Instantiate the Landcover layer from protomaps-basemaps
-       var landcover = new Landcover();
-       registerHandler(landcover);
-       registerSourceHandler("landcover", landcover::processLandcover);
-     }
-   }
-   ```
+```java
+public class PoliticalViewsProfile extends ForwardingProfile {
+  public PoliticalViewsProfile() {
+    var landcover = new Landcover();
+    registerHandler(landcover);
+    registerSourceHandler("landcover", landcover::process_landcover);
+  }
+}
+```
 
-3. **Build Process:**
-   - Extends Planetiler's `ForwardingProfile`
-   - Uses Protomaps Basemap's `Landcover` layer class
-   - Registers only the landcover source and handler
-   - Planetiler framework handles the ETL pipeline:
-     - Download: Fetch daylight-landcover.gpkg
-     - Process: Run features through Landcover layer
-     - Sort: Order features by tile ID
-     - Archive: Write to PMTiles format
+It extends `ForwardingProfile` and registers a single layer handler for processing landcover features.
 
-### Reusable Components from Protomaps Basemaps
+### Landcover Layer
 
-When you depend on `protomaps-basemap`, you get access to:
+The `Landcover` class implements `ForwardingProfile.LayerPostProcessor` and:
 
-**Layer Classes:**
-- `com.protomaps.basemap.layers.Water`
-- `com.protomaps.basemap.layers.Roads`
-- `com.protomaps.basemap.layers.Buildings`
-- `com.protomaps.basemap.layers.Landcover`
-- `com.protomaps.basemap.layers.Landuse`
-- `com.protomaps.basemap.layers.Places`
-- `com.protomaps.basemap.layers.Pois`
-- `com.protomaps.basemap.layers.Transit`
-- `com.protomaps.basemap.layers.Boundaries`
-- `com.protomaps.basemap.layers.Earth`
+1. **Maps ESA WorldCover classes** to standard kind names:
+   - `urban` → `urban_area`
+   - `crop` → `farmland`
+   - `grass` → `grassland`
+   - `trees` → `forest`
+   - `snow` → `glacier`
+   - `shrub` → `scrub`
+   - `barren` → `barren`
 
-**Feature Utilities:**
-- `com.protomaps.basemap.feature.CountryCoder` - Country detection
-- `com.protomaps.basemap.feature.QrankDb` - Place ranking
-- `com.protomaps.basemap.feature.Matcher` - Feature matching utilities
+2. **Processes GeoPackage features** from the "class" field in daylight-landcover.gpkg
 
-**Name Handling:**
-- `com.protomaps.basemap.names.OsmNames` - OSM name processing
-- `com.protomaps.basemap.names.NeNames` - Natural Earth names
-- `com.protomaps.basemap.names.ScriptSegmenter` - Script detection
+3. **Post-processes tiles** by merging nearby polygons to reduce tile size
 
-**Post-processors:**
-- `com.protomaps.basemap.postprocess.Clip` - Geometry clipping
-- `com.protomaps.basemap.postprocess.LinkSimplify` - Road network simplification
-- `com.protomaps.basemap.postprocess.Area` - Area calculations
+4. **Emits features** with:
+   - Zoom range: 0-7
+   - Sort keys for consistent ordering
+   - Pixel tolerance: 0.2
+   - Buffer: 0.0625
+
+### Build Process
+
+The Planetiler ETL pipeline:
+
+1. **Download** - Fetch daylight-landcover.gpkg (if --download flag set)
+2. **Process** - Read GeoPackage features and apply Landcover layer logic
+3. **Sort** - Order processed features by tile ID
+4. **Archive** - Encode and write to PMTiles format
 
 ## Extending This Project
 
 ### Add More Layers
 
-To include additional layers from Protomaps Basemaps:
+To add additional layers, create new layer classes that implement `ForwardingProfile.LayerPostProcessor`:
 
 ```java
-public PoliticalViewsProfile() {
-  // Add landcover
-  var landcover = new Landcover();
-  registerHandler(landcover);
-  registerSourceHandler("landcover", landcover::processLandcover);
+public class Water implements ForwardingProfile.LayerPostProcessor {
+  public void process_osm(SourceFeature sf, FeatureCollector features) {
+    // Process OSM water features
+    if (sf.hasTag("natural", "water")) {
+      features.polygon("water")
+        .setAttr("kind", "water")
+        .setZoomRange(0, 14);
+    }
+  }
 
-  // Add water
-  var water = new Water();
-  registerHandler(water);
-  registerSourceHandler("osm", water::processOsm);
+  @Override
+  public String name() {
+    return "water";
+  }
 
-  // Add roads (requires CountryCoder)
-  var countryCoder = CountryCoder.fromJarResource();
-  var roads = new Roads(countryCoder);
-  registerHandler(roads);
-  registerSourceHandler("osm", roads::processOsm);
+  @Override
+  public List<VectorTile.Feature> postProcess(int zoom, List<VectorTile.Feature> items) {
+    return FeatureMerge.mergeNearbyPolygons(items, 1.0, 1.0, 0.5, 0.0625);
+  }
 }
 ```
 
-Then add the corresponding data sources in `run()`:
+Then register it in the profile:
+
+```java
+public PoliticalViewsProfile() {
+  var landcover = new Landcover();
+  registerHandler(landcover);
+  registerSourceHandler("landcover", landcover::process_landcover);
+
+  var water = new Water();
+  registerHandler(water);
+  registerSourceHandler("osm", water::process_osm);
+}
+```
+
+And add the data source:
 
 ```java
 var planetiler = Planetiler.create(args)
@@ -214,42 +208,66 @@ var planetiler = Planetiler.create(args)
     "geofabrik:monaco");
 ```
 
-### Use Different Data Sources
+### Process Different Data Sources
 
-The Landcover layer also supports:
-- **Natural Earth:** `landcover::processNe`
-- **Overture Maps:** `landcover::processOverture`
+Planetiler supports multiple input formats:
+- **OSM PBF** - `addOsmSource()`
+- **GeoPackage** - `addGeoPackageSource()`
+- **Shapefile** - `addShapefileSource()`
+- **Parquet** - `addParquetSource()`
 
-Example using Overture:
+Example processing Overture Maps data:
+
 ```java
-planetiler.addParquetSource("pm:overture",
-  List.of(Path.of("overture-data.parquet")),
+planetiler.addParquetSource("overture",
+  List.of(Path.of("overture-land.parquet")),
   false,
   fields -> fields.get("id"),
   fields -> fields.get("type")
 );
-registerSourceHandler("pm:overture", landcover::processOverture);
+
+registerSourceHandler("overture", landcover::process_overture);
 ```
 
-## Comparison to Full Protomaps Basemaps Build
+### Customize Processing Logic
+
+Modify `Landcover.java` to customize the processing:
+
+- **Change zoom range**: Modify `.setZoomRange(0, 7)` to process different zoom levels
+- **Add attributes**: Use `.setAttr(key, value)` to add more feature properties
+- **Filter features**: Add conditionals in `process_landcover()` to skip certain features
+- **Adjust simplification**: Modify `PIXEL_TOLERANCE` and `BUFFER` constants
+
+## Performance Notes
+
+**Build Performance:**
+- **Landcover processing**: 12 seconds (144k features)
+- **Sort**: 0.4 seconds
+- **Archive**: 10 seconds
+- **Total**: 24 seconds
+
+**Output Size:**
+- **Uncompressed features**: 19 MB
+- **Compressed PMTiles**: 11 MB
+- **Compression ratio**: ~58%
+
+**Scaling:**
+- Each zoom level quadruples the number of potential tiles
+- Landcover data only goes to z7 (8,934 tiles)
+- Processing all 10 layers to z15 (like full Protomaps Basemaps) takes 2-5 minutes for Monaco
+
+## Comparison to Protomaps Basemaps
 
 | Aspect | This Project | Protomaps Basemaps (Monaco) |
 |--------|--------------|------------------------------|
-| **Layers** | 1 (landcover only) | 10 (all layers) |
-| **Data Sources** | daylight-landcover.gpkg | OSM + Natural Earth + landcover + water/land |
+| **Dependencies** | Planetiler only | Planetiler + custom utilities |
+| **Layers** | 1 (landcover) | 10 (all map layers) |
+| **Data Sources** | daylight-landcover.gpkg | OSM + Natural Earth + landcover + water/land polygons |
 | **Output Size** | 11 MB (global landcover z0-z7) | ~50 MB (Monaco z0-z15) |
-| **Build Time** | 34 seconds | ~2-5 minutes |
-| **Dependencies** | protomaps-basemap as library | planetiler as library |
+| **Build Time** | 24 seconds | ~2-5 minutes |
+| **Code Size** | ~200 lines | ~10,000+ lines |
 
 ## Troubleshooting
-
-### "Could not find artifact com.protomaps.basemap:protomaps-basemap:jar:HEAD"
-
-You need to install protomaps-basemaps to your local Maven repository:
-```bash
-cd ~/Documents/protomaps-basemaps/tiles
-mvn clean install
-```
 
 ### Out of Memory Errors
 
@@ -260,29 +278,27 @@ java -Xmx8g -jar target/political-views-tiles-1.0.0-with-deps.jar --output=landc
 
 ### Tile Generation is Slow
 
-The landcover layer only goes to z7 by default. If you've modified maxzoom, note that tile count increases exponentially with each zoom level.
+The landcover layer only goes to z7 by default. If you've modified maxzoom, note that tile count increases exponentially (4^zoom) with each zoom level.
+
+### Data Download Fails
+
+If the automatic download fails, manually download the GeoPackage:
+```bash
+mkdir -p data/sources
+curl -o data/sources/daylight-landcover.gpkg \\
+  https://r2-public.protomaps.com/datasets/daylight-landcover.gpkg
+```
 
 ## License
 
 This example project follows the same licensing as Protomaps Basemaps:
-- Code: BSD-3
-- Tilesets are produced works of OpenStreetMap data under ODbL
+- **Code**: BSD-3
+- **Tilesets** are produced works of OpenStreetMap data under ODbL
 
 ## Links
 
-- [Protomaps Basemaps](https://github.com/protomaps/basemaps)
-- [Planetiler](https://github.com/onthegomap/planetiler)
-- [PMTiles Specification](https://github.com/protomaps/PMTiles)
-- [Daylight Landcover](https://daylightmap.org/2023/05/04/landcover.html)
-
-## Approach: Maven Local Install
-
-This project demonstrates **Approach 1: Maven Local Install** for using protomaps-basemaps as a third-party library. This is analogous to how protomaps-basemaps uses Planetiler:
-
-1. **Planetiler** → Published to Maven Central → Protomaps Basemaps pulls as dependency
-2. **Protomaps Basemaps** → Installed locally → This project pulls as dependency
-
-Alternative approaches for production use:
-- **JitPack:** Auto-build from GitHub (no local install needed)
-- **Git Submodule + Multi-Module Maven:** Both projects in parent POM
-- **Publish to Private Maven Repository:** For team/organization use
+- [Planetiler](https://github.com/onthegomap/planetiler) - The framework powering this project
+- [Protomaps Basemaps](https://github.com/protomaps/basemaps) - Inspiration for the landcover layer
+- [PMTiles Specification](https://github.com/protomaps/PMTiles) - Tile archive format
+- [Daylight Landcover](https://daylightmap.org/2023/05/04/landcover.html) - ESA WorldCover data source
+- [Planetiler Documentation](https://github.com/onthegomap/planetiler/blob/main/PLANET.md) - Creating custom profiles
