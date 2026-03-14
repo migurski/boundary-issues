@@ -167,6 +167,9 @@ def make_point(x, y):
 def clean_interection(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
     return shapely.line_merge(g1.intersection(g2))
 
+def clean_union(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
+    return shapely.line_merge(g1.union(g2))
+
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
     for attempt in (1, 2, 3):
@@ -309,7 +312,7 @@ def write_country_boundaries(dirname, configs):
             for other_iso3s, linestring in other_lines.items():
                 linestrings = [line1, line2, linestring]
                 agreed_linestring = functools.reduce(clean_interection, linestrings)
-                disputed_linestring = functools.reduce(lambda g1, g2: g1.union(g2), linestrings).difference(agreed_linestring)
+                disputed_linestring = functools.reduce(clean_union, linestrings).difference(agreed_linestring)
 
                 # Identify 3rd parties with a potential interest in this border
                 interested_iso3s: set[str] = {
