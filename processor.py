@@ -236,11 +236,30 @@ const map = new maplibregl.Map({{
         }}
       }},
       {{
-        "id": "boundaries", "type": "line",
+        "id": "boundaries-agreed", "type": "line",
         "source": "protomaps", "source-layer": "boundaries",
+        "filter": ["==", ["get", "disputed"], false],
         "paint": {{
-          "line-color": "rgba(0, 0, 0, 1)",
-          "line-width": 4
+          "line-color": "rgba(0, 0, 255, 1)",
+          "line-width": 6
+        }},
+        "layout": {{
+          "line-cap": "round",
+          "line-join": "round"
+        }}
+      }},
+      {{
+        "id": "boundaries-disputed", "type": "line",
+        "source": "protomaps", "source-layer": "boundaries",
+        "filter": ["==", ["get", "disputed"], true],
+        "paint": {{
+          "line-color": "rgba(255, 0, 0, 1)",
+          "line-width": 2,
+          "line-dasharray": [4, 4]
+        }},
+        "layout": {{
+          "line-cap": "round",
+          "line-join": "round"
         }}
       }}
     ]
