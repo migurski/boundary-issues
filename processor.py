@@ -209,7 +209,7 @@ const map = new maplibregl.Map({{
     layers: [
       {{
         "id": "background", "type": "background",
-        "paint": {{ "background-color": "#cccccc" }}
+        "paint": {{ "background-color": "#97DCE8" }}
       }},
       {{
         "id": "landcover", "type": "fill",
@@ -225,6 +225,22 @@ const map = new maplibregl.Map({{
             "rgba(196, 231, 210, 1)"
           ],
           "fill-opacity": ["interpolate", ["linear"], ["zoom"], 5, 1, 7, 0]
+        }}
+      }},
+      {{
+        "id": "areas", "type": "fill",
+        "source": "protomaps", "source-layer": "areas",
+        "paint": {{
+          "fill-color": "rgba(255, 153, 0, 1)",
+          "fill-opacity": 0.15
+        }}
+      }},
+      {{
+        "id": "boundaries", "type": "line",
+        "source": "protomaps", "source-layer": "boundaries",
+        "paint": {{
+          "line-color": "rgba(0, 0, 0, 1)",
+          "line-width": 4
         }}
       }}
     ]
