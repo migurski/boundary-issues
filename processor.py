@@ -629,7 +629,7 @@ const map = new maplibregl.Map({
 });
 map.addControl(new maplibregl.NavigationControl());
 
-const perspectives = {perspectives_json};
+const perspectives = $PERSPECTIVES_JSON$;
 
 function perspective_filter(perspective) {
   return ["in", perspective, ["get", "perspectives"]];
@@ -678,7 +678,7 @@ map.on('load', function() {
 });
 </script>
 </body>
-</html>"""
+</html>""".replace('$PERSPECTIVES_JSON$', perspectives_json)
 
         html_key = os.path.join(parsed.path, 'preview.html').lstrip('/')
         logging.info(f"Uploading preview.html to s3://{parsed.netloc}/{html_key}")
