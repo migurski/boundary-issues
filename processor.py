@@ -490,10 +490,7 @@ def generate_preview_html(event: dict, clone_dir: str, on_failure: FailCallable)
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
         parsed = urllib.parse.urlparse(destination)
-        key_prefix = parsed.path.lstrip('/')
         s3_client = boto3.client('s3')
-        region = s3_client.get_bucket_location(Bucket=parsed.netloc)['LocationConstraint']
-        pmtiles_url = f"https://{parsed.netloc}.s3.{region}.amazonaws.com/{key_prefix}preview.pmtiles"
 
         csv_names = ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv')
         perspective_set = set()
@@ -510,7 +507,7 @@ def generate_preview_html(event: dict, clone_dir: str, on_failure: FailCallable)
         all_perspectives = sorted(perspective_set)
         perspectives_json = json.dumps(all_perspectives)
 
-        html = f"""<!DOCTYPE html>
+        html = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -520,10 +517,10 @@ def generate_preview_html(event: dict, clone_dir: str, on_failure: FailCallable)
 <script src="https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
 <style>
-body {{ margin: 0; }}
-#map {{ width: 100vw; height: 100vh; }}
-#controls {{ position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: 4px; font-family: sans-serif; font-size: 13px; z-index: 1; }}
-#controls label {{ display: block; margin: 3px 0; cursor: pointer; }}
+body { margin: 0; }
+#map { width: 100vw; height: 100vh; }
+#controls { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: 4px; font-family: sans-serif; font-size: 13px; z-index: 1; }
+#controls label { display: block; margin: 3px 0; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -536,28 +533,28 @@ body {{ margin: 0; }}
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
 
-const map = new maplibregl.Map({{
+const map = new maplibregl.Map({
   container: 'map',
   hash: true,
   center: [0, 20],
   zoom: 2,
-  style: {{
+  style: {
     version: 8,
-    sources: {{
-      protomaps: {{
+    sources: {
+      protomaps: {
         type: 'vector',
-        url: 'pmtiles://{pmtiles_url}'
-      }}
-    }},
+        url: 'pmtiles://preview.pmtiles'
+      }
+    },
     layers: [
-      {{
+      {
         "id": "background", "type": "background",
-        "paint": {{ "background-color": "#97DCE8" }}
-      }},
-      {{
+        "paint": { "background-color": "#97DCE8" }
+      },
+      {
         "id": "landcover", "type": "fill",
         "source": "protomaps", "source-layer": "landcover",
-        "paint": {{
+        "paint": {
           "fill-color": ["match", ["get", "kind"],
             "grassland", "rgba(210, 239, 207, 1)",
             "barren",    "rgba(255, 243, 215, 1)",
@@ -568,77 +565,77 @@ const map = new maplibregl.Map({{
             "rgba(196, 231, 210, 1)"
           ],
           "fill-opacity": ["interpolate", ["linear"], ["zoom"], 5, 1, 7, 0]
-        }}
-      }},
-      {{
+        }
+      },
+      {
         "id": "areas", "type": "fill",
         "source": "protomaps", "source-layer": "areas",
-        "paint": {{
+        "paint": {
           "fill-color": "rgba(255, 153, 0, 1)",
           "fill-opacity": 0.15
-        }}
-      }},
-      {{
+        }
+      },
+      {
         "id": "boundaries-agreed", "type": "line",
         "source": "protomaps", "source-layer": "boundaries",
         "filter": ["==", ["get", "disputed"], false],
-        "paint": {{
+        "paint": {
           "line-color": "rgba(0, 0, 255, 1)",
           "line-width": 6
-        }},
-        "layout": {{
+        },
+        "layout": {
           "line-cap": "round",
           "line-join": "round"
-        }}
-      }},
-      {{
+        }
+      },
+      {
         "id": "boundaries-disputed", "type": "line",
         "source": "protomaps", "source-layer": "boundaries",
         "filter": ["==", ["get", "disputed"], true],
-        "paint": {{
+        "paint": {
           "line-color": "rgba(255, 0, 0, 1)",
           "line-width": 2,
           "line-dasharray": [4, 4]
-        }},
-        "layout": {{
+        },
+        "layout": {
           "line-cap": "round",
           "line-join": "round"
-        }}
-      }},
-      {{
+        }
+      },
+      {
         "id": "validation-points-interior", "type": "circle",
         "source": "protomaps", "source-layer": "points",
         "filter": ["==", ["get", "relation"], "interior"],
-        "paint": {{
+        "paint": {
           "circle-color": "rgba(0, 200, 0, 1)",
           "circle-radius": 6,
           "circle-stroke-color": "rgba(255, 255, 255, 1)",
           "circle-stroke-width": 1.5
-        }}
-      }},
-      {{
+        }
+      },
+      {
         "id": "validation-points-exterior", "type": "circle",
         "source": "protomaps", "source-layer": "points",
         "filter": ["==", ["get", "relation"], "exterior"],
-        "paint": {{
+        "paint": {
           "circle-color": "rgba(220, 0, 0, 1)",
           "circle-radius": 6,
           "circle-stroke-color": "rgba(255, 255, 255, 1)",
           "circle-stroke-width": 1.5
-        }}
-      }}
+        }
+      }
     ]
-  }}
-}});
+  }
+});
 map.addControl(new maplibregl.NavigationControl());
 
 const perspectives = {perspectives_json};
 
-function perspective_filter(perspective) {{
+function perspective_filter(perspective) {
   return ["in", perspective, ["get", "perspectives"]];
-}}
+}
 
-function apply_perspective(perspective) {{
+function apply_perspective(perspective) {
   map.setFilter('areas', perspective_filter(perspective));
   map.setFilter('boundaries-agreed', ["all",
     ["==", ["get", "disputed"], false],
@@ -656,29 +653,29 @@ function apply_perspective(perspective) {{
     ["==", ["get", "relation"], "exterior"],
     perspective_filter(perspective)
   ]);
-}}
+}
 
 const radios_div = document.getElementById('perspective-radios');
-perspectives.forEach(function(p, i) {{
+perspectives.forEach(function(p, i) {
   const label = document.createElement('label');
   const input = document.createElement('input');
   input.type = 'radio';
   input.name = 'perspective';
   input.value = p;
-  if (i === 0) {{ input.checked = true; }}
-  input.addEventListener('change', function() {{
-    if (this.checked) {{ apply_perspective(this.value); }}
-  }});
+  if (i === 0) { input.checked = true; }
+  input.addEventListener('change', function() {
+    if (this.checked) { apply_perspective(this.value); }
+  });
   label.appendChild(input);
   label.appendChild(document.createTextNode(' ' + p));
   radios_div.appendChild(label);
-}});
+});
 
-map.on('load', function() {{
-  if (perspectives.length > 0) {{
+map.on('load', function() {
+  if (perspectives.length > 0) {
     apply_perspective(perspectives[0]);
-  }}
-}});
+  }
+});
 </script>
 </body>
 </html>"""
