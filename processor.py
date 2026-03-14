@@ -111,7 +111,7 @@ def handler(event: dict, context: typing.Any) -> dict:
         err9, _ = generate_tiles(event, clone_dir, on_failure)
         if err9:
             return err9
-        err10, _ = generate_preview_html(event, on_failure)
+        err10, _ = generate_preview_html(event, clone_dir, on_failure)
         if err10:
             return err10
 
@@ -485,7 +485,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         return make_error(f'Tile generation failed: {str(e)}'), None
 
 
-def generate_preview_html(event: dict, on_failure: FailCallable) -> tuple[dict|None, None]:
+def generate_preview_html(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
@@ -494,6 +494,21 @@ def generate_preview_html(event: dict, on_failure: FailCallable) -> tuple[dict|N
         s3_client = boto3.client('s3')
         region = s3_client.get_bucket_location(Bucket=parsed.netloc)['LocationConstraint']
         pmtiles_url = f"https://{parsed.netloc}.s3.{region}.amazonaws.com/{key_prefix}preview.pmtiles"
+
+        csv_names = ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv')
+        perspective_set = set()
+        for csv_name in csv_names:
+            csv_path = os.path.join(clone_dir, csv_name)
+            if not os.path.exists(csv_path):
+                continue
+            with open(csv_path, newline='') as f:
+                for row in csv.DictReader(f):
+                    for code in row.get('perspectives', '').split(';'):
+                        code = code.strip()
+                        if code:
+                            perspective_set.add(code)
+        all_perspectives = sorted(perspective_set)
+        perspectives_json = json.dumps(all_perspectives)
 
         html = f"""<!DOCTYPE html>
 <html>
@@ -504,10 +519,19 @@ def generate_preview_html(event: dict, on_failure: FailCallable) -> tuple[dict|N
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
-<style>body {{ margin: 0; }} #map {{ width: 100vw; height: 100vh; }}</style>
+<style>
+body {{ margin: 0; }}
+#map {{ width: 100vw; height: 100vh; }}
+#controls {{ position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: 4px; font-family: sans-serif; font-size: 13px; z-index: 1; }}
+#controls label {{ display: block; margin: 3px 0; cursor: pointer; }}
+</style>
 </head>
 <body>
 <div id="map"></div>
+<div id="controls">
+  <strong>Perspective</strong>
+  <div id="perspective-radios"></div>
+</div>
 <script>
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
@@ -607,6 +631,54 @@ const map = new maplibregl.Map({{
   }}
 }});
 map.addControl(new maplibregl.NavigationControl());
+
+const perspectives = {perspectives_json};
+
+function perspective_filter(perspective) {{
+  return ["in", perspective, ["get", "perspectives"]];
+}}
+
+function apply_perspective(perspective) {{
+  map.setFilter('areas', perspective_filter(perspective));
+  map.setFilter('boundaries-agreed', ["all",
+    ["==", ["get", "disputed"], false],
+    perspective_filter(perspective)
+  ]);
+  map.setFilter('boundaries-disputed', ["all",
+    ["==", ["get", "disputed"], true],
+    perspective_filter(perspective)
+  ]);
+  map.setFilter('validation-points-interior', ["all",
+    ["==", ["get", "relation"], "interior"],
+    perspective_filter(perspective)
+  ]);
+  map.setFilter('validation-points-exterior', ["all",
+    ["==", ["get", "relation"], "exterior"],
+    perspective_filter(perspective)
+  ]);
+}}
+
+const radios_div = document.getElementById('perspective-radios');
+perspectives.forEach(function(p, i) {{
+  const label = document.createElement('label');
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'perspective';
+  input.value = p;
+  if (i === 0) {{ input.checked = true; }}
+  input.addEventListener('change', function() {{
+    if (this.checked) {{ apply_perspective(this.value); }}
+  }});
+  label.appendChild(input);
+  label.appendChild(document.createTextNode(' ' + p));
+  radios_div.appendChild(label);
+}});
+
+map.on('load', function() {{
+  if (perspectives.length > 0) {{
+    apply_perspective(perspectives[0]);
+  }}
+}});
 </script>
 </body>
 </html>"""
