@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import boto3
+import csv
 import json
 import logging
 import subprocess
 import os
+import sys
 import typing
 import urllib.parse
+import osgeo.ogr
+
+csv.field_size_limit(sys.maxsize)
 
 # Configure logging
 logging.basicConfig(format='%(levelname)s: %(message)s')
@@ -26,6 +31,136 @@ def make_error(message: str) -> dict:
     """ Make a standard error dictionary
     """
     return {'statusCode': 500, 'status': 'error', 'error': message}
+
+
+def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+    """ Convert country-areas.csv and country-boundaries.csv to GeoJSON files in clone_dir """
+    try:
+        osgeo.ogr.UseExceptions()
+
+        areas_csv = os.path.join(clone_dir, 'country-areas.csv')
+        boundaries_csv = os.path.join(clone_dir, 'country-boundaries.csv')
+
+        # Convert areas CSV (iso3, perspectives, geometry)
+        areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
+        if os.path.exists(areas_csv):
+            features = []
+            with open(areas_csv, newline='') as f:
+                for row in csv.DictReader(f):
+                    wkt = row.get('geometry', '')
+                    if not wkt:
+                        continue
+                    geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
+                    if geom is None:
+                        continue
+                    features.append({
+                        'type': 'Feature',
+                        'geometry': json.loads(geom.ExportToJson()),
+                        'properties': {
+                            'iso3': row.get('iso3', ''),
+                            'perspectives': row.get('perspectives', ''),
+                        },
+                    })
+            with open(areas_geojson, 'w') as f:
+                json.dump({'type': 'FeatureCollection', 'features': features}, f)
+            logging.info(f"Wrote {len(features)} area features to {areas_geojson}")
+        else:
+            logging.info(f"Skipping areas conversion: {areas_csv} not found")
+
+        # Convert boundaries CSV (iso3a, iso3b, perspectives, agreed_geometry, disputed_geometry)
+        boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
+        if os.path.exists(boundaries_csv):
+            features = []
+            with open(boundaries_csv, newline='') as f:
+                for row in csv.DictReader(f):
+                    iso3a = row.get('iso3a', '')
+                    iso3b = row.get('iso3b', '')
+                    perspectives = row.get('perspectives', '')
+                    for col, disputed in [('agreed_geometry', False), ('disputed_geometry', True)]:
+                        wkt = row.get(col, '')
+                        if not wkt:
+                            continue
+                        geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
+                        if geom is None:
+                            continue
+                        features.append({
+                            'type': 'Feature',
+                            'geometry': json.loads(geom.ExportToJson()),
+                            'properties': {
+                                'iso3a': iso3a,
+                                'iso3b': iso3b,
+                                'perspectives': perspectives,
+                                'disputed': disputed,
+                            },
+                        })
+            with open(boundaries_geojson, 'w') as f:
+                json.dump({'type': 'FeatureCollection', 'features': features}, f)
+            logging.info(f"Wrote {len(features)} boundary features to {boundaries_geojson}")
+        else:
+            logging.info(f"Skipping boundaries conversion: {boundaries_csv} not found")
+
+        return None, None
+
+    except Exception as e:
+        logging.error(f"Failed to convert CSVs to GeoJSON: {e}")
+        on_failure('GeoJSONConversionError', str(e))
+        return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}'), None
+
+
+def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+    """ Run the Planetiler JAR to generate preview.pmtiles, then upload to S3 """
+    try:
+        areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
+        boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
+
+        if not os.path.exists(areas_geojson) and not os.path.exists(boundaries_geojson):
+            logging.info("No GeoJSON files found, skipping tile generation")
+            return None, None
+
+        output_path = '/tmp/preview.pmtiles'
+        data_dir = '/tmp/tiles-data'
+        os.makedirs(data_dir, exist_ok=True)
+
+        cmd = [
+            'java', '-jar', '/var/task/tiles.jar',
+            f'--data={data_dir}',
+            f'--output={output_path}',
+            '--force',
+        ]
+        if os.path.exists(areas_geojson):
+            cmd.append(f'--areas={areas_geojson}')
+        if os.path.exists(boundaries_geojson):
+            cmd.append(f'--boundaries={boundaries_geojson}')
+
+        logging.info(f"Running tile generation: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        logging.info(f"Tile generation output: {result.stdout}")
+
+        # Upload preview.pmtiles to S3 alongside the CSVs
+        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+        parsed = urllib.parse.urlparse(destination)
+        s3_client = boto3.client('s3')
+        key = os.path.join(parsed.path, 'preview.pmtiles').lstrip('/')
+        logging.info(f"Uploading {output_path} to s3://{parsed.netloc}/{key}")
+        s3_client.upload_file(
+            Filename=output_path,
+            Bucket=parsed.netloc,
+            Key=key,
+            ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
+        )
+        logging.info("Successfully uploaded preview.pmtiles")
+        return None, None
+
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Tile generation failed: {e}")
+        logging.error(f"STDOUT: {e.stdout}")
+        logging.error(f"STDERR: {e.stderr}")
+        on_failure('TileGenerationError', e.stderr or str(e))
+        return make_error(f'Tile generation failed: {e.stderr}'), None
+    except Exception as e:
+        logging.error(f"Tile generation failed: {e}")
+        on_failure('TileGenerationError', str(e))
+        return make_error(f'Tile generation failed: {str(e)}'), None
 
 
 def handler(event: dict, context: typing.Any) -> dict:
@@ -97,6 +232,15 @@ def handler(event: dict, context: typing.Any) -> dict:
     err7, _ = upload_to_s3(event, clone_dir, on_failure)
     if err7:
         return err7
+
+    # Generate tiles on first run (when ignoreLocals is not set)
+    if not ignore_locals:
+        err8, _ = convert_csvs_to_geojson(clone_dir, on_failure)
+        if err8:
+            return err8
+        err9, _ = generate_tiles(event, clone_dir, on_failure)
+        if err9:
+            return err9
 
     # Success!
     success_response = {

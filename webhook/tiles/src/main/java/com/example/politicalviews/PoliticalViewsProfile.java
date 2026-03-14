@@ -7,18 +7,27 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Custom Planetiler profile that processes landcover data from Daylight.
+ * Custom Planetiler profile that processes landcover, areas, and boundaries data.
  *
- * This profile depends only on Planetiler and implements a landcover layer
- * that processes ESA WorldCover data from the daylight-landcover.gpkg source.
+ * This profile implements:
+ * - A landcover layer from daylight-landcover.gpkg
+ * - An areas layer from country-areas.geojson (polygon features)
+ * - A boundaries layer from country-boundaries.geojson (linestring features)
  */
 public class PoliticalViewsProfile extends ForwardingProfile {
 
   public PoliticalViewsProfile() {
-    // Register the Landcover layer
     var landcover = new Landcover();
     registerHandler(landcover);
     registerSourceHandler("landcover", landcover::process_landcover);
+
+    var areas = new Areas();
+    registerHandler(areas);
+    registerSourceHandler(Areas.SOURCE_NAME, areas::process_area);
+
+    var boundaries = new Boundaries();
+    registerHandler(boundaries);
+    registerSourceHandler(Boundaries.SOURCE_NAME, boundaries::process_boundary);
   }
 
   @Override
@@ -28,7 +37,7 @@ public class PoliticalViewsProfile extends ForwardingProfile {
 
   @Override
   public String description() {
-    return "Minimal profile using Planetiler to generate landcover tiles from Daylight";
+    return "Profile using Planetiler to generate landcover, areas, and boundary tiles";
   }
 
   @Override
@@ -49,13 +58,11 @@ public class PoliticalViewsProfile extends ForwardingProfile {
   }
 
   public static void main(String[] args) throws IOException {
-    // Check for help flag
     for (String arg : args) {
       if ("--version".equals(arg) || "-v".equals(arg)) {
-        printVersion();
+        System.out.println(new PoliticalViewsProfile().version());
         System.exit(0);
       }
-
       if ("--help".equals(arg) || "-h".equals(arg)) {
         printHelp();
         System.exit(0);
@@ -64,13 +71,8 @@ public class PoliticalViewsProfile extends ForwardingProfile {
     run(Arguments.fromArgsOrConfigFile(args));
   }
 
-  private static void printVersion() {
-    PoliticalViewsProfile profile = new PoliticalViewsProfile();
-    System.out.println(profile.version());
-  }
-
   private static void printHelp() {
-    PoliticalViewsProfile profile = new PoliticalViewsProfile();
+    var profile = new PoliticalViewsProfile();
     System.out.println(String.format("""
       %s v%s
       %s
@@ -84,9 +86,15 @@ public class PoliticalViewsProfile extends ForwardingProfile {
         --output=<path>         Output file path (default: output.pmtiles)
         --maxzoom=<n>           Maximum zoom level (default: 7)
         --force                 Overwrite existing output file
+        --areas=<path>          Path to country-areas.geojson
+        --boundaries=<path>     Path to country-boundaries.geojson
+        --data=<path>           Directory for downloaded data files (default: data)
 
       Example:
-        java -jar political-views-tiles-1.0.0-with-deps.jar --output=landcover.pmtiles --force
+        java -jar political-views-tiles-1.0.0-with-deps.jar \\
+          --areas=country-areas.geojson \\
+          --boundaries=country-boundaries.geojson \\
+          --output=preview.pmtiles --force
 
       For a complete list of Planetiler options, see:
         https://github.com/onthegomap/planetiler#usage
@@ -94,24 +102,30 @@ public class PoliticalViewsProfile extends ForwardingProfile {
   }
 
   static void run(Arguments args) throws IOException {
-    // Set default maxzoom to 7 (landcover only goes to z7)
     args = args.orElse(Arguments.of("maxzoom", 7));
 
-    Path dataDir = Path.of("data");
-    Path sourcesDir = dataDir.resolve("sources");
+    String data_dir = args.getString("data", "Directory for downloaded data files", "data");
+    Path sources_dir = Path.of(data_dir).resolve("sources");
 
-    // Add the daylight-landcover.gpkg source
-    // This will be downloaded automatically if not present
+    String areas_path = args.getString("areas", "Path to country-areas.geojson", "");
+    String boundaries_path = args.getString("boundaries", "Path to country-boundaries.geojson", "");
+    String output_name = args.getString("output", "Output PMTiles path", "output.pmtiles");
+
     var planetiler = Planetiler.create(args)
-      .addGeoPackageSource("landcover", sourcesDir.resolve("daylight-landcover.gpkg"),
+      .addGeoPackageSource("landcover", sources_dir.resolve("daylight-landcover.gpkg"),
         "https://r2-public.protomaps.com/datasets/daylight-landcover.gpkg");
 
-    // Set the profile and output
-    String outputName = args.getString("output", "Output PMTiles path", "output.pmtiles");
+    if (!areas_path.isBlank()) {
+      planetiler.addGeoJsonSource(Areas.SOURCE_NAME, Path.of(areas_path));
+    }
+
+    if (!boundaries_path.isBlank()) {
+      planetiler.addGeoJsonSource(Boundaries.SOURCE_NAME, Path.of(boundaries_path));
+    }
 
     planetiler
       .setProfile(new PoliticalViewsProfile())
-      .setOutput(Path.of(outputName))
+      .setOutput(Path.of(output_name))
       .run();
   }
 }
