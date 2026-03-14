@@ -371,6 +371,14 @@ Resources:
               },
               "ResultPath": "$.taskResult",
               "Next": "ReportSuccess",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 1
+                }
+              ],
               "Catch": [
                 {
                   "ErrorEquals": ["States.ALL"],
