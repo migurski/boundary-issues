@@ -33,6 +33,9 @@ COPY processor.py /var/task/processor.py
 
 COPY --from=builder /build/target/political-views-tiles-1.0.0-with-deps.jar /var/task/tiles.jar
 
+# Bundle landcover source so Planetiler doesn't download it at runtime
+COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/task/data/sources/daylight-landcover.gpkg
+
 # Set the Lambda handler using awslambdaric
 ENTRYPOINT ["python3", "-m", "awslambdaric"]
 CMD ["processor.handler"]
