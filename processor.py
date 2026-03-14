@@ -302,7 +302,7 @@ def upload_to_s3(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
         parsed = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
-        for name in ('country-areas.csv', 'country-boundaries.csv'):
+        for name in ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv'):
             local_path = os.path.join(clone_dir, name)
             if not os.path.exists(local_path):
                 logging.info(f"Skipping nonexistent {local_path}")
@@ -387,6 +387,34 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         else:
             logging.info(f"Skipping boundaries conversion: {boundaries_csv} not found")
 
+        # Convert validation-points CSV (iso3, perspectives, relation, geometry)
+        points_csv = os.path.join(clone_dir, 'validation-points.csv')
+        points_geojson = os.path.join(clone_dir, 'validation-points.geojson')
+        if os.path.exists(points_csv):
+            features = []
+            with open(points_csv, newline='') as f:
+                for row in csv.DictReader(f):
+                    wkt = row.get('geometry', '')
+                    if not wkt:
+                        continue
+                    geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
+                    if geom is None:
+                        continue
+                    features.append({
+                        'type': 'Feature',
+                        'geometry': json.loads(geom.ExportToJson()),
+                        'properties': {
+                            'iso3': row.get('iso3', ''),
+                            'perspectives': row.get('perspectives', ''),
+                            'relation': row.get('relation', ''),
+                        },
+                    })
+            with open(points_geojson, 'w') as f:
+                json.dump({'type': 'FeatureCollection', 'features': features}, f)
+            logging.info(f"Wrote {len(features)} validation point features to {points_geojson}")
+        else:
+            logging.info(f"Skipping validation-points conversion: {points_csv} not found")
+
         return None, None
 
     except Exception as e:
@@ -400,6 +428,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
     try:
         areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
         boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
+        points_geojson = os.path.join(clone_dir, 'validation-points.geojson')
 
         if not os.path.exists(areas_geojson) and not os.path.exists(boundaries_geojson):
             logging.info("No GeoJSON files found, skipping tile generation")
@@ -422,6 +451,8 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
             cmd.append(f'--areas={areas_geojson}')
         if os.path.exists(boundaries_geojson):
             cmd.append(f'--boundaries={boundaries_geojson}')
+        if os.path.exists(points_geojson):
+            cmd.append(f'--points={points_geojson}')
 
         logging.info(f"Running tile generation: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -548,6 +579,28 @@ const map = new maplibregl.Map({{
         "layout": {{
           "line-cap": "round",
           "line-join": "round"
+        }}
+      }},
+      {{
+        "id": "validation-points-interior", "type": "circle",
+        "source": "protomaps", "source-layer": "points",
+        "filter": ["==", ["get", "relation"], "interior"],
+        "paint": {{
+          "circle-color": "rgba(0, 200, 0, 1)",
+          "circle-radius": 6,
+          "circle-stroke-color": "rgba(255, 255, 255, 1)",
+          "circle-stroke-width": 1.5
+        }}
+      }},
+      {{
+        "id": "validation-points-exterior", "type": "circle",
+        "source": "protomaps", "source-layer": "points",
+        "filter": ["==", ["get", "relation"], "exterior"],
+        "paint": {{
+          "circle-color": "rgba(220, 0, 0, 1)",
+          "circle-radius": 6,
+          "circle-stroke-color": "rgba(255, 255, 255, 1)",
+          "circle-stroke-width": 1.5
         }}
       }}
     ]
