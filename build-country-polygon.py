@@ -16,6 +16,7 @@ import urllib.request
 import geopandas
 import osgeo.gdal
 import osgeo.ogr
+import shapely
 import shapely.wkt
 import yaml
 
@@ -161,6 +162,9 @@ def validate_areas(configs, areas_path):
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
 
+def clean_interection(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
+    return shapely.line_merge(g1.intersection(g2))
+
 def load_shape(el_type: str, osm_id: int|str, ignore_locals: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
     for attempt in (1, 2, 3):
@@ -258,10 +262,10 @@ def write_country_boundaries(dirname, configs):
             # print(iso3a, party1, iso3b, party2, other_parties, file=sys.stderr)
 
             # Caculate boundaries for each claimant + those of outside observers
-            line1 = gdf.iloc[party1[0]].geometry.intersection(gdf.iloc[party1[1]].geometry)
-            line2 = gdf.iloc[party2[0]].geometry.intersection(gdf.iloc[party2[1]].geometry)
+            line1 = clean_interection(gdf.iloc[party1[0]].geometry, gdf.iloc[party1[1]].geometry)
+            line2 = clean_interection(gdf.iloc[party2[0]].geometry, gdf.iloc[party2[1]].geometry)
             other_lines: dict[tuple[str], shapely.geometry.base.BaseGeometry] = {
-                k: gdf.iloc[i1].geometry.intersection(gdf.iloc[i2].geometry)
+                k: clean_interection(gdf.iloc[i1].geometry, gdf.iloc[i2].geometry)
                 for k, (i1, i2) in other_parties.items()
             }
             # print(iso3a, str(line1)[:50], iso3b, str(line2)[:50], {k: str(v)[:50] for k, v in other_lines.items()}, file=sys.stderr)
@@ -278,7 +282,7 @@ def write_country_boundaries(dirname, configs):
             # Write alternative disputed geometries
             for other_iso3s, linestring in other_lines.items():
                 linestrings = [line1, line2, linestring]
-                agreed_linestring = functools.reduce(lambda g1, g2: g1.intersection(g2), linestrings)
+                agreed_linestring = functools.reduce(clean_interection, linestrings)
                 disputed_linestring = functools.reduce(lambda g1, g2: g1.union(g2), linestrings).difference(agreed_linestring)
 
                 # Identify 3rd parties with a potential interest in this border
