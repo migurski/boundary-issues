@@ -345,12 +345,12 @@ def handler(event: dict, context: typing.Any) -> dict:
     if err5:
         return err5
 
-    # Determine if we should ignore local files
-    ignore_locals = event.get('ignoreLocals', False)
-    logging.info(f"Ignore local files: {ignore_locals}")
+    # Determine if we should check Fresh OSM files
+    check_fresh_osm = event.get('checkFreshOSM', False)
+    logging.info(f"check Fresh OSM files: {check_fresh_osm}")
 
     # Run the script
-    err6, _ = run_build_script(changed_configs, ignore_locals, clone_dir, on_failure)
+    err6, _ = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
     if err6:
         return err6
 
@@ -359,8 +359,8 @@ def handler(event: dict, context: typing.Any) -> dict:
     if err7:
         return err7
 
-    # Generate tiles on first run (when ignoreLocals is not set)
-    if not ignore_locals:
+    # Generate tiles on first run (when checkFreshOSM is not set)
+    if not check_fresh_osm:
         err8, _ = convert_csvs_to_geojson(clone_dir, on_failure)
         if err8:
             return err8
@@ -522,7 +522,7 @@ def find_changed_configs(pull_request: dict, clone_dir: str, on_failure: FailCal
         on_failure('GitDiffValidationError', str(e))
         return make_error(str(e)), None
 
-def run_build_script(changed_configs: list[str], ignore_locals: bool, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
     """ Run build-country-polygon.py with appropriate arguments """
     try:
         if not changed_configs:
@@ -530,9 +530,9 @@ def run_build_script(changed_configs: list[str], ignore_locals: bool, clone_dir:
             # Successfully skip processing - nothing to do
             pass
         else:
-            if ignore_locals:
-                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --ignore-locals")
-                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs + ['--ignore-locals'], clone_dir)
+            if check_fresh_osm:
+                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --check-Fresh-OSM")
+                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs + ['--check-Fresh-OSM'], clone_dir)
             else:
                 logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)}")
                 result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs, clone_dir)

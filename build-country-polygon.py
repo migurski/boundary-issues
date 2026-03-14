@@ -40,7 +40,7 @@ class TestCase (unittest.TestCase):
         os.makedirs(cls.tempdir, exist_ok=True)
         with open('test-config.yaml', 'r') as file:
             cls.config = yaml.safe_load(file)
-        write_country_areas(cls.tempdir, cls.config, ignore_locals=False)
+        write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
         write_country_boundaries(cls.tempdir, cls.config)
 
     @classmethod
@@ -165,12 +165,12 @@ def make_point(x, y):
 def clean_interection(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
     return shapely.line_merge(g1.intersection(g2))
 
-def load_shape(el_type: str, osm_id: int|str, ignore_locals: bool) -> osgeo.ogr.Geometry:
+def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
     for attempt in (1, 2, 3):
         newly_downloaded = False
         try:
-            if ignore_locals or not os.path.exists(local_path):
+            if check_fresh_osm or not os.path.exists(local_path):
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 with gzip.open(local_path, "wb", compresslevel=9) as file:
                     url = f"https://api.openstreetmap.org/api/0.6/{el_type}/{osm_id}/full"
@@ -190,13 +190,13 @@ def load_shape(el_type: str, osm_id: int|str, ignore_locals: bool) -> osgeo.ogr.
         else:
             return functools.reduce(lambda g1, g2: g1.Union(g2), geometries)
 
-def combine_shapes(shapes: list[tuple[str, str, int|str]], ignore_locals: bool) -> osgeo.ogr.Geometry:
+def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     assert shapes[0][0] == "plus"
-    return functools.reduce(lambda g, s: combine_pair(g, s, ignore_locals), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
+    return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
-def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], ignore_locals: bool) -> osgeo.ogr.Geometry:
+def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     direction2, el_type2, osm_id2, _ = shape2
-    geom2 = load_shape(el_type2, osm_id2, ignore_locals)
+    geom2 = load_shape(el_type2, osm_id2, check_fresh_osm)
     if direction2 == "plus" and geom1 is None:
         geom3 = geom2.Clone()
     elif direction2 == "plus" and geom1 is not None:
@@ -314,12 +314,12 @@ def write_country_boundaries(dirname, configs):
                     print("Writing disinterested parties border", row4, file=sys.stderr)
                     rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
-def write_country_areas(dirname, configs, ignore_locals: bool):
+def write_country_areas(dirname, configs, check_fresh_osm: bool):
     with open(os.path.join(dirname, AREAS_NAME), "w") as file:
         rows = csv.DictWriter(file, ("iso3", "perspectives", "geometry"))
         rows.writeheader()
         for (iso3a, config) in configs.items():
-            geom1 = combine_shapes(config[BASE], ignore_locals)
+            geom1 = combine_shapes(config[BASE], check_fresh_osm)
 
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
@@ -329,7 +329,7 @@ def write_country_areas(dirname, configs, ignore_locals: bool):
 
             # Generate perspectives
             for (iso3b, shapes) in config.get("perspectives", {}).items():
-                geom2 = functools.reduce(lambda g, s: combine_pair(g, s, ignore_locals), shapes, geom1)
+                geom2 = functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm), shapes, geom1)
 
                 row2 = dict(iso3=iso3a, perspectives=iso3b)
                 print("Writing perspective polygon", row2, file=sys.stderr)
@@ -337,8 +337,8 @@ def write_country_areas(dirname, configs, ignore_locals: bool):
 
         return file.name
 
-def main(dirname, configs, ignore_locals: bool):
-    areas_path = write_country_areas(dirname, configs, ignore_locals)
+def main(dirname, configs, check_fresh_osm: bool):
+    areas_path = write_country_areas(dirname, configs, check_fresh_osm)
     print("Validating interior and exterior points...", file=sys.stderr)
     validate_areas(configs, areas_path)
     write_country_boundaries(dirname, configs)
@@ -346,7 +346,7 @@ def main(dirname, configs, ignore_locals: bool):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
     parser.add_argument('--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
-    parser.add_argument('--ignore-locals', action='store_true', help='Ignore local files and download fresh OSM data')
+    parser.add_argument('--check-Fresh-OSM', action='store_true', help='Ignore local files and download fresh OSM data')
     args = parser.parse_args()
 
     config = {}
@@ -355,4 +355,4 @@ if __name__ == "__main__":
         with open(path, 'r') as file:
             config.update(yaml.safe_load(file))
 
-    exit(main(".", config, args.ignore_locals))
+    exit(main(".", config, args.check_fresh_osm))
