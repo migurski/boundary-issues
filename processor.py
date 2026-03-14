@@ -124,6 +124,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         cmd = [
             'java', '-jar', '/var/task/tiles.jar',
             f'--data={data_dir}',
+            f'--tmpdir={data_dir}/tmp',
             f'--output={output_path}',
             '--force',
         ]
