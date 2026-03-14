@@ -7,12 +7,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Custom Planetiler profile that processes landcover, areas, and boundaries data.
+ * Custom Planetiler profile that processes landcover, areas, boundaries, and validation points.
  *
  * This profile implements:
  * - A landcover layer from daylight-landcover.gpkg
  * - An areas layer from country-areas.geojson (polygon features)
  * - A boundaries layer from country-boundaries.geojson (linestring features)
+ * - A points layer from validation-points.geojson (point features)
  */
 public class PoliticalViewsProfile extends ForwardingProfile {
 
@@ -28,6 +29,10 @@ public class PoliticalViewsProfile extends ForwardingProfile {
     var boundaries = new Boundaries();
     registerHandler(boundaries);
     registerSourceHandler(Boundaries.SOURCE_NAME, boundaries::process_boundary);
+
+    var points = new Points();
+    registerHandler(points);
+    registerSourceHandler(Points.SOURCE_NAME, points::process_point);
   }
 
   @Override
@@ -88,12 +93,14 @@ public class PoliticalViewsProfile extends ForwardingProfile {
         --force                 Overwrite existing output file
         --areas=<path>          Path to country-areas.geojson
         --boundaries=<path>     Path to country-boundaries.geojson
+        --points=<path>         Path to validation-points.geojson
         --data=<path>           Directory for downloaded data files (default: data)
 
       Example:
         java -jar political-views-tiles-1.0.0-with-deps.jar \\
           --areas=country-areas.geojson \\
           --boundaries=country-boundaries.geojson \\
+          --points=validation-points.geojson \\
           --output=preview.pmtiles --force
 
       For a complete list of Planetiler options, see:
@@ -109,6 +116,7 @@ public class PoliticalViewsProfile extends ForwardingProfile {
 
     String areas_path = args.getString("areas", "Path to country-areas.geojson", "");
     String boundaries_path = args.getString("boundaries", "Path to country-boundaries.geojson", "");
+    String points_path = args.getString("points", "Path to validation-points.geojson", "");
     String output_name = args.getString("output", "Output PMTiles path", "output.pmtiles");
 
     var planetiler = Planetiler.create(args)
@@ -121,6 +129,10 @@ public class PoliticalViewsProfile extends ForwardingProfile {
 
     if (!boundaries_path.isBlank()) {
       planetiler.addGeoJsonSource(Boundaries.SOURCE_NAME, Path.of(boundaries_path));
+    }
+
+    if (!points_path.isBlank()) {
+      planetiler.addGeoJsonSource(Points.SOURCE_NAME, Path.of(points_path));
     }
 
     planetiler
