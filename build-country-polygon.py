@@ -346,7 +346,7 @@ def main(dirname, configs, check_fresh_osm: bool):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
     parser.add_argument('--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
-    parser.add_argument('--check-Fresh-OSM', action='store_true', help='Ignore local files and download fresh OSM data')
+    parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
     args = parser.parse_args()
 
     config = {}
