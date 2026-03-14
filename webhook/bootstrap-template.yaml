@@ -20,13 +20,6 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      Tags:
-        - Key: Application
-          Value: !Ref ApplicationName
-        - Key: ManagedBy
-          Value: CloudFormation
-        - Key: StackType
-          Value: Bootstrap
 
   # ECR Repository for processor Docker images
   ProcessorRepository:
@@ -53,13 +46,6 @@ Resources:
               }
             ]
           }
-      Tags:
-        - Key: Application
-          Value: !Ref ApplicationName
-        - Key: ManagedBy
-          Value: CloudFormation
-        - Key: StackType
-          Value: Bootstrap
 
   # Secrets Manager secret for GitHub token
   # Created empty - value will be populated by deploy.sh from .env file
@@ -69,13 +55,6 @@ Resources:
       Name: !Sub '${AWS::StackName}-webhook/github-token'
       Description: !Sub 'GitHub token for ${ApplicationName}'
       SecretString: '{"token": "placeholder-will-be-updated-by-deploy-script"}'
-      Tags:
-        - Key: Application
-          Value: !Ref ApplicationName
-        - Key: ManagedBy
-          Value: CloudFormation
-        - Key: StackType
-          Value: Bootstrap
 
 Outputs:
   DeploymentBucketName:

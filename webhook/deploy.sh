@@ -199,6 +199,7 @@ if aws cloudformation describe-stacks \
             ParameterKey=WebhookZipS3Key,ParameterValue="$S3_KEY" \
             ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
             ParameterKey=GitHubSecretName,ParameterValue="$SECRET_NAME" \
+            ParameterKey=DataBucket,ParameterValue="boundary-issues" \
         --capabilities CAPABILITY_NAMED_IAM \
         --region "$REGION" \
         --output text > /dev/null || {
@@ -225,6 +226,7 @@ else
             ParameterKey=WebhookZipS3Key,ParameterValue="$S3_KEY" \
             ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
             ParameterKey=GitHubSecretName,ParameterValue="$SECRET_NAME" \
+            ParameterKey=DataBucket,ParameterValue="boundary-issues" \
         --capabilities CAPABILITY_NAMED_IAM \
         --region "$REGION" \
         --output text > /dev/null

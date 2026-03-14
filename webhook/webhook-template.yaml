@@ -18,6 +18,10 @@ Parameters:
     Type: String
     Description: Name of the Secrets Manager secret containing the GitHub token (from bootstrap stack)
 
+  DataBucket:
+    Type: String
+    Description: S3 bucket for storing and retrieving application data
+
 Resources:
   # Shared managed policy for GitHub secret access
   GitHubSecretAccessPolicy:
@@ -31,6 +35,27 @@ Resources:
             Action:
               - secretsmanager:GetSecretValue
             Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}*'
+
+  # Shared managed policy for data bucket access
+  DataBucketAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Grants read/write access to the data bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:DeleteObject
+            Resource: !Sub 'arn:aws:s3:::${DataBucket}/*'
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+            Resource: !Sub 'arn:aws:s3:::${DataBucket}'
 
   # IAM Role for Webhook Lambda function
   WebhookFunctionRole:
@@ -46,6 +71,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !Ref GitHubSecretAccessPolicy
+        - !Ref DataBucketAccessPolicy
       Policies:
         - PolicyName: StartStateMachineExecution
           PolicyDocument:
@@ -54,7 +80,12 @@ Resources:
               - Effect: Allow
                 Action:
                   - states:StartExecution
+                  - states:ListExecutions
                 Resource: !GetAtt ProcessorStateMachine.Arn
+              - Effect: Allow
+                Action:
+                  - states:StopExecution
+                Resource: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProcessorStateMachine.Name}:*'
 
   # Lambda Function
   WebhookFunction:
@@ -73,6 +104,7 @@ Resources:
         Variables:
           STATE_MACHINE_ARN: !GetAtt ProcessorStateMachine.Arn
           GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
+          DATA_BUCKET: !Ref DataBucket
 
   # Lambda Function URL
   WebhookFunctionUrl:
@@ -121,6 +153,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !Ref GitHubSecretAccessPolicy
+        - !Ref DataBucketAccessPolicy
 
   # Finish Lambda function for updating GitHub PR status
   FinishFunction:
@@ -138,6 +171,7 @@ Resources:
       Environment:
         Variables:
           GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
+          DATA_BUCKET: !Ref DataBucket
 
   # IAM Role for processor Lambda function
   ProcessorFunctionRole:
@@ -153,6 +187,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !Ref GitHubSecretAccessPolicy
+        - !Ref DataBucketAccessPolicy
       Policies:
         - PolicyName: StepFunctionsTaskCallbacks
           PolicyDocument:
@@ -179,6 +214,7 @@ Resources:
       Environment:
         Variables:
           GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
+          DATA_BUCKET: !Ref DataBucket
       Description: Processes GitHub PR events by cloning and checking out commits
 
   # IAM Role for Task Lambda function
@@ -194,6 +230,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref DataBucketAccessPolicy
       Policies:
         - PolicyName: InvokeProcessorFunction
           PolicyDocument:
@@ -220,6 +257,7 @@ Resources:
       Environment:
         Variables:
           PROCESSOR_FUNCTION_ARN: !GetAtt ProcessorFunction.Arn
+          DATA_BUCKET: !Ref DataBucket
 
   # IAM Role for Step Functions state machine
   StateMachineRole:
@@ -273,9 +311,9 @@ Resources:
       DefinitionString: !Sub |
         {
           "Comment": "Process GitHub PR events asynchronously with task token callback",
-          "StartAt": "InvokeTask",
+          "StartAt": "FirstInvokeTask",
           "States": {
-            "InvokeTask": {
+            "FirstInvokeTask": {
               "Type": "Task",
               "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
               "Parameters": {
@@ -285,7 +323,50 @@ Resources:
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
-                  "repository.$": "$.repository"
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination",
+                  "taskSequence": "first"
+                }
+              },
+              "ResultPath": "$.taskResult",
+              "Next": "CheckIfConfigsChanged",
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "ReportFailure",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CheckIfConfigsChanged": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.taskResult.changedConfigs[0]",
+                  "IsPresent": true,
+                  "Next": "Wait5Minutes"
+                }
+              ],
+              "Default": "ReportSuccess"
+            },
+            "Wait5Minutes": {
+              "Type": "Wait",
+              "Seconds": 300,
+              "Next": "SecondInvokeTask"
+            },
+            "SecondInvokeTask": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+              "Parameters": {
+                "FunctionName": "${TaskFunction.Arn}",
+                "Payload": {
+                  "taskToken.$": "$$.Task.Token",
+                  "action.$": "$.action",
+                  "number.$": "$.number",
+                  "pull_request.$": "$.pull_request",
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination",
+                  "taskSequence": "second"
                 }
               },
               "ResultPath": "$.taskResult",
@@ -305,11 +386,11 @@ Resources:
                 "FunctionName": "${FinishFunction.Arn}",
                 "Payload": {
                   "status": "success",
-                  "executionArn.$": "$$.Execution.Id",
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
-                  "repository.$": "$.repository"
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination"
                 }
               },
               "End": true
@@ -321,11 +402,11 @@ Resources:
                 "FunctionName": "${FinishFunction.Arn}",
                 "Payload": {
                   "status": "failure",
-                  "executionArn.$": "$$.Execution.Id",
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
-                  "repository.$": "$.repository"
+                  "repository.$": "$.repository",
+                  "destination.$": "$.destination"
                 }
               },
               "End": true
