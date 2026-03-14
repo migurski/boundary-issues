@@ -614,14 +614,20 @@ const map = new maplibregl.Map({
         }
       },
       {
-        "id": "validation-points-exterior", "type": "circle",
+        "id": "validation-points-labels", "type": "symbol",
         "source": "protomaps", "source-layer": "points",
-        "filter": ["==", ["get", "relation"], "exterior"],
+        "filter": ["==", ["get", "relation"], "interior"],
+        "layout": {
+          "text-field": ["get", "iso3"],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11,
+          "text-offset": [0, 1.2],
+          "text-anchor": "top"
+        },
         "paint": {
-          "circle-color": "rgba(220, 0, 0, 1)",
-          "circle-radius": 6,
-          "circle-stroke-color": "rgba(255, 255, 255, 1)",
-          "circle-stroke-width": 1.5
+          "text-color": "rgba(0, 100, 0, 1)",
+          "text-halo-color": "rgba(255, 255, 255, 1)",
+          "text-halo-width": 1.5
         }
       }
     ]
@@ -649,8 +655,8 @@ function apply_perspective(perspective) {
     ["==", ["get", "relation"], "interior"],
     perspective_filter(perspective)
   ]);
-  map.setFilter('validation-points-exterior', ["all",
-    ["==", ["get", "relation"], "exterior"],
+  map.setFilter('validation-points-labels', ["all",
+    ["==", ["get", "relation"], "interior"],
     perspective_filter(perspective)
   ]);
 }
