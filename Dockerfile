@@ -17,7 +17,7 @@ FROM --platform=linux/arm64 ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update -y \
- && apt install -y python3 python3-pip python3-gdal python3-numpy git \
+ && apt install -y python3 python3-pip python3-gdal python3-numpy git openjdk-21-jre-headless \
  && apt clean -y \
  && rm -rf /var/lib/apt/lists/*
 
