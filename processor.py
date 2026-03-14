@@ -128,6 +128,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
             f'--output={output_path}',
             '--download',
             '--force',
+            '--maxzoom', '5',
         ]
         if os.path.exists(areas_geojson):
             cmd.append(f'--areas={areas_geojson}')
