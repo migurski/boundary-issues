@@ -1,3 +1,17 @@
+# Stage 1: Build the Planetiler fat JAR
+FROM --platform=linux/arm64 eclipse-temurin:21-jdk AS builder
+
+RUN apt-get update -y \
+ && apt-get install -y maven \
+ && apt-get clean -y \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY webhook/tiles/ /build/
+
+RUN mvn clean package -DskipTests
+
+# Stage 2: Runtime (Lambda)
 FROM --platform=linux/arm64 ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -16,6 +30,8 @@ RUN pip3 install -r /tmp/requirements.txt
 # Copy the processor handler
 WORKDIR /var/task
 COPY processor.py /var/task/processor.py
+
+COPY --from=builder /build/target/political-views-tiles-1.0.0-with-deps.jar /var/task/tiles.jar
 
 # Set the Lambda handler using awslambdaric
 ENTRYPOINT ["python3", "-m", "awslambdaric"]
