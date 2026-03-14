@@ -276,8 +276,8 @@ def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_di
             pass
         else:
             if check_fresh_osm:
-                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --check-Fresh-OSM")
-                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs + ['--check-Fresh-OSM'], clone_dir)
+                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --check-fresh-osm")
+                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs + ['--check-fresh-osm'], clone_dir)
             else:
                 logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)}")
                 result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs, clone_dir)
