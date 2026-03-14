@@ -23,6 +23,7 @@ import yaml
 osgeo.gdal.UseExceptions()
 csv.field_size_limit(sys.maxsize)
 
+VALIDATION_POINTS_NAME = "validation-points.csv"
 BOUNDARIES_NAME = "country-boundaries.csv"
 AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
@@ -41,6 +42,7 @@ class TestCase (unittest.TestCase):
         with open('test-config.yaml', 'r') as file:
             cls.config = yaml.safe_load(file)
         write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
+        write_validation_points(cls.tempdir, cls.config)
         write_country_boundaries(cls.tempdir, cls.config)
 
     @classmethod
@@ -210,6 +212,30 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str
 def dump_wkt(shape: shapely.geometry.base.BaseGeometry) -> str:
     return shapely.wkt.dumps(shape, rounding_precision=7)
 
+def write_validation_points(dirname, configs):
+    all_povs = set(configs.keys())
+    cases = [
+        (is_in, test_iso3a, test_iso3b, x, y)
+        for test_iso3a, config in configs.items()
+        for is_in, grouping in [(True, "interior-points"), (False, "exterior-points")]
+        for test_iso3b, points in config.get(grouping, {}).items()
+        for x, y in points
+    ]
+
+    with open(os.path.join(dirname, VALIDATION_POINTS_NAME), "w") as file:
+        rows = csv.DictWriter(file, fieldnames=("iso3", "perspectives", "relation", "geometry"))
+        rows.writeheader()
+        for is_in, test_iso3a, test_iso3b, x, y in cases:
+            if test_iso3b == BASE:
+                # "Neutral" point of view = anyone without a defined perspective
+                local_povs = set(configs[test_iso3a].get("perspectives", {}).keys())
+                neutral_povs = all_povs - local_povs
+                test_iso3b = ";".join(neutral_povs)
+            relation = "interior" if is_in else "exterior"
+            row = dict(iso3=test_iso3a, perspectives=test_iso3b, relation=relation)
+            print("Writing validation point", row, file=sys.stderr)
+            rows.writerow({**row, "geometry": f"POINT({x:.7f} {y:.7f})"})
+
 def write_country_boundaries(dirname, configs):
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
@@ -341,6 +367,7 @@ def main(dirname, configs, check_fresh_osm: bool):
     areas_path = write_country_areas(dirname, configs, check_fresh_osm)
     print("Validating interior and exterior points...", file=sys.stderr)
     validate_areas(configs, areas_path)
+    write_validation_points(dirname, configs)
     write_country_boundaries(dirname, configs)
 
 if __name__ == "__main__":
