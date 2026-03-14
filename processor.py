@@ -166,6 +166,94 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         return make_error(f'Tile generation failed: {str(e)}'), None
 
 
+def generate_preview_html(event: dict, on_failure: FailCallable) -> tuple[dict|None, None]:
+    """ Generate preview.html and upload to S3 alongside preview.pmtiles """
+    try:
+        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+        parsed = urllib.parse.urlparse(destination)
+        key_prefix = parsed.path.lstrip('/')
+        s3_client = boto3.client('s3')
+        region = s3_client.get_bucket_location(Bucket=parsed.netloc)['LocationConstraint']
+        pmtiles_url = f"https://{parsed.netloc}.s3.{region}.amazonaws.com/{key_prefix}preview.pmtiles"
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Preview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
+<style>body {{ margin: 0; }} #map {{ width: 100vw; height: 100vh; }}</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
+
+const map = new maplibregl.Map({{
+  container: 'map',
+  hash: true,
+  center: [0, 20],
+  zoom: 2,
+  style: {{
+    version: 8,
+    sources: {{
+      protomaps: {{
+        type: 'vector',
+        url: 'pmtiles://{pmtiles_url}'
+      }}
+    }},
+    layers: [
+      {{
+        "id": "background", "type": "background",
+        "paint": {{ "background-color": "#cccccc" }}
+      }},
+      {{
+        "id": "landcover", "type": "fill",
+        "source": "protomaps", "source-layer": "landcover",
+        "paint": {{
+          "fill-color": ["match", ["get", "kind"],
+            "grassland", "rgba(210, 239, 207, 1)",
+            "barren",    "rgba(255, 243, 215, 1)",
+            "urban_area","rgba(230, 230, 230, 1)",
+            "farmland",  "rgba(216, 239, 210, 1)",
+            "glacier",   "rgba(255, 255, 255, 1)",
+            "scrub",     "rgba(234, 239, 210, 1)",
+            "rgba(196, 231, 210, 1)"
+          ],
+          "fill-opacity": ["interpolate", ["linear"], ["zoom"], 5, 1, 7, 0]
+        }}
+      }}
+    ]
+  }}
+}});
+map.addControl(new maplibregl.NavigationControl());
+</script>
+</body>
+</html>"""
+
+        html_key = os.path.join(parsed.path, 'preview.html').lstrip('/')
+        logging.info(f"Uploading preview.html to s3://{parsed.netloc}/{html_key}")
+        s3_client.put_object(
+            Bucket=parsed.netloc,
+            Key=html_key,
+            Body=html.encode('utf-8'),
+            ContentType='text/html',
+            ACL='public-read',
+            StorageClass='INTELLIGENT_TIERING',
+        )
+        logging.info("Successfully uploaded preview.html")
+        return None, None
+
+    except Exception as e:
+        logging.error(f"Failed to generate preview HTML: {e}")
+        on_failure('PreviewHTMLError', str(e))
+        return make_error(f'Failed to generate preview HTML: {str(e)}'), None
+
+
 def handler(event: dict, context: typing.Any) -> dict:
     """
     Docker Lambda handler that processes GitHub PR events.
@@ -244,6 +332,9 @@ def handler(event: dict, context: typing.Any) -> dict:
         err9, _ = generate_tiles(event, clone_dir, on_failure)
         if err9:
             return err9
+        err10, _ = generate_preview_html(event, on_failure)
+        if err10:
+            return err10
 
     # Success!
     success_response = {
