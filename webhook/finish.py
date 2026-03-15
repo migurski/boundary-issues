@@ -65,7 +65,7 @@ def lambda_handler(event, context):
             Key=target_path.lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body=f'All done with {status_state}'.encode('utf8'),
+            Body=f'All done with {status_state}. <a href="preview.html">Preview</a>.'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
     else:

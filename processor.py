@@ -109,6 +109,9 @@ def handler(event: dict, context: typing.Any) -> dict:
         err9, _ = generate_preview_html(event, clone_dir, on_failure)
         if err9:
             return err9
+        err10 = update_index_html(event, on_failure)
+        if err10:
+            return err10
 
     # Success!
     success_response = {
@@ -722,3 +725,24 @@ map.on('load', function() {
         logging.error(f"Failed to generate preview HTML: {e}")
         on_failure('PreviewHTMLError', str(e))
         return make_error(f'Failed to generate preview HTML: {str(e)}'), None
+
+def update_index_html(event: dict, on_failure: FailCallable) -> dict|None:
+    try:
+        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+        parsed = urllib.parse.urlparse(destination)
+        s3_client = boto3.client('s3')
+        s3_client.put_object(
+            Bucket=parsed.netloc,
+            Key=os.path.join(parsed.path, 'index.html').lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body=f'Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.'.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
+        logging.info("Successfully updated index.html")
+        return None
+
+    except Exception as e:
+        logging.error(f"Failed to update index HTML: {e}")
+        on_failure('PreviewHTMLError', str(e))
+        return make_error(f'Failed to generate preview HTML: {str(e)}')
