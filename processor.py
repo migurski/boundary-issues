@@ -464,6 +464,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         logging.info(f"Running tile generation: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Tile generation output: {result.stdout}")
+        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
         parsed = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
         s3_client.put_object(
@@ -476,7 +477,6 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         )
 
         # Upload preview.pmtiles to S3 alongside the CSVs
-        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
         key = os.path.join(parsed.path, 'preview.pmtiles').lstrip('/')
         logging.info(f"Uploading {output_path} to s3://{parsed.netloc}/{key}")
         s3_client.upload_file(
@@ -586,7 +586,8 @@ const map = new maplibregl.Map({
         "id": "areas", "type": "fill",
         "source": "protomaps", "source-layer": "areas",
         "paint": {
-          "fill-color": ["match", ["%", ["get", "index"], 8],
+          "fill-color": ["match", ["%", ["get", "index"], 24],
+            // https://phillips.shef.ac.uk/pub/cpt-city/cb/qual/set2_08
             0, "#7DC0A6",
             1, "#ED936B",
             2, "#919FC7",
@@ -594,7 +595,25 @@ const map = new maplibregl.Map({
             4, "#B0D767",
             5, "#F9DA56",
             6, "#E0C59A",
-            7, "#B3B3B3"
+            7, "#B3B3B3",
+            // https://phillips.shef.ac.uk/pub/cpt-city/cb/qual/dark2_08
+            8, "#4B9C79",
+            9, "#CA6627",
+            10, "#7470AE",
+            11, "#D43E88",
+            12, "#75A43A",
+            13, "#DDAD3B",
+            14, "#9F7831",
+            15, "#666666",
+            // https://phillips.shef.ac.uk/pub/cpt-city/cb/qual/pastel2_08
+            16, "#BCE1CE",
+            17, "#F5CFB0",
+            18, "#CDD5E6",
+            19, "#EDCCE3",
+            20, "#E9F4CD",
+            21, "#FDF2B6",
+            22, "#EEE2CE",
+            23, "#CCCCCC"
           ],
           "fill-opacity": 0.15
         }
