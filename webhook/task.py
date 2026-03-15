@@ -28,7 +28,6 @@ def write_index_html(destination: str, message: str) -> None:
     try:
         parsed_url = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
-        region_name = s3_client.get_bucket_location(Bucket=parsed_url.netloc)['LocationConstraint']
         target_path = os.path.join(parsed_url.path, 'index.html')
 
         s3_client.put_object(

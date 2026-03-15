@@ -315,7 +315,7 @@ class TestLambdaHandler(unittest.TestCase):
         request = call_args[0]
         payload = json.loads(request.data.decode('utf-8'))
 
-        expected_url = f'https://boundary-issues.s3.us-west-0.amazonaws.com/123abc/index.html'
+        expected_url = 'https://boundary-issues.s3.us-west-0.amazonaws.com/123abc/index.html'
         self.assertEqual(payload['target_url'], expected_url)
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)

@@ -747,7 +747,7 @@ def update_index_html(event: dict[str, typing.Any], on_failure: FailCallable) ->
             Key=os.path.join(parsed.path, 'index.html').lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body=f'Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.'.encode('utf8'),
+            Body='Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
         logging.info("Successfully updated index.html")
