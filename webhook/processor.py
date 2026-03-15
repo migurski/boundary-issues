@@ -69,16 +69,19 @@ def handler(event: dict, context: typing.Any) -> dict:
     err1, github_token = fetch_github_token(on_failure)
     if err1:
         return err1
+    assert github_token is not None
 
     # Extract PR information
     err2, (pull_request, pr_sha, pr_number, clone_url) = extract_pr_information(event, on_failure)
     if err2:
         return err2
+    assert pull_request is not None and pr_sha is not None and pr_number is not None and clone_url is not None
 
     # Clone repository
     err3, clone_dir = clone_repository(clone_url, github_token, on_failure)
     if err3:
         return err3
+    assert clone_dir is not None
 
     # Checkout PR HEAD
     err4, _ = checkout_pr_head(clone_dir, pr_sha, pr_number, on_failure)
@@ -89,6 +92,7 @@ def handler(event: dict, context: typing.Any) -> dict:
     err5, changed_configs = find_changed_configs(pull_request, clone_dir, on_failure)
     if err5:
         return err5
+    assert changed_configs is not None
 
     # Determine if we should check Fresh OSM files
     check_fresh_osm = event.get('checkFreshOSM', False)
