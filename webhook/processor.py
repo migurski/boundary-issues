@@ -4,6 +4,7 @@ import boto3
 import csv
 import json
 import logging
+import shutil
 import subprocess
 import os
 import sys
@@ -425,11 +426,8 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
 
         bundled_landcover = '/var/task/daylight-landcover.gpkg'
         landcover_file = f'{data_dir}/daylight-landcover.gpkg'
-        logging.info(f"Bundled landcover exists: {os.path.exists(bundled_landcover)}, size: {os.path.getsize(bundled_landcover) if os.path.exists(bundled_landcover) else 'N/A'}")
         if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
-            import shutil
             shutil.copy2(bundled_landcover, landcover_file)
-            logging.info(f"Copied bundled landcover to {landcover_file}")
 
         cmd = [
             'java', '-jar', '/var/task/tiles.jar',
