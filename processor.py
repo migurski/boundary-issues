@@ -616,7 +616,7 @@ const map = new maplibregl.Map({
             23, "#CCCCCC",
             "#000000"
           ],
-          "fill-opacity": 0.15
+          "fill-opacity": 0.35
         }
       },
       {
