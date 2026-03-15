@@ -423,6 +423,18 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         data_dir = '/tmp/tiles-data'
         os.makedirs(data_dir, exist_ok=True)
 
+        gpkg = '/var/data/daylight-landcover.gpkg'
+        stat = os.stat(gpkg) if os.path.exists(gpkg) else None
+        logging.info(f"GPKG debug: exists={os.path.exists(gpkg)}, stat={stat}, readable={os.access(gpkg, os.R_OK)}, writable_dir={os.access(os.path.dirname(gpkg), os.W_OK)}")
+        try:
+            with open(gpkg, 'rb') as f:
+                logging.info(f"GPKG Python open OK, first 4 bytes: {f.read(4)}")
+        except Exception as e:
+            logging.info(f"GPKG Python open failed: {e}")
+        import subprocess as sp
+        ls = sp.run(['ls', '-la', '/var/data'], capture_output=True, text=True)
+        logging.info(f"ls /var/data: {ls.stdout}")
+
         cmd = [
             'java', '-jar', '/var/task/tiles.jar',
             f'--data={data_dir}',
