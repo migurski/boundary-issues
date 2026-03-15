@@ -1,3 +1,15 @@
+# Stage 0: Get a local copy of the LandCover GPKG
+FROM --platform=linux/arm64 ubuntu:24.04 AS gpkgbuilder
+
+RUN apt update -y \
+ && apt install -y curl \
+ && apt clean -y \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L https://r2-public.protomaps.com/datasets/daylight-landcover.gpkg -o /tmp/daylight-landcover.gpkg
+
+
+
 # Stage 1: Build the Planetiler fat JAR
 FROM --platform=linux/arm64 eclipse-temurin:21-jdk AS jarbuilder
 
@@ -10,6 +22,8 @@ WORKDIR /build
 COPY webhook/tiles/ /build/
 
 RUN mvn clean package -DskipTests
+
+
 
 # Stage 2: Runtime (Lambda)
 FROM --platform=linux/arm64 ubuntu:24.04
@@ -29,7 +43,7 @@ RUN pip3 install -r /tmp/requirements.txt
 
 # Bundle landcover source so Planetiler doesn't download it at runtime;
 # processor.py copies it to /tmp at invocation so SQLite can write sidecar files
-COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/data/daylight-landcover.gpkg
+COPY --from=gpkgbuilder /tmp/daylight-landcover.gpkg /var/data/daylight-landcover.gpkg
 
 # Copy the processor handler
 COPY webhook/processor.py /var/task/processor.py
