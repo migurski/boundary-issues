@@ -1,16 +1,19 @@
 #!/bin/bash
 set -e
 
+# Change directories so relative paths all resolve
+cd "$(dirname "$0")"
+
 # Configuration
 REGION="us-west-2"
-DOCKERFILE_DIR="$(dirname "$0")/.."
-ENV_FILE="$(dirname "$0")/../.env"
+DOCKERFILE_DIR=".."
+ENV_FILE="../.env"
 
 BOOTSTRAP_STACK_NAME="boundary-issues-bootstrap"
-BOOTSTRAP_TEMPLATE_FILE="$(dirname "$0")/bootstrap-template.yaml"
+BOOTSTRAP_TEMPLATE_FILE="./bootstrap-template.yaml"
 
 WEBHOOK_STACK_NAME="boundary-issues-webhook"
-WEBHOOK_TEMPLATE_FILE="$(dirname "$0")/webhook-template.yaml"
+WEBHOOK_TEMPLATE_FILE="./webhook-template.yaml"
 
 # Get AWS account ID
 echo "Getting AWS account ID..."

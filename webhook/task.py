@@ -73,14 +73,14 @@ def lambda_handler(event, context):
 
     # Prepare payload for processor
     # Pass through the original event fields plus the task token
-    # Convert taskSequence to ignoreLocals for processor
+    # Convert taskSequence to checkFreshOSM for processor
     task_sequence = event.get('taskSequence')
     processor_payload = event.copy()
 
-    # Remove taskSequence and add ignoreLocals instead
+    # Remove taskSequence and add checkFreshOSM instead
     processor_payload.pop('taskSequence', None)
     if task_sequence == 'second':
-        processor_payload['ignoreLocals'] = True
+        processor_payload['checkFreshOSM'] = True
 
     logging.info(f"Invoking processor function asynchronously: {processor_arn}")
     logging.info(f"Payload: {json.dumps(processor_payload)}")
