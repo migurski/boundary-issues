@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import boto3
 import csv
+import itertools
 import json
 import logging
 import subprocess
@@ -332,6 +333,7 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         # Convert areas CSV (iso3, perspectives, geometry)
         areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
         if os.path.exists(areas_csv):
+            feature_ids = itertools.count(1)
             features = []
             with open(areas_csv, newline='') as f:
                 for row in csv.DictReader(f):
@@ -345,6 +347,7 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
                         'type': 'Feature',
                         'geometry': json.loads(geom.ExportToJson()),
                         'properties': {
+                            'index': next(feature_ids),
                             'iso3': row.get('iso3', ''),
                             'perspectives': row.get('perspectives', ''),
                         },
@@ -358,6 +361,7 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         # Convert boundaries CSV (iso3a, iso3b, perspectives, agreed_geometry, disputed_geometry)
         boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
         if os.path.exists(boundaries_csv):
+            feature_ids = itertools.count(1)
             features = []
             with open(boundaries_csv, newline='') as f:
                 for row in csv.DictReader(f):
@@ -375,6 +379,7 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
                             'type': 'Feature',
                             'geometry': json.loads(geom.ExportToJson()),
                             'properties': {
+                                'index': next(feature_ids),
                                 'iso3a': iso3a,
                                 'iso3b': iso3b,
                                 'perspectives': perspectives,
@@ -391,6 +396,7 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         points_csv = os.path.join(clone_dir, 'validation-points.csv')
         points_geojson = os.path.join(clone_dir, 'validation-points.geojson')
         if os.path.exists(points_csv):
+            feature_ids = itertools.count(1)
             features = []
             with open(points_csv, newline='') as f:
                 for row in csv.DictReader(f):
@@ -404,6 +410,7 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
                         'type': 'Feature',
                         'geometry': json.loads(geom.ExportToJson()),
                         'properties': {
+                            'index': next(feature_ids),
                             'iso3': row.get('iso3', ''),
                             'perspectives': row.get('perspectives', ''),
                             'relation': row.get('relation', ''),
@@ -579,7 +586,16 @@ const map = new maplibregl.Map({
         "id": "areas", "type": "fill",
         "source": "protomaps", "source-layer": "areas",
         "paint": {
-          "fill-color": "rgba(255, 153, 0, 1)",
+          "fill-color": ["match", ["%", ["get", "index"], 8],
+            0, "#7DC0A6",
+            1, "#ED936B",
+            2, "#919FC7",
+            3, "#DA8EC0",
+            4, "#B0D767",
+            5, "#F9DA56",
+            6, "#E0C59A",
+            7, "#B3B3B3"
+          ],
           "fill-opacity": 0.15
         }
       },
