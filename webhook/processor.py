@@ -428,7 +428,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
             f'--data={data_dir}',
             f'--tmpdir={data_dir}/tmp',
             f'--output={output_path}',
-            '--landcover_path=/var/task/data/daylight-landcover.gpkg',
+            '--landcover_path=/var/data/daylight-landcover.gpkg',
             '--download',
             '--force',
             '--maxzoom', '5',
