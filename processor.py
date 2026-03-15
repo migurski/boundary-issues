@@ -98,22 +98,17 @@ def handler(event: dict, context: typing.Any) -> dict:
     if err6:
         return err6
 
-    # Upload to S3
-    err7, _ = upload_to_s3(event, clone_dir, on_failure)
-    if err7:
-        return err7
-
     # Generate tiles on first run (when checkFreshOSM is not set)
     if not check_fresh_osm:
-        err8, _ = convert_csvs_to_geojson(clone_dir, on_failure)
+        err7, _ = convert_csvs_to_geojson(clone_dir, on_failure)
+        if err7:
+            return err7
+        err8, _ = generate_tiles(event, clone_dir, on_failure)
         if err8:
             return err8
-        err9, _ = generate_tiles(event, clone_dir, on_failure)
+        err9, _ = generate_preview_html(event, clone_dir, on_failure)
         if err9:
             return err9
-        err10, _ = generate_preview_html(event, clone_dir, on_failure)
-        if err10:
-            return err10
 
     # Success!
     success_response = {
@@ -291,31 +286,6 @@ def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_di
         on_failure('ScriptExecutionError', e.stderr or str(e))
         return make_error(f'Failed to run build-country-polygon.py: {e.stderr}'), None
     except ValueError as e:
-        logging.error(f"{e}")
-        on_failure('ScriptValidationError', str(e))
-        return make_error(str(e)), None
-
-
-def upload_to_s3(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
-    """ Upload generated CSV files to S3 """
-    try:
-        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
-        parsed = urllib.parse.urlparse(destination)
-        s3_client = boto3.client('s3')
-        for name in ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv'):
-            local_path = os.path.join(clone_dir, name)
-            if not os.path.exists(local_path):
-                logging.info(f"Skipping nonexistent {local_path}")
-                continue
-            logging.info(f"Uploading {local_path} to {destination}")
-            s3_client.upload_file(
-                Filename=local_path,
-                Bucket=parsed.netloc,
-                Key=os.path.join(parsed.path, name).lstrip('/'),
-                ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
-            )
-        return None, None
-    except Exception as e:
         logging.error(f"{e}")
         on_failure('ScriptValidationError', str(e))
         return make_error(str(e)), None
