@@ -464,6 +464,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         logging.info(f"Running tile generation: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Tile generation output: {result.stdout}")
+        parsed = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
         s3_client.put_object(
             Bucket=parsed.netloc,
@@ -476,7 +477,6 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
 
         # Upload preview.pmtiles to S3 alongside the CSVs
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
-        parsed = urllib.parse.urlparse(destination)
         key = os.path.join(parsed.path, 'preview.pmtiles').lstrip('/')
         logging.info(f"Uploading {output_path} to s3://{parsed.netloc}/{key}")
         s3_client.upload_file(
