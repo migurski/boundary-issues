@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import boto3
 import csv
-import itertools
 import json
 import logging
 import subprocess
@@ -333,7 +332,6 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         # Convert areas CSV (iso3, perspectives, geometry)
         areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
         if os.path.exists(areas_csv):
-            feature_ids = itertools.count(1)
             features = []
             with open(areas_csv, newline='') as f:
                 for row in csv.DictReader(f):
@@ -347,11 +345,14 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
                         'type': 'Feature',
                         'geometry': json.loads(geom.ExportToJson()),
                         'properties': {
-                            'index': next(feature_ids),
+                            'index': None,
                             'iso3': row.get('iso3', ''),
                             'perspectives': row.get('perspectives', ''),
                         },
                     })
+            indexes = sorted(list({f['properties']['iso3'] for f in features}))
+            for feature in features:
+                feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
             with open(areas_geojson, 'w') as f:
                 json.dump({'type': 'FeatureCollection', 'features': features}, f)
             logging.info(f"Wrote {len(features)} area features to {areas_geojson}")
@@ -361,7 +362,6 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         # Convert boundaries CSV (iso3a, iso3b, perspectives, agreed_geometry, disputed_geometry)
         boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
         if os.path.exists(boundaries_csv):
-            feature_ids = itertools.count(1)
             features = []
             with open(boundaries_csv, newline='') as f:
                 for row in csv.DictReader(f):
@@ -379,13 +379,16 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
                             'type': 'Feature',
                             'geometry': json.loads(geom.ExportToJson()),
                             'properties': {
-                                'index': next(feature_ids),
+                                'index': None,
                                 'iso3a': iso3a,
                                 'iso3b': iso3b,
                                 'perspectives': perspectives,
                                 'disputed': disputed,
                             },
                         })
+            indexes = sorted(list({f['properties']['iso3a'] for f in features}))
+            for feature in features:
+                feature['properties']['index'] = indexes.index(feature['properties']['iso3a'])
             with open(boundaries_geojson, 'w') as f:
                 json.dump({'type': 'FeatureCollection', 'features': features}, f)
             logging.info(f"Wrote {len(features)} boundary features to {boundaries_geojson}")
@@ -396,7 +399,6 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         points_csv = os.path.join(clone_dir, 'validation-points.csv')
         points_geojson = os.path.join(clone_dir, 'validation-points.geojson')
         if os.path.exists(points_csv):
-            feature_ids = itertools.count(1)
             features = []
             with open(points_csv, newline='') as f:
                 for row in csv.DictReader(f):
@@ -410,12 +412,15 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
                         'type': 'Feature',
                         'geometry': json.loads(geom.ExportToJson()),
                         'properties': {
-                            'index': next(feature_ids),
+                            'index': None,
                             'iso3': row.get('iso3', ''),
                             'perspectives': row.get('perspectives', ''),
                             'relation': row.get('relation', ''),
                         },
                     })
+            indexes = sorted(list({f['properties']['iso3'] for f in features}))
+            for feature in features:
+                feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
             with open(points_geojson, 'w') as f:
                 json.dump({'type': 'FeatureCollection', 'features': features}, f)
             logging.info(f"Wrote {len(features)} validation point features to {points_geojson}")
