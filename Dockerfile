@@ -28,9 +28,8 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install -r /tmp/requirements.txt
 
 # Bundle landcover source so Planetiler doesn't download it at runtime;
-# /var/data is outside Lambda's read-only /var/task mount so SQLite can write sidecar files
+# processor.py copies it to /tmp at invocation so SQLite can write sidecar files
 COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/data/daylight-landcover.gpkg
-RUN chmod 777 /var/data
 
 # Copy the processor handler
 COPY webhook/processor.py /var/task/processor.py
