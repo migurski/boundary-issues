@@ -27,8 +27,10 @@ RUN pip3 install 'awslambdaric==2.2.1' 'boto3==1.34.34'
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install -r /tmp/requirements.txt
 
-# Bundle landcover source so Planetiler doesn't download it at runtime
+# Bundle landcover source so Planetiler doesn't download it at runtime;
+# chmod so SQLite can write WAL/journal sidecar files alongside it
 COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/task/daylight-landcover.gpkg
+RUN chmod 777 /var/task
 
 # Copy the processor handler
 COPY webhook/processor.py /var/task/processor.py
