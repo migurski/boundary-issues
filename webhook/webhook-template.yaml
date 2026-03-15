@@ -208,7 +208,7 @@ Resources:
         ImageUri: !Ref ProcessorImageUri
       Role: !GetAtt ProcessorFunctionRole.Arn
       Timeout: 300
-      MemorySize: 1024
+      MemorySize: 2048
       Architectures:
         - arm64
       Environment:
