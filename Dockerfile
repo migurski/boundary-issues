@@ -28,7 +28,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install -r /tmp/requirements.txt
 
 # Bundle landcover source so Planetiler doesn't download it at runtime
-COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/task/data/sources/daylight-landcover.gpkg
+COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/task/daylight-landcover.gpkg
 
 # Copy the processor handler
 COPY webhook/processor.py /var/task/processor.py
