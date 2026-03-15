@@ -29,8 +29,8 @@ RUN pip3 install -r /tmp/requirements.txt
 
 # Bundle landcover source so Planetiler doesn't download it at runtime;
 # use a subdirectory so SQLite can write WAL/journal sidecar files alongside it
-RUN mkdir /var/task/data
 COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/task/data/daylight-landcover.gpkg
+RUN chmod 777 /var/task/data
 
 # Copy the processor handler
 COPY webhook/processor.py /var/task/processor.py
