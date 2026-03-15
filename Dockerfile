@@ -31,12 +31,12 @@ RUN pip3 install -r /tmp/requirements.txt
 COPY webhook/tiles/data/sources/daylight-landcover.gpkg /var/task/data/sources/daylight-landcover.gpkg
 
 # Copy the processor handler
-WORKDIR /var/task
-COPY processor.py /var/task/processor.py
+COPY webhook/processor.py /var/task/processor.py
 
 # Copy the built JAR from earlier stage
 COPY --from=jarbuilder /build/target/political-views-tiles-1.0.0-with-deps.jar /var/task/tiles.jar
 
 # Set the Lambda handler using awslambdaric
+WORKDIR /var/task
 ENTRYPOINT ["python3", "-m", "awslambdaric"]
 CMD ["processor.handler"]
