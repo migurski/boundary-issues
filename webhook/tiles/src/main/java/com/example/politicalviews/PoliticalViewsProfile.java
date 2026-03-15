@@ -118,9 +118,11 @@ public class PoliticalViewsProfile extends ForwardingProfile {
     String boundaries_path = args.getString("boundaries", "Path to country-boundaries.geojson", "");
     String points_path = args.getString("points", "Path to validation-points.geojson", "");
     String output_name = args.getString("output", "Output PMTiles path", "output.pmtiles");
+    String landcover_path = args.getString("landcover_path", "Path to daylight-landcover.gpkg",
+      sources_dir.resolve("daylight-landcover.gpkg").toString());
 
     var planetiler = Planetiler.create(args)
-      .addGeoPackageSource("landcover", sources_dir.resolve("daylight-landcover.gpkg"),
+      .addGeoPackageSource("landcover", Path.of(landcover_path),
         "https://r2-public.protomaps.com/datasets/daylight-landcover.gpkg");
 
     if (!areas_path.isBlank()) {
