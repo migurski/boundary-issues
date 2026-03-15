@@ -1,6 +1,10 @@
+from __future__ import annotations
+
+import http.client
 import json
 import logging
 import os
+import typing
 import unittest
 import unittest.mock
 import urllib.parse
@@ -16,7 +20,7 @@ logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typing.Any]:
     """
     Finish Lambda handler that updates GitHub PR status with state machine result.
     Called by the state machine after task completion (success or failure).
@@ -158,7 +162,7 @@ class TestLambdaHandler(unittest.TestCase):
     - Success and failure statuses are handled appropriately
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures"""
         self.test_github_secret_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'
         self.test_github_token = 'ghp_test1234567890abcdefghijklmnopqrstuvwxyz'
@@ -191,7 +195,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_successful_status_update(self, mock_boto_client, mock_urlopen):
+    def test_successful_status_update(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
         """Test successful GitHub status update with success state"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()
@@ -224,7 +228,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_failure_status_update(self, mock_boto_client, mock_urlopen):
+    def test_failure_status_update(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
         """Test GitHub status update with failure state"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()
@@ -248,7 +252,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_github_api_payload(self, mock_boto_client, mock_urlopen):
+    def test_github_api_payload(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
         """Test that GitHub API is called with correct payload"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()
@@ -287,7 +291,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_console_url_construction(self, mock_boto_client, mock_urlopen):
+    def test_console_url_construction(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
         """Test AWS console URL is constructed correctly from execution ARN"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()
@@ -315,7 +319,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(payload['target_url'], expected_url)
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)
-    def test_missing_github_secret_arn(self):
+    def test_missing_github_secret_arn(self) -> None:
         """Test error when GITHUB_SECRET_ARN environment variable is not set"""
         response = lambda_handler(self.success_event, self.mock_context)
 
@@ -323,7 +327,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(response['error'], 'GITHUB_SECRET_ARN not configured')
 
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
-    def test_missing_statuses_url(self):
+    def test_missing_statuses_url(self) -> None:
         """Test error when repository.statuses_url is missing from event"""
         event_without_statuses_url = {
             'status': 'success',
@@ -341,7 +345,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(response['error'], 'repository.statuses_url not found in event')
 
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
-    def test_missing_head_sha(self):
+    def test_missing_head_sha(self) -> None:
         """Test error when pull_request.head.sha is missing from event"""
         event_without_sha = {
             'status': 'success',
@@ -358,7 +362,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('boto3.client')
-    def test_secrets_manager_failure(self, mock_boto_client):
+    def test_secrets_manager_failure(self, mock_boto_client: typing.Any) -> None:
         """Test error handling when Secrets Manager fails"""
         # Mock Secrets Manager client to raise exception
         mock_secrets = unittest.mock.MagicMock()
@@ -374,7 +378,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_github_api_failure(self, mock_boto_client, mock_urlopen):
+    def test_github_api_failure(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
         """Test error handling when GitHub API request fails"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()
@@ -388,10 +392,10 @@ class TestLambdaHandler(unittest.TestCase):
             'https://api.github.com',
             401,
             'Unauthorized',
-            {},
+            http.client.HTTPMessage(),
             unittest.mock.MagicMock()
         )
-        mock_error.read = lambda: b'{"message": "Bad credentials"}'
+        mock_error.read = lambda _=0: b'{"message": "Bad credentials"}'  # type: ignore[method-assign, assignment]
         mock_urlopen.side_effect = mock_error
 
         response = lambda_handler(self.success_event, self.mock_context)
@@ -402,7 +406,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_event_without_destination(self, mock_boto_client, mock_urlopen):
+    def test_event_without_destination(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
         """Test that handler works even without execution ARN (no target_url)"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()
@@ -435,7 +439,7 @@ class TestLambdaHandler(unittest.TestCase):
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')
     @unittest.mock.patch('boto3.client')
-    def test_default_to_failure_status(self, mock_boto_client, mock_urlopen):
+    def test_default_to_failure_status(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
         """Test that status defaults to 'failure' if not specified"""
         # Mock Secrets Manager client
         mock_secrets = unittest.mock.MagicMock()

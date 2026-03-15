@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
+import typing
 import unittest
 import unittest.mock
 import urllib.parse
@@ -19,7 +22,7 @@ logging.getLogger().setLevel(logging.INFO)
 EXECUTION_NAME_PAT = "PR{0}-{1}"
 
 
-def stop_existing_executions_for_pr(pr_number, state_machine_arn, sfn_client):
+def stop_existing_executions_for_pr(pr_number: int | str, state_machine_arn: str, sfn_client: typing.Any) -> int:
     """
     Stop any currently running state machine executions for the given PR number.
 
@@ -74,7 +77,7 @@ def stop_existing_executions_for_pr(pr_number, state_machine_arn, sfn_client):
         return 0
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typing.Any]:
     """
     Webhook Lambda handler that receives GitHub events and triggers state machine.
     """
@@ -151,7 +154,7 @@ def lambda_handler(event, context):
         }
 
 
-def do_status(payload, destination_prefix):
+def do_status(payload: dict[str, typing.Any], destination_prefix: str | None) -> None:
     """
     Set GitHub PR status to pending.
 
@@ -183,10 +186,7 @@ def do_status(payload, destination_prefix):
         logging.info("Successfully retrieved GitHub token from Secrets Manager")
     except Exception as e:
         logging.error(f"Failed to retrieve GitHub token: {e}")
-        return {
-            'statusCode': 500,
-            'error': f'Failed to retrieve GitHub token: {str(e)}'
-        }
+        return
 
     # Replace {sha} placeholder in statuses_url with actual SHA
     status_api_url = statuses_url.replace('{sha}', head_sha)
@@ -241,25 +241,16 @@ def do_status(payload, destination_prefix):
             response_data = response.read()
             logging.info(f"GitHub API response: {response_data.decode('utf-8')}")
 
-            return {
-                'statusCode': 200,
-                'message': 'GitHub status updated to pending'
-            }
+            return
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8')
         logging.error(f"GitHub API request failed: {e.code} {e.reason}")
         logging.error(f"Response body: {error_body}")
-        return {
-            'statusCode': 500,
-            'error': f'GitHub API request failed: {e.code} {e.reason}'
-        }
+        return
     except Exception as e:
         logging.error(f"Failed to create GitHub status: {e}")
-        return {
-            'statusCode': 500,
-            'error': f'Failed to create GitHub status: {str(e)}'
-        }
+        return
 
 
 class TestLambdaHandler(unittest.TestCase):
@@ -274,7 +265,7 @@ class TestLambdaHandler(unittest.TestCase):
     - Errors return appropriate status codes
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures"""
         self.test_state_machine_arn = 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'
         self.test_execution_arn = 'arn:aws:states:us-west-2:123456789012:execution:test-processor:PR4-12345678'
@@ -306,7 +297,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_successful_execution(self, mock_boto_client):
+    def test_successful_execution(self, mock_boto_client: typing.Any) -> None:
         """Test successful state machine execution with GitHub PR event"""
         # Mock Step Functions client
         mock_sfn = unittest.mock.MagicMock()
@@ -339,7 +330,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(input_payload['number'], 4)
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)
-    def test_missing_state_machine_arn(self):
+    def test_missing_state_machine_arn(self) -> None:
         """Test error when STATE_MACHINE_ARN environment variable is not set"""
         response = lambda_handler(self.github_pr_event, self.mock_context)
 
@@ -348,7 +339,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(body['error'], 'STATE_MACHINE_ARN not configured')
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
-    def test_invalid_json_body(self):
+    def test_invalid_json_body(self) -> None:
         """Test error handling for invalid JSON in request body"""
         invalid_event = {
             'body': '{invalid json}'
@@ -362,7 +353,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_body_as_dict(self, mock_boto_client):
+    def test_body_as_dict(self, mock_boto_client: typing.Any) -> None:
         """Test that handler accepts body as already-parsed dict (not just string)"""
         # Mock Step Functions client
         mock_sfn = unittest.mock.MagicMock()
@@ -392,7 +383,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_context_aws_request_id(self, mock_boto_client):
+    def test_context_aws_request_id(self, mock_boto_client: typing.Any) -> None:
         """
         Test that handler uses context.aws_request_id (not context.request_id).
 
@@ -419,7 +410,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_step_functions_failure(self, mock_boto_client):
+    def test_step_functions_failure(self, mock_boto_client: typing.Any) -> None:
         """Test error handling when Step Functions start_execution fails"""
         # Mock Step Functions client to raise exception
         mock_sfn = unittest.mock.MagicMock()
@@ -435,7 +426,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_execution_name_format(self, mock_boto_client):
+    def test_execution_name_format(self, mock_boto_client: typing.Any) -> None:
         """Test execution name follows expected format: PR{number}-{request_id[:8]}"""
         mock_sfn = unittest.mock.MagicMock()
         mock_sfn.start_execution.return_value = {
@@ -469,7 +460,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_stops_existing_executions_for_same_pr(self, mock_boto_client):
+    def test_stops_existing_executions_for_same_pr(self, mock_boto_client: typing.Any) -> None:
         """Test that existing running executions for the same PR are stopped"""
         # Mock Step Functions client
         mock_sfn = unittest.mock.MagicMock()
@@ -527,7 +518,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_no_error_when_no_existing_executions(self, mock_boto_client):
+    def test_no_error_when_no_existing_executions(self, mock_boto_client: typing.Any) -> None:
         """Test that webhook succeeds when no existing executions are running"""
         # Mock Step Functions client
         mock_sfn = unittest.mock.MagicMock()
@@ -560,7 +551,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_continues_even_if_stop_fails(self, mock_boto_client):
+    def test_continues_even_if_stop_fails(self, mock_boto_client: typing.Any) -> None:
         """Test that webhook continues and starts new execution even if stopping old ones fails"""
         # Mock Step Functions client
         mock_sfn = unittest.mock.MagicMock()
@@ -595,7 +586,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'STATE_MACHINE_ARN': 'arn:aws:states:us-west-2:123456789012:stateMachine:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_skips_stopping_for_unknown_pr_number(self, mock_boto_client):
+    def test_skips_stopping_for_unknown_pr_number(self, mock_boto_client: typing.Any) -> None:
         """Test that stopping is skipped when PR number is 'unknown'"""
         # Mock Step Functions client
         mock_sfn = unittest.mock.MagicMock()
@@ -626,7 +617,7 @@ class TestLambdaHandler(unittest.TestCase):
         # Verify new execution was still started
         mock_sfn.start_execution.assert_called_once()
 
-    def test_stop_existing_executions_for_pr_function(self):
+    def test_stop_existing_executions_for_pr_function(self) -> None:
         """Test the stop_existing_executions_for_pr function directly"""
         # Create mock SFN client
         mock_sfn = unittest.mock.MagicMock()

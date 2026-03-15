@@ -28,13 +28,13 @@ def run_in(cmd: list[str], dirname: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=dirname, capture_output=True, text=True, check=True)
 
 
-def make_error(message: str) -> dict:
+def make_error(message: str) -> dict[str, typing.Any]:
     """ Make a standard error dictionary
     """
     return {'statusCode': 500, 'status': 'error', 'error': message}
 
 
-def handler(event: dict, context: typing.Any) -> dict:
+def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typing.Any]:
     """
     Docker Lambda handler that processes GitHub PR events.
 
@@ -136,7 +136,7 @@ def handler(event: dict, context: typing.Any) -> dict:
     return success_response
 
 
-def fetch_github_token(on_failure: FailCallable) -> tuple[dict|None, str|None]:
+def fetch_github_token(on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
     """ Fetch GitHub token from Secrets Manager """
     try:
         secrets_client = boto3.client('secretsmanager')
@@ -157,7 +157,7 @@ def fetch_github_token(on_failure: FailCallable) -> tuple[dict|None, str|None]:
         return make_error(f'Failed to retrieve GitHub token: {str(e)}'), None
 
 
-def extract_pr_information(event: dict, on_failure: FailCallable) -> tuple[dict|None, tuple[dict, str, int, str] | tuple[None, None, None, None]]:
+def extract_pr_information(event: dict[str, typing.Any], on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, tuple[dict[str, typing.Any], str, int, str] | tuple[None, None, None, None]]:
     """ Extract PR information from event """
     try:
         pull_request = event.get('pull_request', {})
@@ -184,7 +184,7 @@ def extract_pr_information(event: dict, on_failure: FailCallable) -> tuple[dict|
         return error_response, (None, None, None, None)
 
 
-def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict|None, str|None]:
+def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
     """ Clone repository to /tmp/repo """
     try:
         parsed_url = urllib.parse.urlparse(clone_url)
@@ -207,7 +207,7 @@ def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable
         return make_error(f'Failed to clone repository: {e.stderr}'), None
 
 
-def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, on_failure: FailCallable) -> tuple[dict|None, None]:
+def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
     """ Checkout PR HEAD commit """
     try:
         logging.info(f"Checking out commit {pr_sha}")
@@ -240,7 +240,7 @@ def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, on_failure: Fa
         return make_error(str(e)), None
 
 
-def find_changed_configs(pull_request: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, list[str]|None]:
+def find_changed_configs(pull_request: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, list[str]|None]:
     """ Find changed config files in the PR """
     try:
         base_sha = pull_request.get('base', {}).get('sha')
@@ -270,7 +270,7 @@ def find_changed_configs(pull_request: dict, clone_dir: str, on_failure: FailCal
         return make_error(str(e)), None
 
 
-def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
     """ Run build-country-polygon.py with appropriate arguments """
     try:
         if not changed_configs:
@@ -299,7 +299,7 @@ def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_di
         return make_error(str(e)), None
 
 
-def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
     """ Convert country-areas.csv and country-boundaries.csv to GeoJSON files in clone_dir """
     try:
         osgeo.ogr.UseExceptions()
@@ -413,7 +413,7 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}'), None
 
 
-def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
     """ Run the Planetiler JAR to generate preview.pmtiles, then upload to S3 """
     try:
         areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
@@ -489,7 +489,7 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         return make_error(f'Tile generation failed: {str(e)}'), None
 
 
-def generate_preview_html(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def generate_preview_html(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
@@ -737,7 +737,7 @@ map.on('load', function() {
         on_failure('PreviewHTMLError', str(e))
         return make_error(f'Failed to generate preview HTML: {str(e)}'), None
 
-def update_index_html(event: dict, on_failure: FailCallable) -> dict|None:
+def update_index_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
         parsed = urllib.parse.urlparse(destination)

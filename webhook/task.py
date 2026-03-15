@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
+import typing
 import unittest
 import unittest.mock
 import urllib.parse
@@ -14,7 +17,7 @@ logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
 
 
-def write_index_html(destination, message):
+def write_index_html(destination: str, message: str) -> None:
     """
     Write a message to index.html in the S3 destination.
 
@@ -45,7 +48,7 @@ def write_index_html(destination, message):
         pass
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typing.Any]:
     """
     Task Lambda handler that is called by the state machine with a task token.
     Invokes the processor function asynchronously and returns immediately.
@@ -132,7 +135,7 @@ class TestLambdaHandler(unittest.TestCase):
     - Handler returns immediately after invoking processor
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures"""
         self.test_processor_arn = 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'
         self.test_task_token = 'AAAAKgAAAAIAAAAAAAAAAe6fhGHwvKI4Jh0BrxnlCGDEBd02g='
@@ -160,7 +163,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_invokes_processor_async(self, mock_boto_client):
+    def test_invokes_processor_async(self, mock_boto_client: typing.Any) -> None:
         """Test that processor is invoked asynchronously with Event invocation type"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
@@ -173,7 +176,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
 
         # Configure boto3.client to return the appropriate mock
-        def client_factory(service_name):
+        def client_factory(service_name: str) -> typing.Any:
             if service_name == 'lambda':
                 return mock_lambda
             elif service_name == 's3':
@@ -198,7 +201,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_passes_task_token_to_processor(self, mock_boto_client):
+    def test_passes_task_token_to_processor(self, mock_boto_client: typing.Any) -> None:
         """Test that task token is passed through to processor"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
@@ -211,7 +214,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
 
         # Configure boto3.client to return the appropriate mock
-        def client_factory(service_name):
+        def client_factory(service_name: str) -> typing.Any:
             if service_name == 'lambda':
                 return mock_lambda
             elif service_name == 's3':
@@ -230,7 +233,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_passes_through_event_fields(self, mock_boto_client):
+    def test_passes_through_event_fields(self, mock_boto_client: typing.Any) -> None:
         """Test that all event fields are passed through to processor"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
@@ -243,7 +246,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
 
         # Configure boto3.client to return the appropriate mock
-        def client_factory(service_name):
+        def client_factory(service_name: str) -> typing.Any:
             if service_name == 'lambda':
                 return mock_lambda
             elif service_name == 's3':
@@ -268,7 +271,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_returns_immediately(self, mock_boto_client):
+    def test_returns_immediately(self, mock_boto_client: typing.Any) -> None:
         """Test that handler returns immediately after async invocation"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
@@ -281,7 +284,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
 
         # Configure boto3.client to return the appropriate mock
-        def client_factory(service_name):
+        def client_factory(service_name: str) -> typing.Any:
             if service_name == 'lambda':
                 return mock_lambda
             elif service_name == 's3':
@@ -302,7 +305,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(call_args['InvocationType'], 'Event')
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)
-    def test_missing_processor_arn_env(self):
+    def test_missing_processor_arn_env(self) -> None:
         """Test error when PROCESSOR_FUNCTION_ARN environment variable is not set"""
         response = lambda_handler(self.state_machine_event, self.mock_context)
 
@@ -310,7 +313,7 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(response['error'], 'PROCESSOR_FUNCTION_ARN not configured')
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
-    def test_missing_task_token(self):
+    def test_missing_task_token(self) -> None:
         """Test error when task token is missing from event"""
         event_without_token = {
             'action': 'synchronize',
@@ -324,7 +327,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_lambda_invoke_failure(self, mock_boto_client):
+    def test_lambda_invoke_failure(self, mock_boto_client: typing.Any) -> None:
         """Test error handling when Lambda invoke fails"""
         # Mock Lambda client to raise exception
         mock_lambda = unittest.mock.MagicMock()
@@ -339,7 +342,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_writes_to_index_html_for_first_task(self, mock_boto_client):
+    def test_writes_to_index_html_for_first_task(self, mock_boto_client: typing.Any) -> None:
         """Test that index.html is written when taskSequence='first'"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
@@ -350,7 +353,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-2'}
 
         # Configure boto3.client to return the appropriate mock
-        def client_factory(service_name):
+        def client_factory(service_name: str) -> typing.Any:
             if service_name == 'lambda':
                 return mock_lambda
             elif service_name == 's3':
@@ -375,7 +378,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_index_html_for_second_task(self, mock_boto_client):
+    def test_does_not_write_to_index_html_for_second_task(self, mock_boto_client: typing.Any) -> None:
         """Test that index.html is NOT written when taskSequence='second'"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
@@ -385,7 +388,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3 = unittest.mock.MagicMock()
 
         # Configure boto3.client to return the appropriate mock
-        def client_factory(service_name):
+        def client_factory(service_name: str) -> typing.Any:
             if service_name == 'lambda':
                 return mock_lambda
             elif service_name == 's3':
@@ -409,7 +412,7 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_index_html_without_task_sequence(self, mock_boto_client):
+    def test_does_not_write_to_index_html_without_task_sequence(self, mock_boto_client: typing.Any) -> None:
         """Test that index.html is NOT written when taskSequence is missing"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
@@ -419,7 +422,7 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3 = unittest.mock.MagicMock()
 
         # Configure boto3.client to return the appropriate mock
-        def client_factory(service_name):
+        def client_factory(service_name: str) -> typing.Any:
             if service_name == 'lambda':
                 return mock_lambda
             elif service_name == 's3':
