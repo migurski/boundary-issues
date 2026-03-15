@@ -19,6 +19,7 @@ public class Areas implements ForwardingProfile.LayerPostProcessor {
 
   public void process_area(SourceFeature sf, FeatureCollector features) {
     features.polygon(LAYER_NAME)
+      .setAttr("index", sf.getLong("index"))
       .setAttr("iso3", sf.getString("iso3"))
       .setAttr("perspectives", sf.getString("perspectives"))
       .setZoomRange(0, 7)

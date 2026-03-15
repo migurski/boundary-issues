@@ -613,7 +613,8 @@ const map = new maplibregl.Map({
             20, "#E9F4CD",
             21, "#FDF2B6",
             22, "#EEE2CE",
-            23, "#CCCCCC"
+            23, "#CCCCCC",
+            "#000000"
           ],
           "fill-opacity": 0.15
         }

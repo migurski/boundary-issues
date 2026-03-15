@@ -22,6 +22,7 @@ public class Boundaries implements ForwardingProfile.LayerPostProcessor {
 
   public void process_boundary(SourceFeature sf, FeatureCollector features) {
     features.line(LAYER_NAME)
+      .setAttr("index", sf.getLong("index"))
       .setAttr("iso3a", sf.getString("iso3a"))
       .setAttr("iso3b", sf.getString("iso3b"))
       .setAttr("perspectives", sf.getString("perspectives"))

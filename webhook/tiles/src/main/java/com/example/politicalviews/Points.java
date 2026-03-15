@@ -19,6 +19,7 @@ public class Points implements ForwardingProfile.LayerPostProcessor {
 
   public void process_point(SourceFeature sf, FeatureCollector features) {
     features.point(LAYER_NAME)
+      .setAttr("index", sf.getLong("index"))
       .setAttr("iso3", sf.getString("iso3"))
       .setAttr("perspectives", sf.getString("perspectives"))
       .setAttr("relation", sf.getString("relation"))
