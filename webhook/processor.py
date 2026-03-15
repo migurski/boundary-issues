@@ -440,6 +440,9 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         if os.path.exists(points_geojson):
             cmd.append(f'--points={points_geojson}')
 
+        landcover_file = '/var/task/daylight-landcover.gpkg'
+        logging.info(f"Landcover file exists: {os.path.exists(landcover_file)}, size: {os.path.getsize(landcover_file) if os.path.exists(landcover_file) else 'N/A'}")
+        logging.info(f"/var/task contents: {os.listdir('/var/task')}")
         logging.info(f"Running tile generation: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Tile generation output: {result.stdout}")
