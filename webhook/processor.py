@@ -423,6 +423,14 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
         data_dir = '/tmp/tiles-data'
         os.makedirs(data_dir, exist_ok=True)
 
+        bundled_landcover = '/var/task/daylight-landcover.gpkg'
+        landcover_file = f'{data_dir}/daylight-landcover.gpkg'
+        logging.info(f"Bundled landcover exists: {os.path.exists(bundled_landcover)}, size: {os.path.getsize(bundled_landcover) if os.path.exists(bundled_landcover) else 'N/A'}")
+        if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
+            import shutil
+            shutil.copy2(bundled_landcover, landcover_file)
+            logging.info(f"Copied bundled landcover to {landcover_file}")
+
         cmd = [
             'java', '-jar', '/var/task/tiles.jar',
             f'--data={data_dir}',
@@ -439,14 +447,6 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
             cmd.append(f'--boundaries={boundaries_geojson}')
         if os.path.exists(points_geojson):
             cmd.append(f'--points={points_geojson}')
-
-        bundled_landcover = '/var/task/daylight-landcover.gpkg'
-        landcover_file = f'{data_dir}/daylight-landcover.gpkg'
-        logging.info(f"Bundled landcover exists: {os.path.exists(bundled_landcover)}, size: {os.path.getsize(bundled_landcover) if os.path.exists(bundled_landcover) else 'N/A'}")
-        if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
-            import shutil
-            shutil.copy2(bundled_landcover, landcover_file)
-            logging.info(f"Copied bundled landcover to {landcover_file}")
         logging.info(f"Running tile generation: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Tile generation output: {result.stdout}")
