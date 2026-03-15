@@ -103,19 +103,19 @@ def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typi
     logging.info(f"check Fresh OSM files: {check_fresh_osm}")
 
     # Run the script
-    err6, _ = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
+    err6 = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
     if err6:
         return err6
 
     # Generate tiles on first run (when checkFreshOSM is not set)
     if not check_fresh_osm:
-        err7, _ = convert_csvs_to_geojson(clone_dir, on_failure)
+        err7 = convert_csvs_to_geojson(clone_dir, on_failure)
         if err7:
             return err7
-        err8, _ = generate_tiles(event, clone_dir, on_failure)
+        err8 = generate_tiles(event, clone_dir, on_failure)
         if err8:
             return err8
-        err9, _ = generate_preview_html(event, clone_dir, on_failure)
+        err9 = generate_preview_html(event, clone_dir, on_failure)
         if err9:
             return err9
         err10 = update_index_html(event, on_failure)
@@ -274,7 +274,7 @@ def find_changed_configs(pull_request: dict[str, typing.Any], clone_dir: str, on
         return make_error(str(e)), None
 
 
-def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
+def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Run build-country-polygon.py with appropriate arguments """
     try:
         if not changed_configs:
@@ -290,20 +290,20 @@ def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_di
                 result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs, clone_dir)
             logging.info(f"Run output: {result.stdout}")
             logging.info("Successfully ran build-country-polygon.py")
-        return None, None
+        return None
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to run build-country-polygon.py: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
         on_failure('ScriptExecutionError', e.stderr or str(e))
-        return make_error(f'Failed to run build-country-polygon.py: {e.stderr}'), None
+        return make_error(f'Failed to run build-country-polygon.py: {e.stderr}')
     except ValueError as e:
         logging.error(f"{e}")
         on_failure('ScriptValidationError', str(e))
-        return make_error(str(e)), None
+        return make_error(str(e))
 
 
-def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
+def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Convert country-areas.csv and country-boundaries.csv to GeoJSON files in clone_dir """
     try:
         osgeo.ogr.UseExceptions()
@@ -409,15 +409,15 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         else:
             logging.info(f"Skipping validation-points conversion: {points_csv} not found")
 
-        return None, None
+        return None
 
     except Exception as e:
         logging.error(f"Failed to convert CSVs to GeoJSON: {e}")
         on_failure('GeoJSONConversionError', str(e))
-        return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}'), None
+        return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}')
 
 
-def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
+def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Run the Planetiler JAR to generate preview.pmtiles, then upload to S3 """
     try:
         areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
@@ -426,7 +426,7 @@ def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: Fai
 
         if not os.path.exists(areas_geojson) and not os.path.exists(boundaries_geojson):
             logging.info("No GeoJSON files found, skipping tile generation")
-            return None, None
+            return None
 
         output_path = '/tmp/preview.pmtiles'
         data_dir = '/tmp/tiles-data'
@@ -479,21 +479,21 @@ def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: Fai
             ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
         )
         logging.info("Successfully uploaded preview.pmtiles")
-        return None, None
+        return None
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Tile generation failed: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
         on_failure('TileGenerationError', e.stderr or str(e))
-        return make_error(f'Tile generation failed: {e.stderr}'), None
+        return make_error(f'Tile generation failed: {e.stderr}')
     except Exception as e:
         logging.error(f"Tile generation failed: {e}")
         on_failure('TileGenerationError', str(e))
-        return make_error(f'Tile generation failed: {str(e)}'), None
+        return make_error(f'Tile generation failed: {str(e)}')
 
 
-def generate_preview_html(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
+def generate_preview_html(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
@@ -734,12 +734,12 @@ map.on('load', function() {
             StorageClass='INTELLIGENT_TIERING',
         )
         logging.info("Successfully uploaded preview.html")
-        return None, None
+        return None
 
     except Exception as e:
         logging.error(f"Failed to generate preview HTML: {e}")
         on_failure('PreviewHTMLError', str(e))
-        return make_error(f'Failed to generate preview HTML: {str(e)}'), None
+        return make_error(f'Failed to generate preview HTML: {str(e)}')
 
 def update_index_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
     try:
