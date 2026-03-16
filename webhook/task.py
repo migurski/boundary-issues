@@ -26,7 +26,7 @@ class SupersededCommit(Exception):
 def fetch_github_token(github_secret_arn: str) -> str:
     secrets_client = boto3.client('secretsmanager')
     secret_response = secrets_client.get_secret_value(SecretId=github_secret_arn)
-    return secret_response['SecretString']
+    return str(secret_response['SecretString'])
 
 
 def get_latest_pr_sha(repo_full_name: str, pr_number: int, github_token: str) -> str:
@@ -41,7 +41,7 @@ def get_latest_pr_sha(repo_full_name: str, pr_number: int, github_token: str) ->
     )
     with urllib.request.urlopen(request) as response:
         commits = json.loads(response.read())
-    return commits[-1]['sha']
+    return str(commits[-1]['sha'])
 
 
 def post_superseded_status(statuses_url: str, head_sha: str, github_token: str) -> None:
@@ -602,7 +602,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         mock_boto_client.side_effect = client_factory
 
-        our_sha = typing.cast(dict, self.state_machine_event['pull_request'])['head']['sha']
+        our_sha = typing.cast(dict[str, typing.Any], self.state_machine_event['pull_request'])['head']['sha']
         commits_response = unittest.mock.MagicMock()
         commits_response.read.return_value = json.dumps([
             {'sha': 'older-sha'},
