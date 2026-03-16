@@ -200,22 +200,25 @@ def do_status(payload: dict[str, typing.Any], destination_prefix: str | None) ->
         target_host = f"{parsed_url.netloc}.s3.{region_name}.amazonaws.com"
         target_path = os.path.join(parsed_url.path, 'index.html')
         target_url = urllib.parse.urlunparse(('https', target_host, target_path, None, None, None))
-        index_html = """<!DOCTYPE html>
+        pr_html_url = payload.get('pull_request', {}).get('html_url', '')
+        pr_number = payload.get('number', '')
+        pr_link = f'<a href="{pr_html_url}">Pull Request #{pr_number}</a>' if pr_html_url else 'Pull Request'
+        index_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>Boundary Issues Check</title>
 <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
 <style>
-body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-#status { padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid #ddd; }
-iframe { flex: 1; border: none; width: 100%; }
+body {{ font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }}
+#status {{ padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid #ddd; }}
+iframe {{ flex: 1; border: none; width: 100%; }}
 </style>
 </head>
 <body>
 <header>
-    <p><a>Pull Request</a></p>
-    <p> id="status" hx-get="status.html" hx-trigger="load"></p>
+    <p>{pr_link}</p>
+    <p id="status" hx-get="status.html" hx-trigger="load"></p>
 </header>
 <iframe src="preview.html"></iframe>
 </body>
@@ -328,6 +331,7 @@ class TestLambdaHandler(unittest.TestCase):
                 'action': 'synchronize',
                 'number': 4,
                 'pull_request': {
+                    'html_url': 'https://github.com/migurski/boundary-issues/pull/4',
                     'diff_url': 'https://github.com/migurski/boundary-issues/pull/4.diff',
                     'base': {'sha': 'db7adabab3c93cf4c05f35c1df2b716596f82faa'},
                     'head': {'sha': 'f6400f99d7e2094ccd2034c47f72820cef488a1f'}
