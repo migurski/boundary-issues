@@ -45,11 +45,11 @@ RUN pip3 install -r /tmp/requirements.txt
 # processor.py copies it to /tmp at invocation so SQLite can write sidecar files
 COPY --from=gpkgbuilder /tmp/daylight-landcover.gpkg /var/data/daylight-landcover.gpkg
 
-# Copy the processor handler
-COPY webhook/processor.py /var/task/processor.py
-
 # Copy the built JAR from earlier stage
 COPY --from=jarbuilder /build/target/political-views-tiles-1.0.0-with-deps.jar /var/task/tiles.jar
+
+# Copy the processor handler
+COPY webhook/processor.py /var/task/processor.py
 
 # Set the Lambda handler using awslambdaric
 WORKDIR /var/task
