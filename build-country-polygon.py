@@ -200,7 +200,7 @@ def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool
     return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
 def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool) -> osgeo.ogr.Geometry:
-    direction2, el_type2, osm_id2, _ = shape2
+    direction2, el_type2, osm_id2 = shape2
     geom2 = load_shape(el_type2, osm_id2, check_fresh_osm)
     if direction2 == "plus" and geom1 is None:
         geom3 = geom2.Clone()
