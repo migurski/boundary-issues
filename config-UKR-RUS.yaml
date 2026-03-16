@@ -8,6 +8,10 @@ RUS:
     RUS:
       - [plus, relation, 72639] # Crimea
       - [plus, relation, 1574364] # Sevastopol
+      - [plus, relation, 71971] # Luhansk Oblast
+      - [plus, relation, 71973] # Donetsk Oblast
+      - [plus, relation, 71022] # Kherson Oblast
+      - [plus, relation, 71980] # Zaporizhia Oblast
     UKR:
       - [minus, relation, 72639] # Crimea
       - [minus, relation, 1574364] # Sevastopol
@@ -15,6 +19,18 @@ RUS:
     RUS:
       - [33.52, 44.61] # Sevastopol
       - [34.10, 44.95] # Simferopol
+      - [39.30, 48.57] # Luhansk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
+  exterior-points:
+    UKR:
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol
+      - [39.30, 48.57] # Luhansk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
 
 UKR:
   base:
