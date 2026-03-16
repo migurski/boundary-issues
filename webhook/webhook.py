@@ -211,7 +211,7 @@ def do_status(payload: dict[str, typing.Any], destination_prefix: str | None) ->
 <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
 <style>
 body {{ font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }}
-#status {{ padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid #ddd; }}
+header {{ padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid #ddd; }}
 iframe {{ flex: 1; border: none; width: 100%; }}
 </style>
 </head>
@@ -247,7 +247,7 @@ iframe {{ flex: 1; border: none; width: 100%; }}
             Body="""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Preview</title></head>
-<body><p>Preview loading...</p></body>
+<body><p>Preview not yet built.</p></body>
 </html>""".encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
