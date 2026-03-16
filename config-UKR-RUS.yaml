@@ -2,15 +2,19 @@ RUS:
   base:
     # Russia includes Crimea in OSM, but this is not widely acknowledged
     - [plus, relation, 60189] # Russia
-    - [minus, relation, 3788824] # Crimea
+    - [minus, relation, 72639] # Crimea
+    - [minus, relation, 1574364] # Sevastopol
   perspectives:
     RUS:
-      - [plus, relation, 3788824] # Crimea
+      - [plus, relation, 72639] # Crimea
+      - [plus, relation, 1574364] # Sevastopol
     UKR:
-      - [minus, relation, 3788824] # Crimea
+      - [minus, relation, 72639] # Crimea
+      - [minus, relation, 1574364] # Sevastopol
   interior-points:
     RUS:
-      - [34.25, 45.41] # Crimea
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol
 
 UKR:
   base:
@@ -18,16 +22,24 @@ UKR:
     - [plus, relation, 60199] # Ukraine
   perspectives:
     RUS:
-      - [minus, relation, 3788824] # Crimea
-      - [minus, relation, 71971] # Luhansk
-      - [minus, relation, 71973] # Donetsk
+      - [minus, relation, 1574364] # Sevastopol
+      - [minus, relation, 71971] # Luhansk Oblast
+      - [minus, relation, 71973] # Donetsk Oblast
+      - [minus, relation, 71022] # Kherson Oblast
+      - [minus, relation, 71980] # Zaporizhia Oblast
   interior-points:
     base:
-      - [34.25, 45.41] # Crimea
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol
       - [39.30, 48.57] # Luhansk
-      - [37.801, 48.016] # Donetsk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
   exterior-points:
     RUS:
-      - [34.25, 45.41] # Crimea
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol
       - [39.30, 48.57] # Luhansk
-      - [37.801, 48.016] # Donetsk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
