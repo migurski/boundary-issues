@@ -4,6 +4,7 @@ import boto3
 import csv
 import json
 import logging
+import shutil
 import subprocess
 import os
 import sys
@@ -27,13 +28,13 @@ def run_in(cmd: list[str], dirname: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=dirname, capture_output=True, text=True, check=True)
 
 
-def make_error(message: str) -> dict:
+def make_error(message: str) -> dict[str, typing.Any]:
     """ Make a standard error dictionary
     """
     return {'statusCode': 500, 'status': 'error', 'error': message}
 
 
-def handler(event: dict, context: typing.Any) -> dict:
+def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typing.Any]:
     """
     Docker Lambda handler that processes GitHub PR events.
 
@@ -68,16 +69,22 @@ def handler(event: dict, context: typing.Any) -> dict:
     err1, github_token = fetch_github_token(on_failure)
     if err1:
         return err1
+    else:
+        assert github_token is not None
 
     # Extract PR information
     err2, (pull_request, pr_sha, pr_number, clone_url) = extract_pr_information(event, on_failure)
     if err2:
         return err2
+    else:
+        assert pull_request is not None and pr_sha is not None and pr_number is not None and clone_url is not None
 
     # Clone repository
     err3, clone_dir = clone_repository(clone_url, github_token, on_failure)
     if err3:
         return err3
+    else:
+        assert clone_dir is not None
 
     # Checkout PR HEAD
     err4, _ = checkout_pr_head(clone_dir, pr_sha, pr_number, on_failure)
@@ -88,30 +95,30 @@ def handler(event: dict, context: typing.Any) -> dict:
     err5, changed_configs = find_changed_configs(pull_request, clone_dir, on_failure)
     if err5:
         return err5
+    else:
+        assert changed_configs is not None
 
     # Determine if we should check Fresh OSM files
     check_fresh_osm = event.get('checkFreshOSM', False)
     logging.info(f"check Fresh OSM files: {check_fresh_osm}")
 
     # Run the script
-    err6, _ = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
+    err6 = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
     if err6:
         return err6
 
-    # Upload to S3
-    err7, _ = upload_to_s3(event, clone_dir, on_failure)
-    if err7:
-        return err7
-
     # Generate tiles on first run (when checkFreshOSM is not set)
     if not check_fresh_osm:
-        err8, _ = convert_csvs_to_geojson(clone_dir, on_failure)
+        err7 = convert_csvs_to_geojson(clone_dir, on_failure)
+        if err7:
+            return err7
+        err8 = generate_tiles(event, clone_dir, on_failure)
         if err8:
             return err8
-        err9, _ = generate_tiles(event, clone_dir, on_failure)
+        err9 = generate_preview_html(event, clone_dir, on_failure)
         if err9:
             return err9
-        err10, _ = generate_preview_html(event, clone_dir, on_failure)
+        err10 = update_index_html(event, on_failure)
         if err10:
             return err10
 
@@ -133,7 +140,7 @@ def handler(event: dict, context: typing.Any) -> dict:
     return success_response
 
 
-def fetch_github_token(on_failure: FailCallable) -> tuple[dict|None, str|None]:
+def fetch_github_token(on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
     """ Fetch GitHub token from Secrets Manager """
     try:
         secrets_client = boto3.client('secretsmanager')
@@ -154,7 +161,7 @@ def fetch_github_token(on_failure: FailCallable) -> tuple[dict|None, str|None]:
         return make_error(f'Failed to retrieve GitHub token: {str(e)}'), None
 
 
-def extract_pr_information(event: dict, on_failure: FailCallable) -> tuple[dict|None, tuple[dict, str, int, str] | tuple[None, None, None, None]]:
+def extract_pr_information(event: dict[str, typing.Any], on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, tuple[dict[str, typing.Any], str, int, str] | tuple[None, None, None, None]]:
     """ Extract PR information from event """
     try:
         pull_request = event.get('pull_request', {})
@@ -181,7 +188,7 @@ def extract_pr_information(event: dict, on_failure: FailCallable) -> tuple[dict|
         return error_response, (None, None, None, None)
 
 
-def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict|None, str|None]:
+def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
     """ Clone repository to /tmp/repo """
     try:
         parsed_url = urllib.parse.urlparse(clone_url)
@@ -204,7 +211,7 @@ def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable
         return make_error(f'Failed to clone repository: {e.stderr}'), None
 
 
-def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, on_failure: FailCallable) -> tuple[dict|None, None]:
+def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, None]:
     """ Checkout PR HEAD commit """
     try:
         logging.info(f"Checking out commit {pr_sha}")
@@ -237,7 +244,7 @@ def checkout_pr_head(clone_dir: str, pr_sha: str, pr_number: int, on_failure: Fa
         return make_error(str(e)), None
 
 
-def find_changed_configs(pull_request: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, list[str]|None]:
+def find_changed_configs(pull_request: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, list[str]|None]:
     """ Find changed config files in the PR """
     try:
         base_sha = pull_request.get('base', {}).get('sha')
@@ -267,7 +274,7 @@ def find_changed_configs(pull_request: dict, clone_dir: str, on_failure: FailCal
         return make_error(str(e)), None
 
 
-def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Run build-country-polygon.py with appropriate arguments """
     try:
         if not changed_configs:
@@ -283,45 +290,20 @@ def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_di
                 result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs, clone_dir)
             logging.info(f"Run output: {result.stdout}")
             logging.info("Successfully ran build-country-polygon.py")
-        return None, None
+        return None
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to run build-country-polygon.py: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
         on_failure('ScriptExecutionError', e.stderr or str(e))
-        return make_error(f'Failed to run build-country-polygon.py: {e.stderr}'), None
+        return make_error(f'Failed to run build-country-polygon.py: {e.stderr}')
     except ValueError as e:
         logging.error(f"{e}")
         on_failure('ScriptValidationError', str(e))
-        return make_error(str(e)), None
+        return make_error(str(e))
 
 
-def upload_to_s3(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
-    """ Upload generated CSV files to S3 """
-    try:
-        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
-        parsed = urllib.parse.urlparse(destination)
-        s3_client = boto3.client('s3')
-        for name in ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv'):
-            local_path = os.path.join(clone_dir, name)
-            if not os.path.exists(local_path):
-                logging.info(f"Skipping nonexistent {local_path}")
-                continue
-            logging.info(f"Uploading {local_path} to {destination}")
-            s3_client.upload_file(
-                Filename=local_path,
-                Bucket=parsed.netloc,
-                Key=os.path.join(parsed.path, name).lstrip('/'),
-                ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
-            )
-        return None, None
-    except Exception as e:
-        logging.error(f"{e}")
-        on_failure('ScriptValidationError', str(e))
-        return make_error(str(e)), None
-
-
-def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Convert country-areas.csv and country-boundaries.csv to GeoJSON files in clone_dir """
     try:
         osgeo.ogr.UseExceptions()
@@ -427,15 +409,15 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> tuple[d
         else:
             logging.info(f"Skipping validation-points conversion: {points_csv} not found")
 
-        return None, None
+        return None
 
     except Exception as e:
         logging.error(f"Failed to convert CSVs to GeoJSON: {e}")
         on_failure('GeoJSONConversionError', str(e))
-        return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}'), None
+        return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}')
 
 
-def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Run the Planetiler JAR to generate preview.pmtiles, then upload to S3 """
     try:
         areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
@@ -444,17 +426,24 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
 
         if not os.path.exists(areas_geojson) and not os.path.exists(boundaries_geojson):
             logging.info("No GeoJSON files found, skipping tile generation")
-            return None, None
+            return None
 
         output_path = '/tmp/preview.pmtiles'
         data_dir = '/tmp/tiles-data'
         os.makedirs(data_dir, exist_ok=True)
+
+        # /var/data is read-only at Lambda runtime; copy GPKG to /tmp so SQLite can write sidecar files
+        bundled_landcover = '/var/data/daylight-landcover.gpkg'
+        landcover_file = f'{data_dir}/daylight-landcover.gpkg'
+        if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
+            shutil.copy2(bundled_landcover, landcover_file)
 
         cmd = [
             'java', '-jar', '/var/task/tiles.jar',
             f'--data={data_dir}',
             f'--tmpdir={data_dir}/tmp',
             f'--output={output_path}',
+            f'--landcover_path={landcover_file}',
             '--download',
             '--force',
             '--maxzoom', '5',
@@ -465,7 +454,6 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
             cmd.append(f'--boundaries={boundaries_geojson}')
         if os.path.exists(points_geojson):
             cmd.append(f'--points={points_geojson}')
-
         logging.info(f"Running tile generation: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Tile generation output: {result.stdout}")
@@ -491,21 +479,21 @@ def generate_tiles(event: dict, clone_dir: str, on_failure: FailCallable) -> tup
             ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
         )
         logging.info("Successfully uploaded preview.pmtiles")
-        return None, None
+        return None
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Tile generation failed: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
         on_failure('TileGenerationError', e.stderr or str(e))
-        return make_error(f'Tile generation failed: {e.stderr}'), None
+        return make_error(f'Tile generation failed: {e.stderr}')
     except Exception as e:
         logging.error(f"Tile generation failed: {e}")
         on_failure('TileGenerationError', str(e))
-        return make_error(f'Tile generation failed: {str(e)}'), None
+        return make_error(f'Tile generation failed: {str(e)}')
 
 
-def generate_preview_html(event: dict, clone_dir: str, on_failure: FailCallable) -> tuple[dict|None, None]:
+def generate_preview_html(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
@@ -746,9 +734,30 @@ map.on('load', function() {
             StorageClass='INTELLIGENT_TIERING',
         )
         logging.info("Successfully uploaded preview.html")
-        return None, None
+        return None
 
     except Exception as e:
         logging.error(f"Failed to generate preview HTML: {e}")
         on_failure('PreviewHTMLError', str(e))
-        return make_error(f'Failed to generate preview HTML: {str(e)}'), None
+        return make_error(f'Failed to generate preview HTML: {str(e)}')
+
+def update_index_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
+    try:
+        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+        parsed = urllib.parse.urlparse(destination)
+        s3_client = boto3.client('s3')
+        s3_client.put_object(
+            Bucket=parsed.netloc,
+            Key=os.path.join(parsed.path, 'index.html').lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body='Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.'.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
+        logging.info("Successfully updated index.html")
+        return None
+
+    except Exception as e:
+        logging.error(f"Failed to update index HTML: {e}")
+        on_failure('PreviewHTMLError', str(e))
+        return make_error(f'Failed to generate preview HTML: {str(e)}')

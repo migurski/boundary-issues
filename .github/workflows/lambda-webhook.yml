@@ -11,8 +11,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.9'
+
       - name: Test code
         run: |
+          pip install mypy ruff boto3
+          ruff check webhook/*.py
+          mypy --strict --config-file webhook/mypy.ini webhook/*.py
           python -m unittest webhook/webhook.py -v
           python -m unittest webhook/task.py -v
           python -m unittest webhook/finish.py -v
