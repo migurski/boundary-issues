@@ -19,9 +19,15 @@ UKR:
   perspectives:
     RUS:
       - [minus, relation, 3788824] # Crimea
+      - [minus, relation, 71971] # Luhansk
+      - [minus, relation, 71973] # Donetsk
   interior-points:
     base:
       - [34.25, 45.41] # Crimea
+      - [39.30, 48.57] # Luhansk
+      - [37.801, 48.016] # Donetsk
   exterior-points:
     RUS:
       - [34.25, 45.41] # Crimea
+      - [39.30, 48.57] # Luhansk
+      - [37.801, 48.016] # Donetsk
