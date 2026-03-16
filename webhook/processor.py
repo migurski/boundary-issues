@@ -118,7 +118,7 @@ def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typi
         err9 = generate_preview_html(event, clone_dir, on_failure)
         if err9:
             return err9
-        err10 = update_index_html(event, on_failure)
+        err10 = update_status_html(event, on_failure)
         if err10:
             return err10
 
@@ -644,9 +644,9 @@ const map = new maplibregl.Map({
         "source": "protomaps", "source-layer": "points",
         "filter": ["==", ["get", "relation"], "interior"],
         "paint": {
-          "circle-color": "rgba(0, 200, 0, 1)",
-          "circle-radius": 6,
-          "circle-stroke-color": "rgba(255, 255, 255, 1)",
+          "circle-color": "rgba(0, 0, 0, 1)",
+          "circle-radius": 5,
+          "circle-stroke-color": "rgba(255, 255, 255, 0.65)",
           "circle-stroke-width": 1.5
         }
       },
@@ -657,13 +657,13 @@ const map = new maplibregl.Map({
         "layout": {
           "text-field": ["get", "iso3"],
           "text-font": ["Noto Sans Regular"],
-          "text-size": 11,
-          "text-offset": [0, 1.2],
+          "text-size": 12,
+          "text-offset": [0, 1],
           "text-anchor": "top"
         },
         "paint": {
-          "text-color": "rgba(0, 100, 0, 1)",
-          "text-halo-color": "rgba(255, 255, 255, 1)",
+          "text-color": "rgba(0, 0, 0, 1)",
+          "text-halo-color": "rgba(255, 255, 255, 0.65)",
           "text-halo-width": 1.5
         }
       }
@@ -741,23 +741,23 @@ map.on('load', function() {
         on_failure('PreviewHTMLError', str(e))
         return make_error(f'Failed to generate preview HTML: {str(e)}')
 
-def update_index_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
+def update_status_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
         parsed = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
         s3_client.put_object(
             Bucket=parsed.netloc,
-            Key=os.path.join(parsed.path, 'index.html').lstrip('/'),
+            Key=os.path.join(parsed.path, 'status.html').lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body='Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.'.encode('utf8'),
+            Body='First check looks fine. Waiting until second check.'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
-        logging.info("Successfully updated index.html")
+        logging.info("Successfully updated status.html")
         return None
 
     except Exception as e:
-        logging.error(f"Failed to update index HTML: {e}")
-        on_failure('PreviewHTMLError', str(e))
-        return make_error(f'Failed to generate preview HTML: {str(e)}')
+        logging.error(f"Failed to update status HTML: {e}")
+        on_failure('StatusHTMLError', str(e))
+        return make_error(f'Failed to update status HTML: {str(e)}')

@@ -80,12 +80,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - states:StartExecution
-                  - states:ListExecutions
                 Resource: !GetAtt ProcessorStateMachine.Arn
-              - Effect: Allow
-                Action:
-                  - states:StopExecution
-                Resource: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProcessorStateMachine.Name}:*'
 
   # Lambda Function
   WebhookFunction:
@@ -230,6 +225,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Ref GitHubSecretAccessPolicy
         - !Ref DataBucketAccessPolicy
       Policies:
         - PolicyName: InvokeProcessorFunction
@@ -257,6 +253,7 @@ Resources:
       Environment:
         Variables:
           PROCESSOR_FUNCTION_ARN: !GetAtt ProcessorFunction.Arn
+          GITHUB_SECRET_ARN: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubSecretName}'
           DATA_BUCKET: !Ref DataBucket
 
   # IAM Role for Step Functions state machine
@@ -344,14 +341,14 @@ Resources:
                 {
                   "Variable": "$.taskResult.changedConfigs[0]",
                   "IsPresent": true,
-                  "Next": "Wait5Minutes"
+                  "Next": "WaitSomeTime"
                 }
               ],
               "Default": "ReportSuccess"
             },
-            "Wait5Minutes": {
+            "WaitSomeTime": {
               "Type": "Wait",
-              "Seconds": 300,
+              "SecondsPath": "$.wait_seconds",
               "Next": "SecondInvokeTask"
             },
             "SecondInvokeTask": {
@@ -373,6 +370,10 @@ Resources:
               "Next": "ReportSuccess",
               "Retry": [
                 {
+                  "ErrorEquals": ["SupersededCommit"],
+                  "MaxAttempts": 0
+                },
+                {
                   "ErrorEquals": ["States.ALL"],
                   "IntervalSeconds": 60,
                   "MaxAttempts": 2,
@@ -380,6 +381,11 @@ Resources:
                 }
               ],
               "Catch": [
+                {
+                  "ErrorEquals": ["SupersededCommit"],
+                  "Next": "ReportFailure",
+                  "ResultPath": "$.error"
+                },
                 {
                   "ErrorEquals": ["States.ALL"],
                   "Next": "ReportFailure",
@@ -410,6 +416,7 @@ Resources:
                 "FunctionName": "${FinishFunction.Arn}",
                 "Payload": {
                   "status": "failure",
+                  "error.$": "$.error",
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",

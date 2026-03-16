@@ -172,7 +172,7 @@ def clean_union(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geometry.bas
 
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
-    for attempt in (1, 2, 3):
+    for delay in (15, 60, None):
         newly_downloaded = False
         try:
             if check_fresh_osm or not os.path.exists(local_path):
@@ -186,9 +186,9 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.og
             lyr = ds.GetLayer("multipolygons")
             geometries = [feat.GetGeometryRef().Clone() for feat in lyr]
         except Exception:
-            if newly_downloaded and attempt < 3:
+            if newly_downloaded and delay is not None:
                 print("Must retry", url, file=sys.stderr)
-                time.sleep(15)
+                time.sleep(delay)
             else:
                 print("Failed to download", url, file=sys.stderr)
                 raise
@@ -200,7 +200,7 @@ def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool
     return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
 def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool) -> osgeo.ogr.Geometry:
-    direction2, el_type2, osm_id2, _ = shape2
+    direction2, el_type2, osm_id2 = shape2
     geom2 = load_shape(el_type2, osm_id2, check_fresh_osm)
     if direction2 == "plus" and geom1 is None:
         geom3 = geom2.Clone()

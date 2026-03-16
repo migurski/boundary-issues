@@ -1,11 +1,11 @@
 CHN:
   base:
-  - [plus, relation, "fake-CHN", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-CHN.osm.xml.gz"]
-  - [plus, relation, "fake-Trans-Karakoram-Tract", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Trans-Karakoram-Tract.osm.xml.gz"]
+  - [plus, relation, "fake-CHN"]
+  - [plus, relation, "fake-Trans-Karakoram-Tract"]
   perspectives:
     IND:
-    - [minus, relation, "fake-Aksai-Chin", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Aksai-Chin.osm.xml.gz"]
-    - [minus, relation, "fake-Trans-Karakoram-Tract", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Trans-Karakoram-Tract.osm.xml.gz"]
+    - [minus, relation, "fake-Aksai-Chin"]
+    - [minus, relation, "fake-Trans-Karakoram-Tract"]
   interior-points:
     CHN:
       - [3.5, 2.5] # fake-Aksai-Chin
@@ -13,19 +13,19 @@ CHN:
 
 IND:
   base:
-  - [plus, relation, "fake-IND", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-IND.osm.xml.gz"]
-  - [minus, relation, "fake-Aksai-Chin", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Aksai-Chin.osm.xml.gz"]
-  - [minus, relation, "fake-Trans-Karakoram-Tract", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Trans-Karakoram-Tract.osm.xml.gz"]
+  - [plus, relation, "fake-IND"]
+  - [minus, relation, "fake-Aksai-Chin"]
+  - [minus, relation, "fake-Trans-Karakoram-Tract"]
   perspectives:
     CHN:
-    - [minus, relation, "fake-Aksai-Chin", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Aksai-Chin.osm.xml.gz"]
-    - [minus, relation, "fake-Trans-Karakoram-Tract", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Trans-Karakoram-Tract.osm.xml.gz"]
+    - [minus, relation, "fake-Aksai-Chin"]
+    - [minus, relation, "fake-Trans-Karakoram-Tract"]
     IND:
-    - [plus, relation, "fake-PAK-Kashmir", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-PAK-Kashmir.osm.xml.gz"]
-    - [plus, relation, "fake-Aksai-Chin", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Aksai-Chin.osm.xml.gz"]
-    - [plus, relation, "fake-Trans-Karakoram-Tract", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Trans-Karakoram-Tract.osm.xml.gz"]
+    - [plus, relation, "fake-PAK-Kashmir"]
+    - [plus, relation, "fake-Aksai-Chin"]
+    - [plus, relation, "fake-Trans-Karakoram-Tract"]
     PAK:
-    - [minus, relation, "fake-IND-Kashmir", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-IND-Kashmir.osm.xml.gz"]
+    - [minus, relation, "fake-IND-Kashmir"]
   interior-points:
     base:
       - [2.7, 2.3] # fake-IND-Kashmir
@@ -46,12 +46,12 @@ IND:
 
 PAK:
   base:
-  - [plus, relation, "fake-PAK", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-PAK.osm.xml.gz"]
+  - [plus, relation, "fake-PAK"]
   perspectives:
     IND:
-    - [minus, relation, "fake-PAK-Kashmir", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-PAK-Kashmir.osm.xml.gz"]
+    - [minus, relation, "fake-PAK-Kashmir"]
     PAK:
-    - [plus, relation, "fake-IND-Kashmir", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-IND-Kashmir.osm.xml.gz"]
+    - [plus, relation, "fake-IND-Kashmir"]
   interior-points:
     CHN:
       - [2.3, 2.7] # fake-PAK-Kashmir
@@ -61,23 +61,23 @@ PAK:
 
 RUS:
   base:
-  - [plus, relation, "fake-RUS", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-RUS.osm.xml.gz"]
-  - [minus, relation, "fake-Crimea", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Crimea.osm.xml.gz"]
+  - [plus, relation, "fake-RUS"]
+  - [minus, relation, "fake-Crimea"]
   perspectives:
     RUS:
-    - [plus, relation, "fake-Crimea", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Crimea.osm.xml.gz"]
+    - [plus, relation, "fake-Crimea"]
     UKR:
-    - [minus, relation, "fake-Crimea", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Crimea.osm.xml.gz"]
+    - [minus, relation, "fake-Crimea"]
   interior-points:
     RUS:
       - [-2.5, 1.5] # fake-Crimea
 
 UKR:
   base:
-  - [plus, relation, "fake-UKR", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-UKR.osm.xml.gz"]
+  - [plus, relation, "fake-UKR"]
   perspectives:
     RUS:
-    - [minus, relation, "fake-Crimea", "https://github.com/migurski/political-multiviews/raw/cf219d1/data/sources/relation/fake-Crimea.osm.xml.gz"]
+    - [minus, relation, "fake-Crimea"]
   interior-points:
     base:
       - [-2.5, 1.5] # fake-Crimea

@@ -7,6 +7,8 @@ import typing
 import unittest
 import unittest.mock
 import urllib.parse
+import urllib.request
+import urllib.error
 
 # Note: boto3 is available in AWS Lambda runtime
 # For local testing, install via: pip install boto3
@@ -17,18 +19,68 @@ logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
 
 
-def write_index_html(destination: str, message: str) -> None:
+class SupersededCommit(Exception):
+    pass
+
+
+def fetch_github_token(github_secret_arn: str) -> str:
+    secrets_client = boto3.client('secretsmanager')
+    secret_response = secrets_client.get_secret_value(SecretId=github_secret_arn)
+    return str(secret_response['SecretString'])
+
+
+def get_latest_pr_sha(repo_full_name: str, pr_number: int, github_token: str) -> str:
+    url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}/commits"
+    request = urllib.request.Request(
+        url,
+        headers={
+            'Authorization': f'token {github_token}',
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'boundary-issues-webhook'
+        }
+    )
+    with urllib.request.urlopen(request) as response:
+        commits = json.loads(response.read())
+    return str(commits[-1]['sha'])
+
+
+def post_superseded_status(statuses_url: str, head_sha: str, github_token: str) -> None:
+    status_api_url = statuses_url.replace('{sha}', head_sha)
+    status_payload = {
+        'state': 'error',
+        'description': 'Superseded by newer commit',
+        'context': 'boundary-issues-processor'
+    }
+    request = urllib.request.Request(
+        status_api_url,
+        data=json.dumps(status_payload).encode('utf-8'),
+        headers={
+            'Authorization': f'token {github_token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'boundary-issues-webhook'
+        },
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            logging.info(f"Posted superseded status: {response.read().decode('utf-8')}")
+    except urllib.error.HTTPError as e:
+        logging.error(f"Failed to post superseded status: {e.code} {e.reason} {e.read().decode('utf-8')}")
+
+
+def write_status_html(destination: str, message: str) -> None:
     """
-    Write a message to index.html in the S3 destination.
+    Write a message to status.html in the S3 destination.
 
     Args:
         destination: s3:// URL where results go
-        message: Message to write to index.html
+        message: Message to write to status.html
     """
     try:
         parsed_url = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
-        target_path = os.path.join(parsed_url.path, 'index.html')
+        target_path = os.path.join(parsed_url.path, 'status.html')
 
         s3_client.put_object(
             Bucket=parsed_url.netloc,
@@ -39,10 +91,10 @@ def write_index_html(destination: str, message: str) -> None:
             StorageClass='INTELLIGENT_TIERING',
         )
 
-        logging.info(f"Successfully wrote to index.html: {message}")
+        logging.info(f"Successfully wrote to status.html: {message}")
 
     except Exception as e:
-        logging.error(f"Failed to write to index.html: {e}")
+        logging.error(f"Failed to write to status.html: {e}")
         # Don't fail the whole handler if S3 write fails
         pass
 
@@ -84,6 +136,22 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
     if task_sequence == 'second':
         processor_payload['checkFreshOSM'] = True
 
+        # Check whether our commit is still the latest on the PR
+        github_secret_arn = os.environ.get('GITHUB_SECRET_ARN')
+        if github_secret_arn:
+            github_token = fetch_github_token(github_secret_arn)
+            repo_full_name = event.get('repository', {}).get('full_name')
+            pr_number = event.get('number')
+            our_sha = event.get('pull_request', {}).get('head', {}).get('sha')
+            statuses_url = event.get('repository', {}).get('statuses_url', '')
+            if repo_full_name and pr_number and our_sha:
+                latest_sha = get_latest_pr_sha(repo_full_name, pr_number, github_token)
+                if latest_sha != our_sha:
+                    post_superseded_status(statuses_url, our_sha, github_token)
+                    raise SupersededCommit(
+                        f"Superseded: newer commit {latest_sha} exists on PR #{pr_number}"
+                    )
+
     logging.info(f"Invoking processor function asynchronously: {processor_arn}")
     logging.info(f"Payload: {json.dumps(processor_payload)}")
 
@@ -105,8 +173,11 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         destination = event.get('destination')
 
         if task_sequence == 'first' and destination:
-            logging.info("Writing 'Settling in for a long wait' to index.html")
-            write_index_html(destination, 'Settling in for a long wait')
+            logging.info("Writing first status to status.html")
+            write_status_html(destination, 'Starting first check.')
+        elif task_sequence != 'first' and destination:
+            logging.info("Writing second status to status.html")
+            write_status_html(destination, 'First check looks fine. Starting next check.')
 
         return {
             'statusCode': 200,
@@ -341,8 +412,8 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_writes_to_index_html_for_first_task(self, mock_boto_client: typing.Any) -> None:
-        """Test that index.html is written when taskSequence='first'"""
+    def test_writes_to_status_html_for_first_task(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is written when taskSequence='first'"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -371,14 +442,14 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3.put_object.assert_called_once()
         call_kwargs = mock_s3.put_object.call_args[1]
         self.assertEqual(call_kwargs['Bucket'], 'test-bucket')
-        self.assertEqual(call_kwargs['Key'], 'test-path/index.html')
-        self.assertEqual(call_kwargs['Body'], b'Settling in for a long wait')
+        self.assertEqual(call_kwargs['Key'], 'test-path/status.html')
+        self.assertEqual(call_kwargs['Body'], b'Starting first check.')
         self.assertEqual(call_kwargs['ContentType'], 'text/html')
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_index_html_for_second_task(self, mock_boto_client: typing.Any) -> None:
-        """Test that index.html is NOT written when taskSequence='second'"""
+    def test_writes_to_status_html_for_second_task(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is written with second-task message when taskSequence='second'"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -406,13 +477,16 @@ class TestLambdaHandler(unittest.TestCase):
         # Verify success
         self.assertEqual(response['statusCode'], 200)
 
-        # Verify S3 put_object was NOT called
-        mock_s3.put_object.assert_not_called()
+        # Verify S3 put_object was called with second-task message
+        mock_s3.put_object.assert_called_once()
+        call_kwargs = mock_s3.put_object.call_args[1]
+        self.assertEqual(call_kwargs['Key'], 'test-path/status.html')
+        self.assertEqual(call_kwargs['Body'], b'First check looks fine. Starting next check.')
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_index_html_without_task_sequence(self, mock_boto_client: typing.Any) -> None:
-        """Test that index.html is NOT written when taskSequence is missing"""
+    def test_does_not_write_to_status_html_without_destination(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is NOT written when destination is missing"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -430,9 +504,9 @@ class TestLambdaHandler(unittest.TestCase):
 
         mock_boto_client.side_effect = client_factory
 
-        # Modify event to remove taskSequence
+        # Modify event to remove destination
         event = self.state_machine_event.copy()
-        del event['taskSequence']
+        del event['destination']
 
         # Execute handler
         response = lambda_handler(event, self.mock_context)
@@ -442,6 +516,143 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Verify S3 put_object was NOT called
         mock_s3.put_object.assert_not_called()
+
+
+    @unittest.mock.patch.dict(os.environ, {
+        'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor',
+        'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token'
+    })
+    @unittest.mock.patch('boto3.client')
+    @unittest.mock.patch('urllib.request.urlopen')
+    def test_second_task_cancels_when_stale(
+        self, mock_urlopen: typing.Any, mock_boto_client: typing.Any
+    ) -> None:
+        """Test that SupersededCommit is raised and status POST made when a newer commit exists"""
+        mock_lambda = unittest.mock.MagicMock()
+        mock_s3 = unittest.mock.MagicMock()
+        mock_secrets = unittest.mock.MagicMock()
+        mock_secrets.get_secret_value.return_value = {'SecretString': 'test-token'}
+
+        def client_factory(service_name: str) -> typing.Any:
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            elif service_name == 'secretsmanager':
+                return mock_secrets
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
+
+        # First urlopen call returns commits (GET), second is status POST
+        commits_response = unittest.mock.MagicMock()
+        commits_response.read.return_value = json.dumps([
+            {'sha': 'aaaaaa'},
+            {'sha': 'newer-sha-9999'}  # different from our_sha
+        ]).encode()
+        commits_response.__enter__ = lambda s: s
+        commits_response.__exit__ = unittest.mock.Mock(return_value=False)
+
+        status_response = unittest.mock.MagicMock()
+        status_response.read.return_value = b'{}'
+        status_response.__enter__ = lambda s: s
+        status_response.__exit__ = unittest.mock.Mock(return_value=False)
+
+        mock_urlopen.side_effect = [commits_response, status_response]
+
+        event = self.state_machine_event.copy()
+        event['taskSequence'] = 'second'
+        event['repository'] = {
+            'full_name': 'migurski/boundary-issues',
+            'statuses_url': 'https://api.github.com/repos/migurski/boundary-issues/statuses/{sha}'
+        }
+
+        with self.assertRaises(SupersededCommit):
+            lambda_handler(event, self.mock_context)
+
+        # Verify two urlopen calls: GET commits, POST status
+        self.assertEqual(mock_urlopen.call_count, 2)
+        # Verify processor was NOT invoked
+        mock_lambda.invoke.assert_not_called()
+
+    @unittest.mock.patch.dict(os.environ, {
+        'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor',
+        'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token'
+    })
+    @unittest.mock.patch('boto3.client')
+    @unittest.mock.patch('urllib.request.urlopen')
+    def test_second_task_proceeds_when_current(
+        self, mock_urlopen: typing.Any, mock_boto_client: typing.Any
+    ) -> None:
+        """Test that processor is invoked normally when our commit is still the latest"""
+        mock_lambda = unittest.mock.MagicMock()
+        mock_lambda.invoke.return_value = {'StatusCode': 202}
+        mock_s3 = unittest.mock.MagicMock()
+        mock_secrets = unittest.mock.MagicMock()
+        mock_secrets.get_secret_value.return_value = {'SecretString': 'test-token'}
+
+        def client_factory(service_name: str) -> typing.Any:
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            elif service_name == 'secretsmanager':
+                return mock_secrets
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
+
+        our_sha = typing.cast(dict[str, typing.Any], self.state_machine_event['pull_request'])['head']['sha']
+        commits_response = unittest.mock.MagicMock()
+        commits_response.read.return_value = json.dumps([
+            {'sha': 'older-sha'},
+            {'sha': our_sha}  # matches — we are current
+        ]).encode()
+        commits_response.__enter__ = lambda s: s
+        commits_response.__exit__ = unittest.mock.Mock(return_value=False)
+
+        mock_urlopen.return_value = commits_response
+
+        event = self.state_machine_event.copy()
+        event['taskSequence'] = 'second'
+        event['repository'] = {
+            'full_name': 'migurski/boundary-issues',
+            'statuses_url': 'https://api.github.com/repos/migurski/boundary-issues/statuses/{sha}'
+        }
+
+        response = lambda_handler(event, self.mock_context)
+
+        self.assertEqual(response['statusCode'], 200)
+        mock_lambda.invoke.assert_called_once()
+
+    @unittest.mock.patch.dict(os.environ, {
+        'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor',
+    })
+    @unittest.mock.patch('boto3.client')
+    @unittest.mock.patch('urllib.request.urlopen')
+    def test_first_task_skips_staleness_check(
+        self, mock_urlopen: typing.Any, mock_boto_client: typing.Any
+    ) -> None:
+        """Test that staleness check is not performed for the first task"""
+        mock_lambda = unittest.mock.MagicMock()
+        mock_lambda.invoke.return_value = {'StatusCode': 202}
+        mock_s3 = unittest.mock.MagicMock()
+
+        def client_factory(service_name: str) -> typing.Any:
+            if service_name == 'lambda':
+                return mock_lambda
+            elif service_name == 's3':
+                return mock_s3
+            return unittest.mock.MagicMock()
+
+        mock_boto_client.side_effect = client_factory
+
+        response = lambda_handler(self.state_machine_event, self.mock_context)
+
+        self.assertEqual(response['statusCode'], 200)
+        # No GitHub API calls for first task
+        mock_urlopen.assert_not_called()
+        mock_lambda.invoke.assert_called_once()
 
 
 if __name__ == '__main__':
