@@ -18,15 +18,12 @@ jobs:
 
       - name: Test code
         run: |
+          pip install mypy ruff boto3
+          ruff check webhook/*.py
+          mypy --strict --config-file webhook/mypy.ini webhook/*.py
           python -m unittest webhook/webhook.py -v
           python -m unittest webhook/task.py -v
           python -m unittest webhook/finish.py -v
-
-      - name: Test syntax
-        run: |
-          pip install mypy ruff
-          ruff check webhook/*.py
-          mypy --strict --config-file webhook/mypy.ini webhook/*.py
 
   trigger-webhook:
     needs: run-tests
