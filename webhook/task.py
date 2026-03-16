@@ -17,18 +17,18 @@ logging.basicConfig(format='%(levelname)s: %(message)s')
 logging.getLogger().setLevel(logging.INFO)
 
 
-def write_index_html(destination: str, message: str) -> None:
+def write_status_html(destination: str, message: str) -> None:
     """
-    Write a message to index.html in the S3 destination.
+    Write a message to status.html in the S3 destination.
 
     Args:
         destination: s3:// URL where results go
-        message: Message to write to index.html
+        message: Message to write to status.html
     """
     try:
         parsed_url = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
-        target_path = os.path.join(parsed_url.path, 'index.html')
+        target_path = os.path.join(parsed_url.path, 'status.html')
 
         s3_client.put_object(
             Bucket=parsed_url.netloc,
@@ -39,10 +39,10 @@ def write_index_html(destination: str, message: str) -> None:
             StorageClass='INTELLIGENT_TIERING',
         )
 
-        logging.info(f"Successfully wrote to index.html: {message}")
+        logging.info(f"Successfully wrote to status.html: {message}")
 
     except Exception as e:
-        logging.error(f"Failed to write to index.html: {e}")
+        logging.error(f"Failed to write to status.html: {e}")
         # Don't fail the whole handler if S3 write fails
         pass
 
@@ -105,8 +105,8 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         destination = event.get('destination')
 
         if task_sequence == 'first' and destination:
-            logging.info("Writing 'Settling in for a long wait' to index.html")
-            write_index_html(destination, 'Settling in for a long wait')
+            logging.info("Writing 'Settling in for a long wait' to status.html")
+            write_status_html(destination, '<p>Settling in for a long wait</p>')
 
         return {
             'statusCode': 200,
@@ -341,8 +341,8 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_writes_to_index_html_for_first_task(self, mock_boto_client: typing.Any) -> None:
-        """Test that index.html is written when taskSequence='first'"""
+    def test_writes_to_status_html_for_first_task(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is written when taskSequence='first'"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -371,14 +371,14 @@ class TestLambdaHandler(unittest.TestCase):
         mock_s3.put_object.assert_called_once()
         call_kwargs = mock_s3.put_object.call_args[1]
         self.assertEqual(call_kwargs['Bucket'], 'test-bucket')
-        self.assertEqual(call_kwargs['Key'], 'test-path/index.html')
-        self.assertEqual(call_kwargs['Body'], b'Settling in for a long wait')
+        self.assertEqual(call_kwargs['Key'], 'test-path/status.html')
+        self.assertEqual(call_kwargs['Body'], b'<p>Settling in for a long wait</p>')
         self.assertEqual(call_kwargs['ContentType'], 'text/html')
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_index_html_for_second_task(self, mock_boto_client: typing.Any) -> None:
-        """Test that index.html is NOT written when taskSequence='second'"""
+    def test_does_not_write_to_status_html_for_second_task(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is NOT written when taskSequence='second'"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -411,8 +411,8 @@ class TestLambdaHandler(unittest.TestCase):
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_index_html_without_task_sequence(self, mock_boto_client: typing.Any) -> None:
-        """Test that index.html is NOT written when taskSequence is missing"""
+    def test_does_not_write_to_status_html_without_task_sequence(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is NOT written when taskSequence is missing"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}

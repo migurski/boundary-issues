@@ -118,7 +118,7 @@ def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typi
         err9 = generate_preview_html(event, clone_dir, on_failure)
         if err9:
             return err9
-        err10 = update_index_html(event, on_failure)
+        err10 = update_status_html(event, on_failure)
         if err10:
             return err10
 
@@ -741,23 +741,23 @@ map.on('load', function() {
         on_failure('PreviewHTMLError', str(e))
         return make_error(f'Failed to generate preview HTML: {str(e)}')
 
-def update_index_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
+def update_status_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
     try:
         destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
         parsed = urllib.parse.urlparse(destination)
         s3_client = boto3.client('s3')
         s3_client.put_object(
             Bucket=parsed.netloc,
-            Key=os.path.join(parsed.path, 'index.html').lstrip('/'),
+            Key=os.path.join(parsed.path, 'status.html').lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body='Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.'.encode('utf8'),
+            Body='<p>Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.</p>'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
-        logging.info("Successfully updated index.html")
+        logging.info("Successfully updated status.html")
         return None
 
     except Exception as e:
-        logging.error(f"Failed to update index HTML: {e}")
-        on_failure('PreviewHTMLError', str(e))
-        return make_error(f'Failed to generate preview HTML: {str(e)}')
+        logging.error(f"Failed to update status HTML: {e}")
+        on_failure('StatusHTMLError', str(e))
+        return make_error(f'Failed to update status HTML: {str(e)}')

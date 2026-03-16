@@ -64,12 +64,13 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         target_host = f"{parsed_url.netloc}.s3.{region_name}.amazonaws.com"
         target_path = os.path.join(parsed_url.path, 'index.html')
         target_url = urllib.parse.urlunparse(('https', target_host, target_path, None, None, None))
+        status_key = os.path.join(parsed_url.path, 'status.html').lstrip('/')
         s3_client.put_object(
             Bucket=parsed_url.netloc,
-            Key=target_path.lstrip('/'),
+            Key=status_key,
             ACL='public-read',
             ContentType='text/html',
-            Body=f'All done with {status_state}. <a href="preview.html">Preview</a>.'.encode('utf8'),
+            Body=f'<p>All done with {status_state}. <a href="preview.html">Preview</a>.</p>'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
     else:

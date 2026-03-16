@@ -200,12 +200,49 @@ def do_status(payload: dict[str, typing.Any], destination_prefix: str | None) ->
         target_host = f"{parsed_url.netloc}.s3.{region_name}.amazonaws.com"
         target_path = os.path.join(parsed_url.path, 'index.html')
         target_url = urllib.parse.urlunparse(('https', target_host, target_path, None, None, None))
+        index_html = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Boundary Issues Check</title>
+<script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<style>
+body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+#status { padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid #ddd; }
+iframe { flex: 1; border: none; width: 100%; }
+</style>
+</head>
+<body>
+<div id="status" hx-get="status.html" hx-trigger="load"></div>
+<iframe src="preview.html"></iframe>
+</body>
+</html>"""
         s3_client.put_object(
             Bucket=parsed_url.netloc,
             Key=target_path.lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body='Coming soon'.encode('utf8'),
+            Body=index_html.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
+        s3_client.put_object(
+            Bucket=parsed_url.netloc,
+            Key=os.path.join(parsed_url.path, 'status.html').lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body='<p>Starting up</p>'.encode('utf8'),
+            StorageClass='INTELLIGENT_TIERING',
+        )
+        s3_client.put_object(
+            Bucket=parsed_url.netloc,
+            Key=os.path.join(parsed_url.path, 'preview.html').lstrip('/'),
+            ACL='public-read',
+            ContentType='text/html',
+            Body="""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Preview</title></head>
+<body><p>Preview loading...</p></body>
+</html>""".encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
     else:
