@@ -646,8 +646,8 @@ const map = new maplibregl.Map({
         "paint": {
           "circle-color": "rgba(0, 0, 0, 1)",
           "circle-radius": 5,
-          "circle-stroke-color": "rgba(255, 255, 255, 1)",
-          "circle-stroke-width": 2
+          "circle-stroke-color": "rgba(255, 255, 255, 0.65)",
+          "circle-stroke-width": 1.5
         }
       },
       {
@@ -663,7 +663,7 @@ const map = new maplibregl.Map({
         },
         "paint": {
           "text-color": "rgba(0, 0, 0, 1)",
-          "text-halo-color": "rgba(255, 255, 255, 0.35)",
+          "text-halo-color": "rgba(255, 255, 255, 0.65)",
           "text-halo-width": 1.5
         }
       }
