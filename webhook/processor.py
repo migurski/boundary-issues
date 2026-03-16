@@ -751,7 +751,7 @@ def update_status_html(event: dict[str, typing.Any], on_failure: FailCallable) -
             Key=os.path.join(parsed.path, 'status.html').lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body='<p>Finished first pass, <a href="preview.html">preview</a>. Settling in for a wait.</p>'.encode('utf8'),
+            Body='First check looks fine. Waiting until second check.'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
         logging.info("Successfully updated status.html")

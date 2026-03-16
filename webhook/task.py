@@ -105,8 +105,11 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         destination = event.get('destination')
 
         if task_sequence == 'first' and destination:
-            logging.info("Writing 'Settling in for a long wait' to status.html")
-            write_status_html(destination, '<p>Settling in for a long wait</p>')
+            logging.info("Writing first status to status.html")
+            write_status_html(destination, 'Starting first check.')
+        elif task_sequence != 'first' and destination:
+            logging.info("Writing second status to status.html")
+            write_status_html(destination, 'First check looks fine. Starting next check.')
 
         return {
             'statusCode': 200,
@@ -372,13 +375,13 @@ class TestLambdaHandler(unittest.TestCase):
         call_kwargs = mock_s3.put_object.call_args[1]
         self.assertEqual(call_kwargs['Bucket'], 'test-bucket')
         self.assertEqual(call_kwargs['Key'], 'test-path/status.html')
-        self.assertEqual(call_kwargs['Body'], b'<p>Settling in for a long wait</p>')
+        self.assertEqual(call_kwargs['Body'], b'Starting first check.')
         self.assertEqual(call_kwargs['ContentType'], 'text/html')
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_status_html_for_second_task(self, mock_boto_client: typing.Any) -> None:
-        """Test that status.html is NOT written when taskSequence='second'"""
+    def test_writes_to_status_html_for_second_task(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is written with second-task message when taskSequence='second'"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -406,13 +409,16 @@ class TestLambdaHandler(unittest.TestCase):
         # Verify success
         self.assertEqual(response['statusCode'], 200)
 
-        # Verify S3 put_object was NOT called
-        mock_s3.put_object.assert_not_called()
+        # Verify S3 put_object was called with second-task message
+        mock_s3.put_object.assert_called_once()
+        call_kwargs = mock_s3.put_object.call_args[1]
+        self.assertEqual(call_kwargs['Key'], 'test-path/status.html')
+        self.assertEqual(call_kwargs['Body'], b'First check looks fine. Starting next check.')
 
     @unittest.mock.patch.dict(os.environ, {'PROCESSOR_FUNCTION_ARN': 'arn:aws:lambda:us-west-2:123456789012:function:test-processor'})
     @unittest.mock.patch('boto3.client')
-    def test_does_not_write_to_status_html_without_task_sequence(self, mock_boto_client: typing.Any) -> None:
-        """Test that status.html is NOT written when taskSequence is missing"""
+    def test_does_not_write_to_status_html_without_destination(self, mock_boto_client: typing.Any) -> None:
+        """Test that status.html is NOT written when destination is missing"""
         # Mock Lambda client
         mock_lambda = unittest.mock.MagicMock()
         mock_lambda.invoke.return_value = {'StatusCode': 202}
@@ -430,9 +436,9 @@ class TestLambdaHandler(unittest.TestCase):
 
         mock_boto_client.side_effect = client_factory
 
-        # Modify event to remove taskSequence
+        # Modify event to remove destination
         event = self.state_machine_event.copy()
-        del event['taskSequence']
+        del event['destination']
 
         # Execute handler
         response = lambda_handler(event, self.mock_context)

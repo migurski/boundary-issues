@@ -213,7 +213,10 @@ iframe { flex: 1; border: none; width: 100%; }
 </style>
 </head>
 <body>
-<div id="status" hx-get="status.html" hx-trigger="load"></div>
+<header>
+    <p><a>Pull Request</a></p>
+    <p> id="status" hx-get="status.html" hx-trigger="load"></p>
+</header>
 <iframe src="preview.html"></iframe>
 </body>
 </html>"""
@@ -230,7 +233,7 @@ iframe { flex: 1; border: none; width: 100%; }
             Key=os.path.join(parsed_url.path, 'status.html').lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body='<p>Starting up</p>'.encode('utf8'),
+            Body='Starting first check.'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
         s3_client.put_object(

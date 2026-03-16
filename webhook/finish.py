@@ -70,7 +70,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
             Key=status_key,
             ACL='public-read',
             ContentType='text/html',
-            Body=f'<p>All done with {status_state}. <a href="preview.html">Preview</a>.</p>'.encode('utf8'),
+            Body=f'Finished with {status_state}.'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
     else:
