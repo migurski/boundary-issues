@@ -644,10 +644,10 @@ const map = new maplibregl.Map({
         "source": "protomaps", "source-layer": "points",
         "filter": ["==", ["get", "relation"], "interior"],
         "paint": {
-          "circle-color": "rgba(0, 200, 0, 1)",
-          "circle-radius": 6,
+          "circle-color": "rgba(0, 0, 0, 1)",
+          "circle-radius": 5,
           "circle-stroke-color": "rgba(255, 255, 255, 1)",
-          "circle-stroke-width": 1.5
+          "circle-stroke-width": 2
         }
       },
       {
@@ -657,13 +657,13 @@ const map = new maplibregl.Map({
         "layout": {
           "text-field": ["get", "iso3"],
           "text-font": ["Noto Sans Regular"],
-          "text-size": 11,
-          "text-offset": [0, 1.2],
+          "text-size": 12,
+          "text-offset": [0, 1],
           "text-anchor": "top"
         },
         "paint": {
-          "text-color": "rgba(0, 100, 0, 1)",
-          "text-halo-color": "rgba(255, 255, 255, 1)",
+          "text-color": "rgba(0, 0, 0, 1)",
+          "text-halo-color": "rgba(255, 255, 255, 0.35)",
           "text-halo-width": 1.5
         }
       }
