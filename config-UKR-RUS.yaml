@@ -17,6 +17,7 @@ RUS:
       - [minus, relation, 1574364] # Sevastopol
   interior-points:
     RUS:
+      # Places claimed by Russia as part of 2022 annexation
       - [33.52, 44.61] # Sevastopol
       - [34.10, 44.95] # Simferopol
       - [39.30, 48.57] # Luhansk
@@ -24,7 +25,8 @@ RUS:
       - [32.61, 46.64] # Kherson
       - [35.12, 47.85] # Zaporizhia
   exterior-points:
-    UKR:
+    base:
+      # Places internationally recognized to be within Ukraine
       - [33.52, 44.61] # Sevastopol
       - [34.10, 44.95] # Simferopol
       - [39.30, 48.57] # Luhansk
@@ -46,6 +48,7 @@ UKR:
       - [minus, relation, 71980] # Zaporizhia Oblast
   interior-points:
     base:
+      # Places internationally recognized to be within Ukraine
       - [33.52, 44.61] # Sevastopol
       - [34.10, 44.95] # Simferopol
       - [39.30, 48.57] # Luhansk
@@ -54,6 +57,7 @@ UKR:
       - [35.12, 47.85] # Zaporizhia
   exterior-points:
     RUS:
+      # Places claimed by Russia as part of 2022 annexation
       - [33.52, 44.61] # Sevastopol
       - [34.10, 44.95] # Simferopol
       - [39.30, 48.57] # Luhansk
