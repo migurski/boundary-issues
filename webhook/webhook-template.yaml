@@ -344,14 +344,14 @@ Resources:
                 {
                   "Variable": "$.taskResult.changedConfigs[0]",
                   "IsPresent": true,
-                  "Next": "Wait5Minutes"
+                  "Next": "WaitSomeTime"
                 }
               ],
               "Default": "ReportSuccess"
             },
-            "Wait5Minutes": {
+            "WaitSomeTime": {
               "Type": "Wait",
-              "Seconds": 300,
+              "SecondsPath": "$.wait_seconds",
               "Next": "SecondInvokeTask"
             },
             "SecondInvokeTask": {

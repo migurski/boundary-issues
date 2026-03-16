@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import typing
 import unittest
 import unittest.mock
@@ -126,7 +127,8 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         logging.info(f"Starting state machine execution: {execution_name}")
 
         destination_prefix = f"s3://{os.environ.get('DATA_BUCKET')}/{context.aws_request_id[:8]}/"
-        stepfunctions_payload = {"destination": destination_prefix, **payload}
+        wait_seconds = random.randint(120, 360)
+        stepfunctions_payload = {"destination": destination_prefix, "wait_seconds": wait_seconds, **payload}
 
         response = sfn.start_execution(
             stateMachineArn=state_machine_arn,
@@ -372,6 +374,9 @@ class TestLambdaHandler(unittest.TestCase):
         input_payload = json.loads(call_args['input'])
         self.assertEqual(input_payload['action'], 'synchronize')
         self.assertEqual(input_payload['number'], 4)
+        self.assertIn('wait_seconds', input_payload)
+        self.assertGreaterEqual(input_payload['wait_seconds'], 120)
+        self.assertLessEqual(input_payload['wait_seconds'], 360)
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)
     def test_missing_state_machine_arn(self) -> None:
