@@ -73,6 +73,28 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
             Body=f'Finished with {status_state}.'.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
+        if status_state == 'failure':
+            error_info = event.get('error', {})
+            error_type = error_info.get('Error', 'Unknown error')
+            cause = error_info.get('Cause', '')
+            error_html = (
+                '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"><title>Error</title>\n'
+                '<style>pre { white-space: pre-wrap; word-break: break-word; }</style>\n'
+                '</head>\n<body>\n'
+                f'<h2>{error_type}</h2>\n'
+                f'<pre>{cause}</pre>\n'
+                '</body>\n</html>\n'
+            )
+            error_html_bytes = error_html.encode('utf-8')
+            for key_suffix in ('error.html', 'preview.html'):
+                s3_client.put_object(
+                    Bucket=parsed_url.netloc,
+                    Key=os.path.join(parsed_url.path, key_suffix).lstrip('/'),
+                    ACL='public-read',
+                    ContentType='text/html',
+                    Body=error_html_bytes,
+                    StorageClass='INTELLIGENT_TIERING',
+                )
     else:
         target_url = None
 
@@ -436,6 +458,38 @@ class TestLambdaHandler(unittest.TestCase):
         request = call_args[0]
         payload = json.loads(request.data.decode('utf-8'))
         self.assertNotIn('target_url', payload)
+
+    @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
+    @unittest.mock.patch('urllib.request.urlopen')
+    @unittest.mock.patch('boto3.client')
+    def test_failure_writes_error_to_preview_html(self, mock_boto_client: typing.Any, mock_urlopen: typing.Any) -> None:
+        """Test that failure with error field writes error content to preview.html"""
+        mock_s3 = unittest.mock.MagicMock()
+        mock_s3.get_bucket_location.return_value = {'LocationConstraint': 'us-west-0'}
+        mock_secrets = unittest.mock.MagicMock()
+        mock_secrets.get_secret_value.return_value = {'SecretString': self.test_github_token}
+        mock_boto_client.side_effect = [mock_s3, mock_secrets]
+
+        mock_response = unittest.mock.MagicMock()
+        mock_response.read.return_value = json.dumps({'state': 'failure'}).encode('utf-8')
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        failure_with_error = self.failure_event.copy()
+        failure_with_error['error'] = {
+            'Error': 'ScriptExecutionError',
+            'Cause': 'AssertionError: (34.1, 44.95) should be outside UKR from the RUS perspective',
+        }
+
+        response = lambda_handler(failure_with_error, self.mock_context)
+
+        self.assertEqual(response['statusCode'], 200)
+
+        put_calls = mock_s3.put_object.call_args_list
+        preview_calls = [c for c in put_calls if 'preview.html' in c.kwargs.get('Key', '')]
+        self.assertTrue(preview_calls, "put_object was not called for preview.html")
+        body = preview_calls[0].kwargs['Body'].decode('utf-8')
+        self.assertIn('AssertionError: (34.1, 44.95) should be outside UKR from the RUS perspective', body)
+        self.assertIn('ScriptExecutionError', body)
 
     @unittest.mock.patch.dict(os.environ, {'GITHUB_SECRET_ARN': 'arn:aws:secretsmanager:us-west-2:123456789012:secret:github-token-abc123'})
     @unittest.mock.patch('urllib.request.urlopen')

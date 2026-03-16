@@ -410,6 +410,7 @@ Resources:
                 "FunctionName": "${FinishFunction.Arn}",
                 "Payload": {
                   "status": "failure",
+                  "error.$": "$.error",
                   "action.$": "$.action",
                   "number.$": "$.number",
                   "pull_request.$": "$.pull_request",
