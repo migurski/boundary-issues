@@ -22,6 +22,7 @@ UKR:
     - [plus, relation, 60199] # Ukraine
   perspectives:
     RUS:
+      - [minus, relation, 72639] # Crimea
       - [minus, relation, 1574364] # Sevastopol
       - [minus, relation, 71971] # Luhansk Oblast
       - [minus, relation, 71973] # Donetsk Oblast
