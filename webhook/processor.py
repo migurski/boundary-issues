@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import os
 import sys
+import tempfile
 import typing
 import urllib.parse
 import osgeo.ogr
@@ -193,11 +194,11 @@ def extract_pr_information(event: dict[str, typing.Any], on_failure: FailCallabl
 
 
 def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
-    """ Clone repository to /tmp/repo """
+    """ Clone repository to temp """
     try:
         parsed_url = urllib.parse.urlparse(clone_url)
         repo_url = urllib.parse.urlunparse((parsed_url.scheme, f'{github_token}@github.com', *parsed_url[2:]))
-        clone_dir = '/tmp/repo'
+        clone_dir = tempfile.mkdtemp(dir='/tmp', prefix='repo-')
 
         # Clean up any previous clone
         subprocess.run(['rm', '-rf', clone_dir], check=False)
@@ -433,10 +434,10 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
             return None
 
         output_path = os.path.join(clone_dir, 'preview.pmtiles')
-        data_dir = '/tmp/tiles-data'
+        data_dir = tempfile.mkdtemp(dir='/tmp', prefix='data-')
         os.makedirs(data_dir, exist_ok=True)
 
-        # /var/data is read-only at Lambda runtime; copy GPKG to /tmp so SQLite can write sidecar files
+        # /var/data is read-only at Lambda runtime; copy GPKG to temp so SQLite can write sidecar files
         bundled_landcover = '/var/data/daylight-landcover.gpkg'
         landcover_file = f'{data_dir}/daylight-landcover.gpkg'
         if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
