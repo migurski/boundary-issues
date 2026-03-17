@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import time
+import typing
 import unittest
 import urllib.request
 
@@ -39,8 +40,7 @@ class TestCase (unittest.TestCase):
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
-        with open('test-config.yaml', 'r') as file:
-            cls.config = yaml.safe_load(file)
+        cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"])
         write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
         write_validation_points(cls.tempdir, cls.config)
         write_country_boundaries(cls.tempdir, cls.config)
@@ -52,6 +52,37 @@ class TestCase (unittest.TestCase):
         os.remove(os.path.join(cls.tempdir, AREAS_NAME))
         os.rmdir(cls.tempdir)
         cls.tempdir = None
+
+    def test_merge_country_config(self) -> None:
+        base = {
+            "base": [["+", "relation", "fake-IND"]],
+            "perspectives": {"CHN": [["-", "relation", "fake-Aksai-Chin"]]},
+            "interior-points": {"base": [[1.0, 2.0]]},
+        }
+        addition = {
+            "perspectives": {"PAK": [["-", "relation", "fake-IND-Kashmir"]]},
+            "exterior-points": {"PAK": [[2.3, 2.7]]},
+        }
+        merged = merge_country_config(base, addition)
+        # base geometry preserved
+        self.assertEqual(merged["base"], base["base"])
+        # perspectives from both blocks present
+        self.assertIn("CHN", merged["perspectives"])
+        self.assertIn("PAK", merged["perspectives"])
+        # interior-points from base preserved
+        self.assertEqual(merged["interior-points"], base["interior-points"])
+        # exterior-points from addition added
+        self.assertEqual(merged["exterior-points"], addition["exterior-points"])
+
+        # duplicate "base" sub-key in interior-points must raise an error
+        base_with_conflict = {
+            "interior-points": {"base": [[1.0, 2.0]]},
+        }
+        addition_with_conflict = {
+            "interior-points": {"base": [[9.9, 9.9]]},
+        }
+        with self.assertRaises(ValueError):
+            merge_country_config(base_with_conflict, addition_with_conflict)
 
     def test_boundaries(self):
         with open(os.path.join(TestCase.tempdir, BOUNDARIES_NAME), "r") as file:
@@ -160,6 +191,29 @@ def validate_areas(configs, areas_path):
         else:
             assert not make_point(x, y).Within(area_geom), \
                 f"({x}, {y}) should be outside {test_iso3a} ({area_geom.GetEnvelope()}) from the {test_iso3b} perspective"
+
+def merge_country_config(base: dict[str, typing.Any], addition: dict[str, typing.Any]) -> dict[str, typing.Any]:
+    merged = dict(base)
+    for key in ("perspectives", "interior-points", "exterior-points"):
+        if key in addition:
+            duplicates = set(merged.get(key, {}).keys()) & set(addition[key].keys())
+            if duplicates:
+                raise ValueError(f"Duplicate keys in {key}: {duplicates}")
+            merged[key] = {**merged.get(key, {}), **addition[key]}
+    if "base" in addition and "base" not in merged:
+        merged["base"] = addition["base"]
+    return merged
+
+def load_configs(paths: list[str]) -> dict[str, dict[str, typing.Any]]:
+    config: dict[str, dict[str, typing.Any]] = {}
+    for path in paths:
+        with open(path, "r") as file:
+            for iso3, entry in yaml.safe_load(file).items():
+                if iso3 in config:
+                    config[iso3] = merge_country_config(config[iso3], entry)
+                else:
+                    config[iso3] = entry
+    return config
 
 def make_point(x, y):
     return osgeo.ogr.CreateGeometryFromWkt(f"POINT ({x} {y})")
@@ -379,10 +433,7 @@ if __name__ == "__main__":
     parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
     args = parser.parse_args()
 
-    config = {}
     config_paths = args.configs if args.configs else glob.glob('config*.yaml')
-    for path in config_paths:
-        with open(path, 'r') as file:
-            config.update(yaml.safe_load(file))
+    config = load_configs(config_paths)
 
     exit(main(".", config, args.check_fresh_osm))

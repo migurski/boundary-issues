@@ -1,0 +1,8 @@
+IND:
+  perspectives:
+    PAK:
+    - [minus, relation, "fake-IND-Kashmir"]
+  exterior-points:
+    PAK:
+      - [2.3, 2.7] # fake-PAK-Kashmir
+      - [2.7, 2.3] # fake-IND-Kashmir
