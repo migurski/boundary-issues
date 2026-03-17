@@ -54,5 +54,4 @@ COPY webhook/processor.py /var/task/processor.py
 # Default: run as standalone CLI (no S3 uploads)
 # Lambda overrides this via ImageConfig in CloudFormation
 WORKDIR /var/task
-ENTRYPOINT []
-CMD ["python3", "/var/task/processor.py"]
+ENTRYPOINT ["python3", "/var/task/processor.py"]

@@ -109,9 +109,10 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
     if err6:
         return err6
 
+    s3_client = boto3.client('s3')
+
     # Generate tiles on first run (when checkFreshOSM is not set)
     if not check_fresh_osm:
-        s3_client = boto3.client('s3')
         err7 = convert_csvs_to_geojson(clone_dir, on_failure)
         if err7:
             return err7
@@ -121,7 +122,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         err9 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
         if err9:
             return err9
-        err10 = update_status_html(s3_client, destination, on_failure)
+        err10 = update_status_html(s3_client, destination, clone_dir, on_failure)
         if err10:
             return err10
 
@@ -431,7 +432,7 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
             logging.info("No GeoJSON files found, skipping tile generation")
             return None
 
-        output_path = '/tmp/preview.pmtiles'
+        output_path = os.path.join(clone_dir, 'preview.pmtiles')
         data_dir = '/tmp/tiles-data'
         os.makedirs(data_dir, exist_ok=True)
 
@@ -461,29 +462,30 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Tile generation output: {result.stdout}")
 
-        if s3_client is not None and destination is not None:
-            parsed = urllib.parse.urlparse(destination)
-            s3_client.put_object(
-                Bucket=parsed.netloc,
-                Key=os.path.join(parsed.path, 'preview.log').lstrip('/'),
-                Body=result.stdout.encode('utf-8'),
-                ContentType='text/plain',
-                ACL='public-read',
-                StorageClass='INTELLIGENT_TIERING',
-            )
-
-            # Upload preview.pmtiles to S3 alongside the CSVs
-            key = os.path.join(parsed.path, 'preview.pmtiles').lstrip('/')
-            logging.info(f"Uploading {output_path} to s3://{parsed.netloc}/{key}")
-            s3_client.upload_file(
-                Filename=output_path,
-                Bucket=parsed.netloc,
-                Key=key,
-                ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
-            )
-            logging.info("Successfully uploaded preview.pmtiles")
-        else:
+        if s3_client is None or destination is None:
             logging.info(f"Skipping S3 upload; preview.pmtiles written to {output_path}")
+            return None
+
+        parsed = urllib.parse.urlparse(destination)
+        s3_client.put_object(
+            Bucket=parsed.netloc,
+            Key=os.path.join(parsed.path, 'preview.log').lstrip('/'),
+            Body=result.stdout.encode('utf-8'),
+            ContentType='text/plain',
+            ACL='public-read',
+            StorageClass='INTELLIGENT_TIERING',
+        )
+
+        # Upload preview.pmtiles to S3 alongside the CSVs
+        key = os.path.join(parsed.path, 'preview.pmtiles').lstrip('/')
+        logging.info(f"Uploading {output_path} to s3://{parsed.netloc}/{key}")
+        s3_client.upload_file(
+            Filename=output_path,
+            Bucket=parsed.netloc,
+            Key=key,
+            ExtraArgs=dict(ACL='public-read', StorageClass='INTELLIGENT_TIERING'),
+        )
+        logging.info("Successfully uploaded preview.pmtiles")
         return None
 
     except subprocess.CalledProcessError as e:
@@ -498,11 +500,9 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
         return make_error(f'Tile generation failed: {str(e)}')
 
 
-def generate_preview_html(s3_client: typing.Any, destination: str, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
-        parsed = urllib.parse.urlparse(destination)
-
         csv_names = ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv')
         perspective_set = set()
         for csv_name in csv_names:
@@ -726,6 +726,13 @@ map.on('load', function() {
 </body>
 </html>""".replace('$PERSPECTIVES_JSON$', perspectives_json)
 
+        with open(os.path.join(clone_dir, 'preview.html'), "w") as file:
+            file.write(html)
+
+        if s3_client is None or destination is None:
+            return None
+
+        parsed = urllib.parse.urlparse(destination)
         html_key = os.path.join(parsed.path, 'preview.html').lstrip('/')
         logging.info(f"Uploading preview.html to s3://{parsed.netloc}/{html_key}")
         s3_client.put_object(
@@ -744,15 +751,23 @@ map.on('load', function() {
         on_failure('PreviewHTMLError', str(e))
         return make_error(f'Failed to generate preview HTML: {str(e)}')
 
-def update_status_html(s3_client: typing.Any, destination: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+def update_status_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+    status_text = 'First check looks fine. Waiting until second check.'
+
     try:
+        with open(os.path.join(clone_dir, 'status.html'), "w") as file:
+            file.write(status_text)
+
+        if s3_client is None or destination is None:
+            return None
+
         parsed = urllib.parse.urlparse(destination)
         s3_client.put_object(
             Bucket=parsed.netloc,
             Key=os.path.join(parsed.path, 'status.html').lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body='First check looks fine. Waiting until second check.'.encode('utf8'),
+            Body=status_text.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
         logging.info("Successfully updated status.html")
@@ -764,7 +779,7 @@ def update_status_html(s3_client: typing.Any, destination: str, on_failure: Fail
         return make_error(f'Failed to update status HTML: {str(e)}')
 
 
-def main() -> None:
+def main() -> int:
     """ Standalone CLI entry point: build tiles locally without S3 uploads """
     parser = argparse.ArgumentParser(description='Build political boundary tiles locally')
     parser.add_argument('--configs', nargs='*', help='Config YAML paths (default: config/*.yaml)')
@@ -772,7 +787,6 @@ def main() -> None:
 
     def on_failure(error: str, cause: str) -> None:
         logging.error(f"{error}: {cause}")
-        sys.exit(1)
 
     if args.configs:
         changed_configs = args.configs
@@ -781,18 +795,30 @@ def main() -> None:
 
     logging.info(f"Using configs: {changed_configs}")
 
-    err1 = run_build_script(changed_configs, check_fresh_osm=False, clone_dir='.', on_failure=on_failure)
+    s3_client, destination, clone_dir = None, None, '.'
+
+    err1 = run_build_script(changed_configs, False, clone_dir, on_failure)
     if err1:
-        sys.exit(1)
+        return 1
 
-    err2 = convert_csvs_to_geojson('.', on_failure)
+    err2 = convert_csvs_to_geojson(clone_dir, on_failure)
     if err2:
-        sys.exit(1)
+        return 1
 
-    err3 = generate_tiles(s3_client=None, destination=None, clone_dir='.', on_failure=on_failure)
+    err3 = generate_tiles(s3_client, destination, clone_dir, on_failure)
     if err3:
-        sys.exit(1)
+        return 1
+
+    err4 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
+    if err4:
+        return 1
+
+    err5 = update_status_html(s3_client, destination, clone_dir, on_failure)
+    if err5:
+        return 1
+
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    exit(main())
