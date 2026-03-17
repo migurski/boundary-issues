@@ -340,9 +340,12 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
             indexes = sorted(list({f['properties']['iso3'] for f in features}))
             for feature in features:
                 feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
-            with open(areas_geojson, 'w') as f:
-                json.dump({'type': 'FeatureCollection', 'features': features}, f)
-            logging.info(f"Wrote {len(features)} area features to {areas_geojson}")
+            if features:
+                with open(areas_geojson, 'w') as f:
+                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
+                logging.info(f"Wrote {len(features)} area features to {areas_geojson}")
+            else:
+                logging.info(f"Skipping areas GeoJSON: no features found in {areas_csv}")
         else:
             logging.info(f"Skipping areas conversion: {areas_csv} not found")
 
@@ -376,9 +379,12 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
             indexes = sorted(list({f['properties']['iso3a'] for f in features}))
             for feature in features:
                 feature['properties']['index'] = indexes.index(feature['properties']['iso3a'])
-            with open(boundaries_geojson, 'w') as f:
-                json.dump({'type': 'FeatureCollection', 'features': features}, f)
-            logging.info(f"Wrote {len(features)} boundary features to {boundaries_geojson}")
+            if features:
+                with open(boundaries_geojson, 'w') as f:
+                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
+                logging.info(f"Wrote {len(features)} boundary features to {boundaries_geojson}")
+            else:
+                logging.info(f"Skipping boundaries GeoJSON: no features found in {boundaries_csv}")
         else:
             logging.info(f"Skipping boundaries conversion: {boundaries_csv} not found")
 
@@ -408,9 +414,12 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
             indexes = sorted(list({f['properties']['iso3'] for f in features}))
             for feature in features:
                 feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
-            with open(points_geojson, 'w') as f:
-                json.dump({'type': 'FeatureCollection', 'features': features}, f)
-            logging.info(f"Wrote {len(features)} validation point features to {points_geojson}")
+            if features:
+                with open(points_geojson, 'w') as f:
+                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
+                logging.info(f"Wrote {len(features)} validation point features to {points_geojson}")
+            else:
+                logging.info(f"Skipping validation-points GeoJSON: no features found in {points_csv}")
         else:
             logging.info(f"Skipping validation-points conversion: {points_csv} not found")
 
@@ -451,7 +460,7 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
             f'--landcover_path={landcover_file}',
             '--download',
             '--force',
-            '--maxzoom', '5',
+            '--maxzoom', '7',
         ]
         if os.path.exists(areas_geojson):
             cmd.append(f'--areas={areas_geojson}')
