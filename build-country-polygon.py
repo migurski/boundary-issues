@@ -294,10 +294,25 @@ def write_validation_points(dirname, configs):
             rows.writerow({**row, "geometry": f"POINT({x:.7f} {y:.7f})"})
 
 def write_country_boundaries(dirname, configs):
+    mece_pieces = set()
+    for (iso3a, config) in configs.items():
+        for _, el_type, osm_id in config[BASE]:
+            mece_pieces.add((el_type, osm_id, iso3a))
+        for (iso3b, shapes) in config.get("perspectives", {}).items():
+            for _, el_type, osm_id in shapes:
+                mece_pieces.add((el_type, osm_id, iso3a))
+
+    for el_type, osm_id, iso3a in sorted(mece_pieces):
+        print(el_type, osm_id, iso3a)
+
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
+
+    gdf['intpt'] = gdf.representative_point()
+    print(gdf)
+    exit(1)
 
     # Note each country's own view of itself
     self_views: dict[str, shapely.geometry.base.BaseGeometry] = {
