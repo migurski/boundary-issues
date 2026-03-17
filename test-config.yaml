@@ -24,8 +24,6 @@ IND:
     - [plus, relation, "fake-PAK-Kashmir"]
     - [plus, relation, "fake-Aksai-Chin"]
     - [plus, relation, "fake-Trans-Karakoram-Tract"]
-    PAK:
-    - [minus, relation, "fake-IND-Kashmir"]
   interior-points:
     base:
       - [2.7, 2.3] # fake-IND-Kashmir
@@ -40,6 +38,12 @@ IND:
     CHN:
       - [3.5, 2.5] # fake-Aksai-Chin
       - [3.7, 3.7] # fake-Trans-Karakoram-Tract
+
+IND:
+  perspectives:
+    PAK:
+    - [minus, relation, "fake-IND-Kashmir"]
+  exterior-points:
     PAK:
       - [2.3, 2.7] # fake-PAK-Kashmir
       - [2.7, 2.3] # fake-IND-Kashmir
