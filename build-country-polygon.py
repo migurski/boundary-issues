@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import dataclasses
+import enum
 import functools
 import glob
 import gzip
@@ -36,10 +37,44 @@ EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
 DELIM = ";"
 
+class Relationship (enum.Enum):
+    NO_OVERLAP = 0
+    IDENTICAL = 1
+    IS_INSIDE = 2
+    ENCLOSES = 3
+    CONTENDS = 4
+
 @dataclasses.dataclass
 class Claim:
-    claimants: list[str]
+    claimants: list[str]  # Must match r"^\w\w\w:\w\w\w(;\w\w\w)*$"
     geometry: shapely.geometry.base.BaseGeometry | None
+
+    def relationship(self, other:Claim) -> Relationship:
+        """ Return description of DE-9IM relationship between geometries """
+        pattern = self.geometry.relate(other.geometry)
+        if re.match(r"^F.2...2.2$", pattern):
+            return Relationship.NO_OVERLAP
+        if re.match(r"^2.F...F.2$", pattern):
+            return Relationship.IDENTICAL
+        if re.match(r"^2.F...2.2$", pattern):
+            return Relationship.IS_INSIDE
+        if re.match(r"^2.2...F.2$", pattern):
+            return Relationship.ENCLOSES
+        if re.match(r"^2.2...2.2$", pattern):
+            return Relationship.CONTENDS
+        raise ValueError(pattern)
+
+    def coalesced(self) -> Claim:
+        """ Return a new Claim with the claimants sorted and grouped """
+        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", c) for c in self.claimants)
+        out_claimants = []
+        for iso3, sub_claimants in itertools.groupby(sorted(self.claimants), key=lambda c: c[:3]):
+            out_perspectives = []
+            for sub_claimant in sub_claimants:
+                out_perspectives.extend(sub_claimant[4:].split(";"))
+            out_claimants.append(f"{iso3}:{';'.join(sorted(out_perspectives))}")
+        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", c) for c in out_claimants)
+        return Claim(out_claimants, self.geometry)
 
 class TestCase (unittest.TestCase):
 
@@ -433,59 +468,47 @@ def write_country_claims(dirname, configs):
             new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
-                if new_claim.geometry.relate_pattern(out_claim.geometry, 'F*2***2*2'):
+                relationship = new_claim.relationship(out_claim)
+                if relationship is Relationship.NO_OVERLAP:
                     print("-->", new_claimant, "does not overlap", out_claim.claimants, file=sys.stderr)
                     # None of new_claim's area matches out_claim
                     continue
-                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*F***F*2'):
+                elif relationship is Relationship.IDENTICAL:
                     print("-->", new_claimant, "is identical to", out_claim.claimants, file=sys.stderr)
                     out_claim.claimants.extend(new_claim.claimants)
                     add_claims.remove(new_claim)
                     # All of new_claim's area has been found and accounted for
                     break
-                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*F***2*2'):
+                elif relationship is Relationship.IS_INSIDE:
                     print("-->", new_claimant, "is inside", out_claim.claimants, file=sys.stderr)
-                    overlap_geom = out_claim.geometry.intersection(new_claim.geometry)
+                    shared_geom = out_claim.geometry.intersection(new_claim.geometry)
                     untouched_geom = out_claim.geometry.difference(new_claim.geometry)
                     out_claim.geometry = untouched_geom
-                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, overlap_geom))
-                    add_claims.remove(new_claim)
+                    new_claim.claimants.extend(out_claim.claimants)
+                    new_claim.geometry = shared_geom
                     # All of new_claim's area has been found and accounted for
                     break
-                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*2***F*2'):
+                elif relationship is Relationship.ENCLOSES:
                     print("-->", new_claimant, "encloses", out_claim.claimants, file=sys.stderr)
                     remaining_geom = new_claim.geometry.difference(out_claim.geometry)
                     out_claim.claimants.extend(new_claim.claimants)
                     new_claim.geometry = remaining_geom
                     # Some of new_claim's area remains to check against other out_claims
                     continue
-                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*2***2*2'):
+                elif relationship is Relationship.CONTENDS:
                     print("-->", new_claimant, "contends with", out_claim.claimants, file=sys.stderr)
-                    overlap_geom = out_claim.geometry.intersection(new_claim.geometry)
+                    shared_geom = out_claim.geometry.intersection(new_claim.geometry)
                     untouched_geom = out_claim.geometry.difference(new_claim.geometry)
                     remaining_geom = new_claim.geometry.difference(out_claim.geometry)
-                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, overlap_geom))
+                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom))
                     out_claim.geometry = untouched_geom
                     new_claim.geometry = remaining_geom
                     # Some of new_claim's area remains to check against other out_claims
                     continue
-                else:
-                    raise ValueError(new_claim.geometry.relate(out_claim.geometry))
             for add_claim in add_claims:
                 out_claims.append(add_claim)
 
         all_claims.extend(out_claims)
-
-    def coalesce_claimants(claimants: list[str]) -> list[str]:
-        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in claimants)
-        out_ids = []
-        for iso3, sub_ids in itertools.groupby(sorted(claimants), key=lambda i: i[:3]):
-            out_persp = []
-            for sub_id in sub_ids:
-                out_persp.extend(sub_id[4:].split(";"))
-            out_ids.append(f"{iso3}:{';'.join(sorted(out_persp))}")
-        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in out_ids)
-        return out_ids
 
     with open(os.path.join(dirname, 'out.geojson'), 'w') as file:
         json.dump(
@@ -494,7 +517,7 @@ def write_country_claims(dirname, configs):
                 "features": [
                     {
                         "type": "Feature",
-                        "properties": {"claimants": " / ".join(coalesce_claimants(c.claimants))},
+                        "properties": {"claimants": " ".join(c.coalesced().claimants)},
                         "geometry": json.loads(shapely.to_geojson(c.geometry))
                     }
                     for c in all_claims
