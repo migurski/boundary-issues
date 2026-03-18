@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import dataclasses
 import functools
 import glob
 import gzip
+import json
 import os
 import re
 import sys
@@ -326,34 +328,81 @@ def write_country_boundaries(dirname, configs):
     print(dispute_graph)
     print(gdf_disputants)
 
+    @dataclasses.dataclass
+    class Chonk:
+        identities: list[str]
+        geometry: shapely.geometry.base.BaseGeometry | None
+
+    all_chonks = []
+
     for iso3s in networkx.connected_components(dispute_graph):
         print("==>", "iso3s:", iso3s, 'edges:', dispute_graph.subgraph(iso3s).edges)
         gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
         print(gdf_sub)
-        out_rows = []
-        for _, sub_row in gdf_sub.iterrows():
-            for out_row in out_rows:
-                if sub_row.geometry.relate_pattern(out_row[-1], '2*F***F*2'):
-                    print((sub_row.iso3, sub_row.perspectives), "is identical to", out_row[0])
-                    out_row[0].append((sub_row.iso3, sub_row.perspectives))
+        out_chonks = []
+        for _, new_row in gdf_sub.iterrows():
+            new_chonk = Chonk([f"{new_row.iso3}:{new_row.perspectives}"], new_row.geometry)
+            for out_chonk in out_chonks:
+                if new_chonk.geometry.relate_pattern(out_chonk.geometry, 'F*2***2*2'):
+                    print(new_chonk.identities, "does not overlap", out_chonk.identities)
+                    # None of new_chonk's area matches out_chonk
+                    continue
+                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*F***F*2'):
+                    print(new_chonk.identities, "is identical to", out_chonk.identities)
+                    out_chonk.identities.extend(new_chonk.identities)
+                    new_chonk.geometry = None
+                    # All of new_chonk's area has been found and accounted for
                     break
-                elif sub_row.geometry.relate_pattern(out_row[-1], 'F*2***2*2'):
-                    print((sub_row.iso3, sub_row.perspectives), "does not overlap", out_row[0])
-                    out_rows.append(([(sub_row.iso3, sub_row.perspectives)], sub_row.geometry))
+                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*F***2*2'):
+                    print(new_chonk.identities, "has less than", out_chonk.identities)
+                    overlap_geom = out_chonk.geometry.intersection(new_chonk.geometry)
+                    untouched_geom = out_chonk.geometry.difference(new_chonk.geometry)
+                    out_chonk.geometry = untouched_geom
+                    out_chonks.append(Chonk(out_chonk.identities + new_chonk.identities, overlap_geom))
+                    new_chonk.geometry = None
+                    # All of new_chonk's area has been found and accounted for
                     break
-                elif sub_row.geometry.relate_pattern(out_row[-1], '2*2***2*2'):
-                    print((sub_row.iso3, sub_row.perspectives), "contends with", out_row[0])
-                elif sub_row.geometry.relate_pattern(out_row[-1], '2*F***2*2'):
-                    print((sub_row.iso3, sub_row.perspectives), "has less than", out_row[0])
-                elif sub_row.geometry.relate_pattern(out_row[-1], '2*2***F*2'):
-                    print((sub_row.iso3, sub_row.perspectives), "has more than", out_row[0])
+                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*2***F*2'):
+                    print(new_chonk.identities, "has more than", out_chonk.identities)
+                    remaining_geom = new_chonk.geometry.difference(out_chonk.geometry)
+                    out_chonk.identities.extend(new_chonk.identities)
+                    new_chonk.geometry = remaining_geom
+                    # Some of new_chonk's area remains to check against other out_chonks
+                    continue
+                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*2***2*2'):
+                    print(new_chonk.identities, "contends with", out_chonk.identities)
+                    overlap_geom = out_chonk.geometry.intersection(new_chonk.geometry)
+                    untouched_geom = out_chonk.geometry.difference(new_chonk.geometry)
+                    remaining_geom = new_chonk.geometry.difference(out_chonk.geometry)
+                    out_chonks.append(Chonk(out_chonk.identities + new_chonk.identities, overlap_geom))
+                    out_chonk.geometry = untouched_geom
+                    new_chonk.geometry = remaining_geom
+                    # Some of new_chonk's area remains to check against other out_chonks
+                    continue
                 else:
-                    raise ValueError(sub_row.geometry.relate(out_row[-1]))
-            else:
-                print('fallback append')
-                out_rows.append(([(sub_row.iso3, sub_row.perspectives)], sub_row.geometry))
+                    raise ValueError(new_chonk.geometry.relate(out_chonk.geometry))
+            if new_chonk.geometry and not new_chonk.geometry.is_empty:
+                print(new_chonk.identities, 'append remainder')
+                out_chonks.append(new_chonk)
 
-        import pprint; pprint.pprint(out_rows)
+        import pprint; pprint.pprint([(c.identities, c.geometry) for c in out_chonks])
+        all_chonks.extend(out_chonks)
+    print("==>")
+    with open('out.geojson', 'w') as file:
+        json.dump(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"identities": " / ".join(c.identities)},
+                        "geometry": json.loads(shapely.to_geojson(c.geometry))
+                    }
+                    for c in all_chonks
+                ]
+            },
+            file
+        )
 
     exit(1)
 

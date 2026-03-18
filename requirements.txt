@@ -3,4 +3,5 @@ jupyter==1.1.1
 rtree==1.4.1
 geopandas==1.0.1
 networkx==3.2.1
+shapely==2.0.7
 PyYAML==6.0.3
