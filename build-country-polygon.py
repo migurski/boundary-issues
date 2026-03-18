@@ -55,11 +55,11 @@ class Claim:
         pattern = self.geometry.relate(other.geometry)
         if re.match(r"^F.2...2.2$", pattern):
             return Relationship.NO_OVERLAP
-        if re.match(r"^2.F...F.2$", pattern):
+        if re.match(r"^2.[F01]...[F01].2$", pattern):
             return Relationship.IDENTICAL
-        if re.match(r"^2.F...2.2$", pattern):
+        if re.match(r"^2.[F01]...2.2$", pattern):
             return Relationship.IS_INSIDE
-        if re.match(r"^2.2...F.2$", pattern):
+        if re.match(r"^2.2...[F01].2$", pattern):
             return Relationship.ENCLOSES
         if re.match(r"^2.2...2.2$", pattern):
             return Relationship.CONTENDS
