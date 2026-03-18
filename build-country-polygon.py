@@ -327,8 +327,33 @@ def write_country_boundaries(dirname, configs):
     print(gdf_disputants)
 
     for iso3s in networkx.connected_components(dispute_graph):
-        print("iso3s:", iso3s, 'edges:', dispute_graph.subgraph(iso3s).edges)
-        print(gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))])
+        print("==>", "iso3s:", iso3s, 'edges:', dispute_graph.subgraph(iso3s).edges)
+        gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
+        print(gdf_sub)
+        out_rows = []
+        for _, sub_row in gdf_sub.iterrows():
+            for out_row in out_rows:
+                if sub_row.geometry.relate_pattern(out_row[-1], '2*F***F*2'):
+                    print((sub_row.iso3, sub_row.perspectives), "is identical to", out_row[0])
+                    out_row[0].append((sub_row.iso3, sub_row.perspectives))
+                    break
+                elif sub_row.geometry.relate_pattern(out_row[-1], 'F*2***2*2'):
+                    print((sub_row.iso3, sub_row.perspectives), "does not overlap", out_row[0])
+                    out_rows.append(([(sub_row.iso3, sub_row.perspectives)], sub_row.geometry))
+                    break
+                elif sub_row.geometry.relate_pattern(out_row[-1], '2*2***2*2'):
+                    print((sub_row.iso3, sub_row.perspectives), "contends with", out_row[0])
+                elif sub_row.geometry.relate_pattern(out_row[-1], '2*F***2*2'):
+                    print((sub_row.iso3, sub_row.perspectives), "has less than", out_row[0])
+                elif sub_row.geometry.relate_pattern(out_row[-1], '2*2***F*2'):
+                    print((sub_row.iso3, sub_row.perspectives), "has more than", out_row[0])
+                else:
+                    raise ValueError(sub_row.geometry.relate(out_row[-1]))
+            else:
+                print('fallback append')
+                out_rows.append(([(sub_row.iso3, sub_row.perspectives)], sub_row.geometry))
+
+        import pprint; pprint.pprint(out_rows)
 
     exit(1)
 
