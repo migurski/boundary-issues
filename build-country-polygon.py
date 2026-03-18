@@ -7,6 +7,7 @@ import dataclasses
 import functools
 import glob
 import gzip
+import itertools
 import json
 import os
 import re
@@ -388,6 +389,18 @@ def write_country_boundaries(dirname, configs):
         import pprint; pprint.pprint([(c.identities, c.geometry) for c in out_chonks])
         all_chonks.extend(out_chonks)
     print("==>")
+
+    def coalesce_identities(identities: list[str]) -> list[str]:
+        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in identities)
+        out_ids = []
+        for iso3, sub_ids in itertools.groupby(sorted(identities), key=lambda i: i[:3]):
+            out_persp = []
+            for sub_id in sub_ids:
+                out_persp.extend(sub_id[4:].split(";"))
+            out_ids.append(f"{iso3}:{';'.join(sorted(out_persp))}")
+        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in out_ids)
+        return out_ids
+
     with open('out.geojson', 'w') as file:
         json.dump(
             {
@@ -395,7 +408,7 @@ def write_country_boundaries(dirname, configs):
                 "features": [
                     {
                         "type": "Feature",
-                        "properties": {"identities": " / ".join(c.identities)},
+                        "properties": {"identities": " / ".join(coalesce_identities(c.identities))},
                         "geometry": json.loads(shapely.to_geojson(c.geometry))
                     }
                     for c in all_chonks
