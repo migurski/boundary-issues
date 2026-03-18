@@ -55,11 +55,11 @@ class Claim:
         pattern = self.geometry.relate(other.geometry)
         if re.match(r"^F.2...2.2$", pattern):
             return Relationship.NO_OVERLAP
-        if re.match(r"^2.[F01]...[F01].2$", pattern):
+        if re.match(r"^2.F...F.2$", pattern):
             return Relationship.IDENTICAL
-        if re.match(r"^2.[F01]...2.2$", pattern):
+        if re.match(r"^2.F...2.2$", pattern):
             return Relationship.IS_INSIDE
-        if re.match(r"^2.2...[F01].2$", pattern):
+        if re.match(r"^2.2...F.2$", pattern):
             return Relationship.ENCLOSES
         if re.match(r"^2.2...2.2$", pattern):
             return Relationship.CONTENDS
@@ -316,6 +316,16 @@ def clean_interection(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geomet
 def clean_union(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
     return shapely.line_merge(g1.union(g2))
 
+def clean_polygon(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
+    if g.type.endswith("Polygon"):
+        return g
+    if g.type == "GeometryCollection":
+        polygon_parts = [_g for _g in g.geoms if _g.type.endswith("Polygon")]
+        g = functools.reduce(lambda g1, g2: g1.union(g2), polygon_parts)
+    if g.type.endswith("Polygon"):
+        return g
+    raise ValueError(g.type)
+
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
     for delay in (15, 60, None):
@@ -525,7 +535,7 @@ def write_country_claims(dirname, configs) -> str:
                     break
                 elif relationship is Relationship.IS_INSIDE:
                     # new_claim is inside out_claim
-                    shared_geom = out_claim.geometry.intersection(new_claim.geometry)
+                    shared_geom = clean_polygon(out_claim.geometry.intersection(new_claim.geometry))
                     untouched_geom = out_claim.geometry.difference(new_claim.geometry)
                     out_claim.geometry = untouched_geom
                     new_claim.claimants.extend(out_claim.claimants)
@@ -541,7 +551,7 @@ def write_country_claims(dirname, configs) -> str:
                     continue
                 elif relationship is Relationship.CONTENDS:
                     # new_claim contends with out_claim
-                    shared_geom = out_claim.geometry.intersection(new_claim.geometry)
+                    shared_geom = clean_polygon(out_claim.geometry.intersection(new_claim.geometry))
                     untouched_geom = out_claim.geometry.difference(new_claim.geometry)
                     remaining_geom = new_claim.geometry.difference(out_claim.geometry)
                     add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom))
