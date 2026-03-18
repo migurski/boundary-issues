@@ -7,6 +7,7 @@ import functools
 import glob
 import gzip
 import os
+import re
 import sys
 import tempfile
 import time
@@ -97,27 +98,27 @@ class TestCase (unittest.TestCase):
         # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
         self.assertTrue(agreed[("IND", "PAK", "PAK")].Contains(make_point(2.9, 2)))
         self.assertFalse(agreed[("IND", "PAK", "IND")].Contains(make_point(2.9, 2)))
-        self.assertTrue(disputed[("IND", "PAK", "RUS;UKR")].Contains(make_point(2.9, 2)))
+        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(2.9, 2)))
 
         # A point along the border of fake Azad Kashmir and fake Islamabad
         self.assertTrue(agreed[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
         self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(2, 3)))
-        self.assertTrue(disputed[("IND", "PAK", "RUS;UKR")].Contains(make_point(2, 3)))
+        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(2, 3)))
 
         # A point along the fake Line Of Control
         self.assertFalse(agreed[("IND", "PAK", "IND")].Contains(make_point(2.5, 2.5)))
         self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(2.5, 2.5)))
-        self.assertTrue(disputed[("IND", "PAK", "RUS;UKR")].Contains(make_point(2.5, 2.5)))
+        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(2.5, 2.5)))
 
         # A point along the border of fake Crimea and fake Russia
         self.assertTrue(agreed[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
         self.assertFalse(agreed[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
-        self.assertTrue(disputed[("RUS", "UKR", "CHN;IND;PAK")].Contains(make_point(-2, 2)))
+        self.assertTrue(disputed[("RUS", "UKR", "CHN;IND;NPL;PAK")].Contains(make_point(-2, 2)))
 
         # A point along the border of fake Crimea and fake Ukraine
         self.assertTrue(agreed[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
         self.assertFalse(agreed[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
-        self.assertTrue(disputed[("RUS", "UKR", "CHN;IND;PAK")].Contains(make_point(-3, 1)))
+        self.assertTrue(disputed[("RUS", "UKR", "CHN;IND;NPL;PAK")].Contains(make_point(-3, 1)))
 
         # A point along the border of fake Jammu/Kashmir and fake Aksai Chin
         self.assertTrue(agreed[("CHN", "IND", "CHN")].Contains(make_point(3, 2.1)))
@@ -133,11 +134,11 @@ class TestCase (unittest.TestCase):
         self.assertTrue(agreed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
         self.assertTrue(agreed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
         self.assertTrue(agreed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
-        self.assertTrue(agreed[("CHN", "PAK", "RUS;UKR")].Contains(make_point(3, 3.2)))
+        self.assertTrue(agreed[("CHN", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.2)))
         self.assertFalse(disputed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
         self.assertFalse(disputed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
         self.assertFalse(disputed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed[("CHN", "PAK", "RUS;UKR")].Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed[("CHN", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.2)))
 
         # A point along the border of fake Pakistan and fake Trans-Karakoram Tract
         self.assertTrue(agreed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.7)))
@@ -147,8 +148,8 @@ class TestCase (unittest.TestCase):
         self.assertFalse(agreed[("IND", "PAK", "CHN")].Contains(make_point(3, 3.7)))
         self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(3, 3.7)))
         self.assertFalse(disputed[("CHN", "IND", "RUS;UKR")].Contains(make_point(3, 3.7)))
-        self.assertFalse(disputed[("CHN", "PAK", "RUS;UKR")].Contains(make_point(3, 3.7)))
-        self.assertTrue(disputed[("IND", "PAK", "RUS;UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+        self.assertFalse(disputed[("CHN", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.7)))
+        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
 
     def test_areas(self):
         validate_areas(TestCase.config, os.path.join(TestCase.tempdir, AREAS_NAME))
@@ -317,14 +318,17 @@ def write_country_boundaries(dirname, configs):
     print(gdf[gdf.apply(lambda row: row.iso3 not in row.perspectives, axis=1)])
 
     # Conflicted regions
-    gdf_disputants = geopandas.sjoin(gdf, gdf, predicate="overlaps")
     dispute_graph = networkx.Graph()
+    dispute_graph.add_nodes_from(gdf.iso3)
+    gdf_disputants = geopandas.sjoin(gdf, gdf, predicate="overlaps")
     for _, row in gdf_disputants.iterrows():
         dispute_graph.add_edge(row.iso3_left, row.iso3_right)
     print(dispute_graph)
     print(gdf_disputants)
-    print("Subgraphs:", networkx.number_connected_components(dispute_graph))
-    print("Subgraph edges:", [dispute_graph.subgraph(c).edges for c in networkx.connected_components(dispute_graph)])
+
+    for iso3s in networkx.connected_components(dispute_graph):
+        print("iso3s:", iso3s, 'edges:', dispute_graph.subgraph(iso3s).edges)
+        print(gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))])
 
     exit(1)
 
