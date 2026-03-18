@@ -88,8 +88,8 @@ class TestCase (unittest.TestCase):
         os.makedirs(cls.tempdir, exist_ok=True)
         cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"])
         write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
-        write_validation_points(cls.tempdir, cls.config)
         write_country_claims(cls.tempdir, cls.config)
+        write_validation_points(cls.tempdir, cls.config)
         write_country_boundaries(cls.tempdir, cls.config)
 
     @classmethod
@@ -196,8 +196,53 @@ class TestCase (unittest.TestCase):
         self.assertFalse(disputed[("CHN", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.7)))
         self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
 
+    def test_claims(self):
+        validate_claims(TestCase.config, os.path.join(TestCase.tempdir, CLAIMS_NAME))
+
     def test_areas(self):
         validate_areas(TestCase.config, os.path.join(TestCase.tempdir, AREAS_NAME))
+
+def validate_claims(configs, claims_path):
+    with open(claims_path, "r") as file:
+        file.readline()
+        claims = [
+            (row[0], osgeo.ogr.CreateGeometryFromWkt(row[1]))
+            for row in csv.reader(file)
+        ]
+
+    all_povs = set(configs.keys())
+    cases = [
+        (is_in, test_iso3a, test_iso3b, x, y)
+        for test_iso3a, config in configs.items()
+        for is_in, grouping in [(True, "interior-points"), (False, "exterior-points")]
+        for test_iso3b, points in config.get(grouping, {}).items()
+        for x, y in points
+    ]
+
+    for is_in, test_iso3a, test_iso3b, x, y in cases:
+        if test_iso3b == BASE:
+            # "Neutral" point of view = anyone without a defined perspective
+            local_povs = set(configs[test_iso3a].get("perspectives", {}).keys())
+            neutral_povs = all_povs - local_povs
+            matching_claims = [
+                (claimants, claim_geom) for claimants, claim_geom in claims
+                if re.search(f"{test_iso3a}:(\w\w\w;)*({'|'.join(neutral_povs)})", claimants)
+            ]
+        else:
+            matching_claims = [
+                (claimants, claim_geom) for claimants, claim_geom in claims
+                if re.search(f"{test_iso3a}:(\w\w\w;)*{test_iso3b}", claimants)
+            ]
+
+        if not matching_claims:
+            continue
+
+        if is_in:
+            assert any(make_point(x, y).Within(claim_geom) for _, claim_geom in matching_claims), \
+                f"({x}, {y}) should be inside {test_iso3a} for some of {matching_claims} from the {test_iso3b} perspective"
+        else:
+            assert all(not make_point(x, y).Within(claim_geom) for _, claim_geom in matching_claims), \
+                f"({x}, {y}) should be outside {test_iso3a} for all of {matching_claims} from the {test_iso3b} perspective"
 
 def validate_areas(configs, areas_path):
     with open(areas_path, "r") as file:
@@ -444,7 +489,7 @@ def write_country_boundaries(dirname, configs):
                     print("Writing disinterested parties border", row4, file=sys.stderr)
                     rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
-def write_country_claims(dirname, configs):
+def write_country_claims(dirname, configs) -> str:
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
@@ -517,7 +562,9 @@ def write_country_claims(dirname, configs):
             print("Writing claim polygon", row, file=sys.stderr)
             rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
 
-def write_country_areas(dirname, configs, check_fresh_osm: bool):
+        return file.name
+
+def write_country_areas(dirname, configs, check_fresh_osm: bool) -> str:
     with open(os.path.join(dirname, AREAS_NAME), "w") as file:
         rows = csv.DictWriter(file, ("iso3", "perspectives", "geometry"))
         rows.writeheader()
@@ -542,10 +589,11 @@ def write_country_areas(dirname, configs, check_fresh_osm: bool):
 
 def main(dirname, configs, check_fresh_osm: bool):
     areas_path = write_country_areas(dirname, configs, check_fresh_osm)
+    claims_path = write_country_claims(dirname, configs)
     print("Validating interior and exterior points...", file=sys.stderr)
     validate_areas(configs, areas_path)
+    validate_claims(configs, claims_path)
     write_validation_points(dirname, configs)
-    write_country_claims(dirname, configs)
     write_country_boundaries(dirname, configs)
 
 if __name__ == "__main__":
