@@ -32,6 +32,7 @@ csv.field_size_limit(sys.maxsize)
 
 VALIDATION_POINTS_NAME = "validation-points.csv"
 BOUNDARIES_NAME = "country-boundaries.csv"
+CLAIMS_NAME = "country-claims.csv"
 AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
@@ -444,7 +445,6 @@ def write_country_boundaries(dirname, configs):
                     rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
 def write_country_claims(dirname, configs):
-
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
@@ -460,7 +460,7 @@ def write_country_claims(dirname, configs):
     all_claims = []
 
     for iso3s in networkx.connected_components(dispute_graph):
-        print("Evaluating claims for", iso3s, 'with conflicts', dispute_graph.subgraph(iso3s).edges, file=sys.stderr)
+        print("Evaluating claims for", iso3s, 'with', len(dispute_graph.subgraph(iso3s).edges), "conflicts...", file=sys.stderr)
         gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
         out_claims = []
         for _, new_row in gdf_sub.iterrows():
@@ -470,17 +470,16 @@ def write_country_claims(dirname, configs):
             for out_claim in out_claims:
                 relationship = new_claim.relationship(out_claim)
                 if relationship is Relationship.NO_OVERLAP:
-                    print("-->", new_claimant, "does not overlap", out_claim.claimants, file=sys.stderr)
-                    # None of new_claim's area matches out_claim
+                    # new_claim does not overlap out_claim
                     continue
                 elif relationship is Relationship.IDENTICAL:
-                    print("-->", new_claimant, "is identical to", out_claim.claimants, file=sys.stderr)
+                    # new_claim is identical to out_claim
                     out_claim.claimants.extend(new_claim.claimants)
                     add_claims.remove(new_claim)
                     # All of new_claim's area has been found and accounted for
                     break
                 elif relationship is Relationship.IS_INSIDE:
-                    print("-->", new_claimant, "is inside", out_claim.claimants, file=sys.stderr)
+                    # new_claim is inside out_claim
                     shared_geom = out_claim.geometry.intersection(new_claim.geometry)
                     untouched_geom = out_claim.geometry.difference(new_claim.geometry)
                     out_claim.geometry = untouched_geom
@@ -489,14 +488,14 @@ def write_country_claims(dirname, configs):
                     # All of new_claim's area has been found and accounted for
                     break
                 elif relationship is Relationship.ENCLOSES:
-                    print("-->", new_claimant, "encloses", out_claim.claimants, file=sys.stderr)
+                    # new_claim encloses out_claim
                     remaining_geom = new_claim.geometry.difference(out_claim.geometry)
                     out_claim.claimants.extend(new_claim.claimants)
                     new_claim.geometry = remaining_geom
                     # Some of new_claim's area remains to check against other out_claims
                     continue
                 elif relationship is Relationship.CONTENDS:
-                    print("-->", new_claimant, "contends with", out_claim.claimants, file=sys.stderr)
+                    # new_claim contends with out_claim
                     shared_geom = out_claim.geometry.intersection(new_claim.geometry)
                     untouched_geom = out_claim.geometry.difference(new_claim.geometry)
                     remaining_geom = new_claim.geometry.difference(out_claim.geometry)
@@ -510,21 +509,13 @@ def write_country_claims(dirname, configs):
 
         all_claims.extend(out_claims)
 
-    with open(os.path.join(dirname, 'out.geojson'), 'w') as file:
-        json.dump(
-            {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "properties": {"claimants": " ".join(c.coalesced().claimants)},
-                        "geometry": json.loads(shapely.to_geojson(c.geometry))
-                    }
-                    for c in all_claims
-                ]
-            },
-            file
-        )
+    with open(os.path.join(dirname, CLAIMS_NAME), 'w') as file:
+        rows = csv.DictWriter(file, ("claimants", "geometry"))
+        rows.writeheader()
+        for claim in all_claims:
+            row = dict(claimants=" ".join(claim.coalesced().claimants))
+            print("Writing claim polygon", row, file=sys.stderr)
+            rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
 
 def write_country_areas(dirname, configs, check_fresh_osm: bool):
     with open(os.path.join(dirname, AREAS_NAME), "w") as file:
