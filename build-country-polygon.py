@@ -36,6 +36,11 @@ EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
 DELIM = ";"
 
+@dataclasses.dataclass
+class Claim:
+    claimants: list[str]
+    geometry: shapely.geometry.base.BaseGeometry | None
+
 class TestCase (unittest.TestCase):
 
     tempdir: str|None = None
@@ -48,6 +53,7 @@ class TestCase (unittest.TestCase):
         cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"])
         write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
         write_validation_points(cls.tempdir, cls.config)
+        write_country_claims(cls.tempdir, cls.config)
         write_country_boundaries(cls.tempdir, cls.config)
 
     @classmethod
@@ -299,125 +305,10 @@ def write_validation_points(dirname, configs):
             rows.writerow({**row, "geometry": f"POINT({x:.7f} {y:.7f})"})
 
 def write_country_boundaries(dirname, configs):
-    # iso3s, mece_pieces = set(), set()
-    # for (iso3a, config) in configs.items():
-    #     for _, el_type, osm_id in config[BASE]:
-    #         mece_pieces.add((el_type, osm_id, iso3a))
-    #     for (iso3b, shapes) in config.get("perspectives", {}).items():
-    #         iso3s.add(iso3b)
-    #         for _, el_type, osm_id in shapes:
-    #             mece_pieces.add((el_type, osm_id, iso3a))
-    #
-    # for el_type, osm_id, iso3a in sorted(mece_pieces):
-    #     print(el_type, osm_id, iso3a)
-
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
-    print(gdf)
-
-    # The views of others
-    print(gdf[gdf.apply(lambda row: row.iso3 not in row.perspectives, axis=1)])
-
-    # Conflicted regions
-    dispute_graph = networkx.Graph()
-    dispute_graph.add_nodes_from(gdf.iso3)
-    gdf_disputants = geopandas.sjoin(gdf, gdf, predicate="overlaps")
-    for _, row in gdf_disputants.iterrows():
-        dispute_graph.add_edge(row.iso3_left, row.iso3_right)
-    print(dispute_graph)
-    print(gdf_disputants)
-
-    @dataclasses.dataclass
-    class Chonk:
-        identities: list[str]
-        geometry: shapely.geometry.base.BaseGeometry | None
-
-    all_chonks = []
-
-    for iso3s in networkx.connected_components(dispute_graph):
-        print("==>", "iso3s:", iso3s, 'edges:', dispute_graph.subgraph(iso3s).edges)
-        gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
-        print(gdf_sub)
-        out_chonks = []
-        for _, new_row in gdf_sub.iterrows():
-            new_chonk = Chonk([f"{new_row.iso3}:{new_row.perspectives}"], new_row.geometry)
-            for out_chonk in out_chonks:
-                if new_chonk.geometry.relate_pattern(out_chonk.geometry, 'F*2***2*2'):
-                    print(new_chonk.identities, "does not overlap", out_chonk.identities)
-                    # None of new_chonk's area matches out_chonk
-                    continue
-                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*F***F*2'):
-                    print(new_chonk.identities, "is identical to", out_chonk.identities)
-                    out_chonk.identities.extend(new_chonk.identities)
-                    new_chonk.geometry = None
-                    # All of new_chonk's area has been found and accounted for
-                    break
-                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*F***2*2'):
-                    print(new_chonk.identities, "has less than", out_chonk.identities)
-                    overlap_geom = out_chonk.geometry.intersection(new_chonk.geometry)
-                    untouched_geom = out_chonk.geometry.difference(new_chonk.geometry)
-                    out_chonk.geometry = untouched_geom
-                    out_chonks.append(Chonk(out_chonk.identities + new_chonk.identities, overlap_geom))
-                    new_chonk.geometry = None
-                    # All of new_chonk's area has been found and accounted for
-                    break
-                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*2***F*2'):
-                    print(new_chonk.identities, "has more than", out_chonk.identities)
-                    remaining_geom = new_chonk.geometry.difference(out_chonk.geometry)
-                    out_chonk.identities.extend(new_chonk.identities)
-                    new_chonk.geometry = remaining_geom
-                    # Some of new_chonk's area remains to check against other out_chonks
-                    continue
-                elif new_chonk.geometry.relate_pattern(out_chonk.geometry, '2*2***2*2'):
-                    print(new_chonk.identities, "contends with", out_chonk.identities)
-                    overlap_geom = out_chonk.geometry.intersection(new_chonk.geometry)
-                    untouched_geom = out_chonk.geometry.difference(new_chonk.geometry)
-                    remaining_geom = new_chonk.geometry.difference(out_chonk.geometry)
-                    out_chonks.append(Chonk(out_chonk.identities + new_chonk.identities, overlap_geom))
-                    out_chonk.geometry = untouched_geom
-                    new_chonk.geometry = remaining_geom
-                    # Some of new_chonk's area remains to check against other out_chonks
-                    continue
-                else:
-                    raise ValueError(new_chonk.geometry.relate(out_chonk.geometry))
-            if new_chonk.geometry and not new_chonk.geometry.is_empty:
-                print(new_chonk.identities, 'append remainder')
-                out_chonks.append(new_chonk)
-
-        import pprint; pprint.pprint([(c.identities, c.geometry) for c in out_chonks])
-        all_chonks.extend(out_chonks)
-    print("==>")
-
-    def coalesce_identities(identities: list[str]) -> list[str]:
-        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in identities)
-        out_ids = []
-        for iso3, sub_ids in itertools.groupby(sorted(identities), key=lambda i: i[:3]):
-            out_persp = []
-            for sub_id in sub_ids:
-                out_persp.extend(sub_id[4:].split(";"))
-            out_ids.append(f"{iso3}:{';'.join(sorted(out_persp))}")
-        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in out_ids)
-        return out_ids
-
-    with open('out.geojson', 'w') as file:
-        json.dump(
-            {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "properties": {"identities": " / ".join(coalesce_identities(c.identities))},
-                        "geometry": json.loads(shapely.to_geojson(c.geometry))
-                    }
-                    for c in all_chonks
-                ]
-            },
-            file
-        )
-
-    exit(1)
 
     # Note each country's own view of itself
     self_views: dict[str, shapely.geometry.base.BaseGeometry] = {
@@ -517,6 +408,101 @@ def write_country_boundaries(dirname, configs):
                     print("Writing disinterested parties border", row4, file=sys.stderr)
                     rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
 
+def write_country_claims(dirname, configs):
+
+    df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
+
+    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
+    gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
+
+    # Conflicted regions
+    dispute_graph = networkx.Graph()
+    dispute_graph.add_nodes_from(gdf.iso3)
+    gdf_disputants = geopandas.sjoin(gdf, gdf, predicate="overlaps")
+    for _, row in gdf_disputants.iterrows():
+        dispute_graph.add_edge(row.iso3_left, row.iso3_right)
+
+    all_claims = []
+
+    for iso3s in networkx.connected_components(dispute_graph):
+        print("Evaluating claims for", iso3s, 'with conflicts', dispute_graph.subgraph(iso3s).edges, file=sys.stderr)
+        gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
+        out_claims = []
+        for _, new_row in gdf_sub.iterrows():
+            new_claimant = f"{new_row.iso3}:{new_row.perspectives}"
+            new_claim = Claim([new_claimant], new_row.geometry)
+            add_claims = [new_claim]
+            for out_claim in out_claims:
+                if new_claim.geometry.relate_pattern(out_claim.geometry, 'F*2***2*2'):
+                    print("-->", new_claimant, "does not overlap", out_claim.claimants, file=sys.stderr)
+                    # None of new_claim's area matches out_claim
+                    continue
+                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*F***F*2'):
+                    print("-->", new_claimant, "is identical to", out_claim.claimants, file=sys.stderr)
+                    out_claim.claimants.extend(new_claim.claimants)
+                    add_claims.remove(new_claim)
+                    # All of new_claim's area has been found and accounted for
+                    break
+                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*F***2*2'):
+                    print("-->", new_claimant, "is inside", out_claim.claimants, file=sys.stderr)
+                    overlap_geom = out_claim.geometry.intersection(new_claim.geometry)
+                    untouched_geom = out_claim.geometry.difference(new_claim.geometry)
+                    out_claim.geometry = untouched_geom
+                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, overlap_geom))
+                    add_claims.remove(new_claim)
+                    # All of new_claim's area has been found and accounted for
+                    break
+                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*2***F*2'):
+                    print("-->", new_claimant, "encloses", out_claim.claimants, file=sys.stderr)
+                    remaining_geom = new_claim.geometry.difference(out_claim.geometry)
+                    out_claim.claimants.extend(new_claim.claimants)
+                    new_claim.geometry = remaining_geom
+                    # Some of new_claim's area remains to check against other out_claims
+                    continue
+                elif new_claim.geometry.relate_pattern(out_claim.geometry, '2*2***2*2'):
+                    print("-->", new_claimant, "contends with", out_claim.claimants, file=sys.stderr)
+                    overlap_geom = out_claim.geometry.intersection(new_claim.geometry)
+                    untouched_geom = out_claim.geometry.difference(new_claim.geometry)
+                    remaining_geom = new_claim.geometry.difference(out_claim.geometry)
+                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, overlap_geom))
+                    out_claim.geometry = untouched_geom
+                    new_claim.geometry = remaining_geom
+                    # Some of new_claim's area remains to check against other out_claims
+                    continue
+                else:
+                    raise ValueError(new_claim.geometry.relate(out_claim.geometry))
+            for add_claim in add_claims:
+                out_claims.append(add_claim)
+
+        all_claims.extend(out_claims)
+
+    def coalesce_claimants(claimants: list[str]) -> list[str]:
+        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in claimants)
+        out_ids = []
+        for iso3, sub_ids in itertools.groupby(sorted(claimants), key=lambda i: i[:3]):
+            out_persp = []
+            for sub_id in sub_ids:
+                out_persp.extend(sub_id[4:].split(";"))
+            out_ids.append(f"{iso3}:{';'.join(sorted(out_persp))}")
+        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", s) for s in out_ids)
+        return out_ids
+
+    with open(os.path.join(dirname, 'out.geojson'), 'w') as file:
+        json.dump(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"claimants": " / ".join(coalesce_claimants(c.claimants))},
+                        "geometry": json.loads(shapely.to_geojson(c.geometry))
+                    }
+                    for c in all_claims
+                ]
+            },
+            file
+        )
+
 def write_country_areas(dirname, configs, check_fresh_osm: bool):
     with open(os.path.join(dirname, AREAS_NAME), "w") as file:
         rows = csv.DictWriter(file, ("iso3", "perspectives", "geometry"))
@@ -545,6 +531,7 @@ def main(dirname, configs, check_fresh_osm: bool):
     print("Validating interior and exterior points...", file=sys.stderr)
     validate_areas(configs, areas_path)
     write_validation_points(dirname, configs)
+    write_country_claims(dirname, configs)
     write_country_boundaries(dirname, configs)
 
 if __name__ == "__main__":
