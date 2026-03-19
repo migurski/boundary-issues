@@ -420,46 +420,41 @@ def write_country_boundaries(dirname, configs):
         for index_left, row in gdf_neighbors.iterrows()
     }
 
-    for i1, i2 in sorted(index_pairings):
-        row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
-        if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
-            continue
-        print(i1, repr(row1.claimants), i2, repr(row2.claimants))
-        claims1 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)
-        claims2 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)
-        geometry = clean_linestring(row1.geometry.intersection(row2.geometry))
-        solid_believers, dashed_believers, non_believers = set(), set(), set()
-        if len(claims1) == 1 and len(claims2) == 1:
-            print("-->", "no conflict", geometry)
-            solid_believers = set(claims1[0][1].split(";"))
-        else:
-            print("==>", "conflict!", geometry)
-            for claim1, claim2 in itertools.product(claims1, claims2):
-                observers = set(claim1[1].split(";")) & set(claim2[1].split(";"))
-                if claim1[0] == claim2[0]:
-                    observers.remove(claim1[0])
-                    non_believers.add(claim1[0])
-                    if observers:
-                        dashed_believers |= observers
-                else:
-                    # solid for observer who is a claimant?
-                    if claim1[0] in observers:
+    with open(os.path.join(dirname, BOUNDARIES_NAME), "w") as file:
+        rows = csv.DictWriter(file, fieldnames=("stable", "disputed", "nonexistent", "geometry"))
+        rows.writeheader()
+        for i1, i2 in sorted(index_pairings):
+            row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
+            if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
+                continue
+            claims1 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)
+            claims2 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)
+            geometry = clean_linestring(row1.geometry.intersection(row2.geometry))
+            stable_believers, disputed_believers, non_believers = set(), set(), set()
+            if len(claims1) == 1 and len(claims2) == 1:
+                stable_believers = set(claims1[0][1].split(";"))
+            else:
+                for claim1, claim2 in itertools.product(claims1, claims2):
+                    observers = set(claim1[1].split(";")) & set(claim2[1].split(";"))
+                    if claim1[0] == claim2[0]:
                         observers.remove(claim1[0])
-                        solid_believers.add(claim1[0])
-                    if claim2[0] in observers:
-                        observers.remove(claim2[0])
-                        solid_believers.add(claim2[0])
-                    # disputed for observer who is disinterested?
-                    if observers:
-                        dashed_believers |= observers
-        if solid_believers:
-            print("   ", "solid border", solid_believers)
-        if dashed_believers:
-            print("   ", "dashed border", dashed_believers)
-        if non_believers:
-            print("   ", "no border", non_believers)
+                        non_believers.add(claim1[0])
+                        if observers:
+                            disputed_believers |= observers
+                    else:
+                        if claim1[0] in observers:
+                            observers.remove(claim1[0])
+                            stable_believers.add(claim1[0])
+                        if claim2[0] in observers:
+                            observers.remove(claim2[0])
+                            stable_believers.add(claim2[0])
+                        if observers:
+                            disputed_believers |= observers
+            row = dict(stable=";".join(stable_believers), disputed=";".join(disputed_believers), nonexistent=";".join(non_believers))
+            print("Writing border", row, file=sys.stderr)
+            rows.writerow({**row, "geometry": dump_wkt(geometry)})
 
-    exit( 1)
+    return
 
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
