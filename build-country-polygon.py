@@ -317,14 +317,24 @@ def clean_union(g1: shapely.geometry.base.BaseGeometry, g2: shapely.geometry.bas
     return shapely.line_merge(g1.union(g2))
 
 def clean_polygon(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
-    if g.type.endswith("Polygon"):
+    if g.geom_type.endswith("Polygon"):
         return g
-    if g.type == "GeometryCollection":
-        polygon_parts = [_g for _g in g.geoms if _g.type.endswith("Polygon")]
+    if g.geom_type == "GeometryCollection":
+        polygon_parts = [_g for _g in g.geoms if _g.geom_type.endswith("Polygon")]
         g = functools.reduce(lambda g1, g2: g1.union(g2), polygon_parts)
-    if g.type.endswith("Polygon"):
+    if g.geom_type.endswith("Polygon"):
         return g
-    raise ValueError(g.type)
+    raise ValueError(g.geom_type)
+
+def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
+    if g.geom_type.endswith("LineString"):
+        return g
+    if g.geom_type == "GeometryCollection":
+        linestring_parts = [_g for _g in g.geoms if _g.geom_type.endswith("LineString")]
+        g = functools.reduce(lambda g1, g2: g1.union(g2), linestring_parts)
+    if g.geom_type.endswith("LineString"):
+        return g
+    raise ValueError(g.geom_type)
 
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
@@ -396,6 +406,61 @@ def write_validation_points(dirname, configs):
             rows.writerow({**row, "geometry": f"POINT({x:.7f} {y:.7f})"})
 
 def write_country_boundaries(dirname, configs):
+    df = geopandas.read_file(os.path.join(dirname, CLAIMS_NAME))
+
+    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
+    gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
+    print(gdf)
+
+    gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
+    print(gdf_neighbors)
+
+    index_pairings = {
+        (min(index_left, row.index_right), max(index_left, row.index_right))
+        for index_left, row in gdf_neighbors.iterrows()
+    }
+
+    for i1, i2 in sorted(index_pairings):
+        row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
+        if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
+            continue
+        print(i1, repr(row1.claimants), i2, repr(row2.claimants))
+        claims1 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)
+        claims2 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)
+        geometry = clean_linestring(row1.geometry.intersection(row2.geometry))
+        solid_believers, dashed_believers, non_believers = set(), set(), set()
+        if len(claims1) == 1 and len(claims2) == 1:
+            print("-->", "no conflict", geometry)
+            solid_believers = set(claims1[0][1].split(";"))
+        else:
+            print("==>", "conflict!", geometry)
+            for claim1, claim2 in itertools.product(claims1, claims2):
+                observers = set(claim1[1].split(";")) & set(claim2[1].split(";"))
+                if claim1[0] == claim2[0]:
+                    observers.remove(claim1[0])
+                    non_believers.add(claim1[0])
+                    if observers:
+                        dashed_believers |= observers
+                else:
+                    # solid for observer who is a claimant?
+                    if claim1[0] in observers:
+                        observers.remove(claim1[0])
+                        solid_believers.add(claim1[0])
+                    if claim2[0] in observers:
+                        observers.remove(claim2[0])
+                        solid_believers.add(claim2[0])
+                    # disputed for observer who is disinterested?
+                    if observers:
+                        dashed_believers |= observers
+        if solid_believers:
+            print("   ", "solid border", solid_believers)
+        if dashed_believers:
+            print("   ", "dashed border", dashed_believers)
+        if non_believers:
+            print("   ", "no border", non_believers)
+
+    exit( 1)
+
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
