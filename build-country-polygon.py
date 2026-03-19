@@ -328,12 +328,12 @@ def clean_polygon(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.bas
 
 def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
     if g.geom_type.endswith("LineString"):
-        return g
+        return shapely.line_merge(g)
     if g.geom_type == "GeometryCollection":
         linestring_parts = [_g for _g in g.geoms if _g.geom_type.endswith("LineString")]
         g = functools.reduce(lambda g1, g2: g1.union(g2), linestring_parts)
     if g.geom_type.endswith("LineString"):
-        return g
+        return shapely.line_merge(g)
     raise ValueError(g.geom_type)
 
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
