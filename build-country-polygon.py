@@ -133,68 +133,102 @@ class TestCase (unittest.TestCase):
 
     def test_boundaries(self):
         with open(os.path.join(TestCase.tempdir, BOUNDARIES_NAME), "r") as file:
-            agreed, disputed = {}, {}
+            borders = []
             file.readline()
             for row in csv.reader(file):
-                key = tuple(row[:-2])
-                agreed[key] = osgeo.ogr.CreateGeometryFromWkt(row[-2])
-                disputed[key] = osgeo.ogr.CreateGeometryFromWkt(row[-1])
+                stable_set = set(row[0].split(";")) if row[0] else set()
+                disputed_set = set(row[1].split(";")) if row[1] else set()
+                nonexistent_set = set(row[2].split(";")) if row[2] else set()
+                geom = osgeo.ogr.CreateGeometryFromWkt(row[3])
+                borders.append((stable_set, disputed_set, nonexistent_set, geom))
+
+        def stable_for(country):
+            """ Union of all border segments where country is in the stable set """
+            geoms = [g for stable_set, _, _, g in borders if country in stable_set]
+            return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
+
+        def disputed_for(country):
+            """ Union of all border segments where country is in the disputed set """
+            geoms = [g for _, disputed_set, _, g in borders if country in disputed_set]
+            return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
 
         # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
-        self.assertTrue(agreed[("IND", "PAK", "PAK")].Contains(make_point(2.9, 2)))
-        self.assertFalse(agreed[("IND", "PAK", "IND")].Contains(make_point(2.9, 2)))
-        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(2.9, 2)))
+        # PAK sees this border as stable (it's the border of Azad Kashmir as PAK claims it)
+        # IND does not see this as stable (IND claims Azad Kashmir)
+        # NPL, RUS, UKR see this as disputed
+        self.assertTrue(stable_for("PAK").Contains(make_point(2.9, 2)))
+        self.assertFalse(stable_for("IND").Contains(make_point(2.9, 2)))
+        self.assertTrue(disputed_for("NPL").Contains(make_point(2.9, 2)))
 
         # A point along the border of fake Azad Kashmir and fake Islamabad
-        self.assertTrue(agreed[("IND", "PAK", "IND")].Contains(make_point(2, 3)))
-        self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(2, 3)))
-        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(2, 3)))
+        # IND sees this border as stable (it's the border of J&K as IND claims it)
+        # PAK does not see this as stable (PAK claims Azad Kashmir)
+        # NPL, RUS, UKR see this as disputed
+        self.assertTrue(stable_for("IND").Contains(make_point(2, 3)))
+        self.assertFalse(stable_for("PAK").Contains(make_point(2, 3)))
+        self.assertTrue(disputed_for("RUS").Contains(make_point(2, 3)))
 
         # A point along the fake Line Of Control
-        self.assertFalse(agreed[("IND", "PAK", "IND")].Contains(make_point(2.5, 2.5)))
-        self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(2.5, 2.5)))
-        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(2.5, 2.5)))
+        # Neither IND nor PAK sees this as stable (it's the contested LoC)
+        # NPL, RUS, UKR see this as disputed
+        self.assertFalse(stable_for("IND").Contains(make_point(2.5, 2.5)))
+        self.assertFalse(stable_for("PAK").Contains(make_point(2.5, 2.5)))
+        self.assertTrue(disputed_for("UKR").Contains(make_point(2.5, 2.5)))
 
         # A point along the border of fake Crimea and fake Russia
-        self.assertTrue(agreed[("RUS", "UKR", "UKR")].Contains(make_point(-2, 2)))
-        self.assertFalse(agreed[("RUS", "UKR", "RUS")].Contains(make_point(-2, 2)))
-        self.assertTrue(disputed[("RUS", "UKR", "CHN;IND;NPL;PAK")].Contains(make_point(-2, 2)))
+        # UKR sees this as stable (it's the border of Crimea as UKR claims it)
+        # RUS does not see this as stable (RUS claims Crimea)
+        # CHN, IND, NPL, PAK see this as disputed
+        self.assertTrue(stable_for("UKR").Contains(make_point(-2, 2)))
+        self.assertFalse(stable_for("RUS").Contains(make_point(-2, 2)))
+        self.assertTrue(disputed_for("CHN").Contains(make_point(-2, 2)))
 
         # A point along the border of fake Crimea and fake Ukraine
-        self.assertTrue(agreed[("RUS", "UKR", "RUS")].Contains(make_point(-3, 1)))
-        self.assertFalse(agreed[("RUS", "UKR", "UKR")].Contains(make_point(-3, 1)))
-        self.assertTrue(disputed[("RUS", "UKR", "CHN;IND;NPL;PAK")].Contains(make_point(-3, 1)))
+        # RUS sees this as stable (it's the border of Crimea as RUS claims it)
+        # UKR does not see this as stable (UKR claims Crimea)
+        # CHN, IND, NPL, PAK see this as disputed
+        self.assertTrue(stable_for("RUS").Contains(make_point(-3, 1)))
+        self.assertFalse(stable_for("UKR").Contains(make_point(-3, 1)))
+        self.assertTrue(disputed_for("IND").Contains(make_point(-3, 1)))
 
         # A point along the border of fake Jammu/Kashmir and fake Aksai Chin
-        self.assertTrue(agreed[("CHN", "IND", "CHN")].Contains(make_point(3, 2.1)))
-        self.assertFalse(agreed[("CHN", "IND", "IND")].Contains(make_point(3, 2.1)))
-        self.assertTrue(disputed[("CHN", "IND", "RUS;UKR")].Contains(make_point(3, 2.1)))
+        # CHN sees this as stable (it's the border of Aksai Chin as CHN claims it)
+        # IND does not see this as stable (IND claims Aksai Chin)
+        # RUS, UKR see this as disputed
+        self.assertTrue(stable_for("CHN").Contains(make_point(3, 2.1)))
+        self.assertFalse(stable_for("IND").Contains(make_point(3, 2.1)))
+        self.assertTrue(disputed_for("RUS").Contains(make_point(3, 2.1)))
 
         # A point along the border of fake India and fake Aksai Chin
-        self.assertTrue(agreed[("CHN", "IND", "CHN")].Contains(make_point(3.1, 2)))
-        self.assertFalse(agreed[("CHN", "IND", "IND")].Contains(make_point(3.1, 2)))
-        self.assertTrue(disputed[("CHN", "IND", "RUS;UKR")].Contains(make_point(3.1, 2)))
+        # CHN sees this as stable (it's the southern border of Aksai Chin as CHN claims it)
+        # IND does not see this as stable (IND claims Aksai Chin)
+        # RUS, UKR see this as disputed
+        self.assertTrue(stable_for("CHN").Contains(make_point(3.1, 2)))
+        self.assertFalse(stable_for("IND").Contains(make_point(3.1, 2)))
+        self.assertTrue(disputed_for("UKR").Contains(make_point(3.1, 2)))
 
-        # A point along the border of fake Pakistan and fake China
-        self.assertTrue(agreed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
-        self.assertTrue(agreed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
-        self.assertTrue(agreed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
-        self.assertTrue(agreed[("CHN", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed[("CHN", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.2)))
+        # A point along the border of fake Pakistan and fake China (Trans-Karakoram area)
+        # All parties agree on CHN-PAK border here: stable for CHN, PAK, IND, NPL, RUS, UKR
+        # No one sees it as disputed
+        self.assertTrue(stable_for("CHN").Contains(make_point(3, 3.2)))
+        self.assertTrue(stable_for("PAK").Contains(make_point(3, 3.2)))
+        self.assertTrue(stable_for("IND").Contains(make_point(3, 3.2)))
+        self.assertTrue(stable_for("NPL").Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed_for("CHN").Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed_for("PAK").Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed_for("IND").Contains(make_point(3, 3.2)))
+        self.assertFalse(disputed_for("NPL").Contains(make_point(3, 3.2)))
 
-        # A point along the border of fake Pakistan and fake Trans-Karakoram Tract
-        self.assertTrue(agreed[("CHN", "PAK", "CHN")].Contains(make_point(3, 3.7)))
-        self.assertTrue(agreed[("CHN", "PAK", "PAK")].Contains(make_point(3, 3.7)))
-        self.assertTrue(agreed[("IND", "PAK", "IND")].Contains(make_point(3, 3.7)))
-        self.assertFalse(agreed[("CHN", "PAK", "IND")].Contains(make_point(3, 3.7)))
-        self.assertFalse(agreed[("IND", "PAK", "CHN")].Contains(make_point(3, 3.7)))
-        self.assertFalse(agreed[("IND", "PAK", "PAK")].Contains(make_point(3, 3.7)))
-        self.assertFalse(disputed[("CHN", "IND", "RUS;UKR")].Contains(make_point(3, 3.7)))
-        self.assertFalse(disputed[("CHN", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.7)))
-        self.assertTrue(disputed[("IND", "PAK", "NPL;RUS;UKR")].Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+        # A point along the fake Trans-Karakoram Tract border
+        # CHN and PAK agree it's their border: stable for CHN, PAK
+        # IND sees the IND-PAK border here (where PAK-held territory meets IND-claimed territory): stable for IND
+        # RUS/UKR/NPL see this as disputed (counterintuitive: they don't recognize India up here)
+        self.assertTrue(stable_for("CHN").Contains(make_point(3, 3.7)))
+        self.assertTrue(stable_for("PAK").Contains(make_point(3, 3.7)))
+        self.assertTrue(stable_for("IND").Contains(make_point(3, 3.7)))
+        self.assertTrue(disputed_for("RUS").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+        self.assertTrue(disputed_for("UKR").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+        self.assertTrue(disputed_for("NPL").Contains(make_point(3, 3.7)), "Counterintuitive because NPL doesn't see India up here")
 
     def test_claims(self):
         validate_claims(TestCase.config, os.path.join(TestCase.tempdir, CLAIMS_NAME))
@@ -410,10 +444,8 @@ def write_country_boundaries(dirname, configs):
 
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
-    print(gdf)
 
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
-    print(gdf_neighbors)
 
     index_pairings = {
         (min(index_left, row.index_right), max(index_left, row.index_right))
