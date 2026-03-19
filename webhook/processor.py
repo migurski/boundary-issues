@@ -349,36 +349,28 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
         else:
             logging.info(f"Skipping areas conversion: {areas_csv} not found")
 
-        # Convert boundaries CSV (iso3a, iso3b, perspectives, agreed_geometry, disputed_geometry)
+        # Convert boundaries CSV (stable, disputed, nonexistent, geometry)
         boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
         if os.path.exists(boundaries_csv):
             features = []
             with open(boundaries_csv, newline='') as f:
-                for row in csv.DictReader(f):
-                    iso3a = row.get('iso3a', '')
-                    iso3b = row.get('iso3b', '')
-                    perspectives = row.get('perspectives', '')
-                    for col, disputed in [('agreed_geometry', False), ('disputed_geometry', True)]:
-                        wkt = row.get(col, '')
-                        if not wkt:
-                            continue
-                        geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
-                        if geom is None:
-                            continue
-                        features.append({
-                            'type': 'Feature',
-                            'geometry': json.loads(geom.ExportToJson()),
-                            'properties': {
-                                'index': None,
-                                'iso3a': iso3a,
-                                'iso3b': iso3b,
-                                'perspectives': perspectives,
-                                'disputed': disputed,
-                            },
-                        })
-            indexes = sorted(list({f['properties']['iso3a'] for f in features}))
-            for feature in features:
-                feature['properties']['index'] = indexes.index(feature['properties']['iso3a'])
+                for index, row in enumerate(csv.DictReader(f)):
+                    wkt = row.get('geometry', '')
+                    if not wkt:
+                        continue
+                    geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
+                    if geom is None:
+                        continue
+                    features.append({
+                        'type': 'Feature',
+                        'geometry': json.loads(geom.ExportToJson()),
+                        'properties': {
+                            'index': index,
+                            'stable': row.get('stable', ''),
+                            'disputed': row.get('disputed', ''),
+                            'nonexistent': row.get('nonexistent', ''),
+                        },
+                    })
             if features:
                 with open(boundaries_geojson, 'w') as f:
                     json.dump({'type': 'FeatureCollection', 'features': features}, f)
@@ -513,9 +505,8 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
 def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
-        csv_names = ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv')
         perspective_set = set()
-        for csv_name in csv_names:
+        for csv_name in ('country-areas.csv', 'validation-points.csv'):
             csv_path = os.path.join(clone_dir, csv_name)
             if not os.path.exists(csv_path):
                 continue
@@ -525,6 +516,15 @@ def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_di
                         code = code.strip()
                         if code:
                             perspective_set.add(code)
+        boundaries_csv_path = os.path.join(clone_dir, 'country-boundaries.csv')
+        if os.path.exists(boundaries_csv_path):
+            with open(boundaries_csv_path, newline='') as f:
+                for row in csv.DictReader(f):
+                    for col in ('stable', 'disputed', 'nonexistent'):
+                        for code in row.get(col, '').split(';'):
+                            code = code.strip()
+                            if code:
+                                perspective_set.add(code)
         all_perspectives = sorted(perspective_set)
         perspectives_json = json.dumps(all_perspectives)
 
@@ -628,7 +628,7 @@ const map = new maplibregl.Map({
       {
         "id": "boundaries-agreed", "type": "line",
         "source": "protomaps", "source-layer": "boundaries",
-        "filter": ["==", ["get", "disputed"], false],
+        "filter": ["boolean", false],
         "paint": {
           "line-color": "rgba(0, 0, 0, 1)",
           "line-width": 2
@@ -641,7 +641,7 @@ const map = new maplibregl.Map({
       {
         "id": "boundaries-disputed", "type": "line",
         "source": "protomaps", "source-layer": "boundaries",
-        "filter": ["==", ["get", "disputed"], true],
+        "filter": ["boolean", false],
         "paint": {
           "line-color": "rgba(0, 0, 0, 0.35)",
           "line-width": 6,
@@ -687,27 +687,17 @@ map.addControl(new maplibregl.NavigationControl());
 
 const perspectives = $PERSPECTIVES_JSON$;
 
-function perspective_filter(perspective) {
-  return ["in", perspective, ["get", "perspectives"]];
-}
-
 function apply_perspective(perspective) {
-  map.setFilter('areas', perspective_filter(perspective));
-  map.setFilter('boundaries-agreed', ["all",
-    ["==", ["get", "disputed"], false],
-    perspective_filter(perspective)
-  ]);
-  map.setFilter('boundaries-disputed', ["all",
-    ["==", ["get", "disputed"], true],
-    perspective_filter(perspective)
-  ]);
+  map.setFilter('areas', ["in", perspective, ["get", "perspectives"]]);
+  map.setFilter('boundaries-agreed', ["in", perspective, ["get", "stable"]]);
+  map.setFilter('boundaries-disputed', ["in", perspective, ["get", "disputed"]]);
   map.setFilter('validation-points-interior', ["all",
     ["==", ["get", "relation"], "interior"],
-    perspective_filter(perspective)
+    ["in", perspective, ["get", "perspectives"]]
   ]);
   map.setFilter('validation-points-labels', ["all",
     ["==", ["get", "relation"], "interior"],
-    perspective_filter(perspective)
+    ["in", perspective, ["get", "perspectives"]]
   ]);
 }
 
