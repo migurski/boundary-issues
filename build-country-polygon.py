@@ -9,7 +9,6 @@ import functools
 import glob
 import gzip
 import itertools
-import json
 import os
 import re
 import sys
@@ -76,6 +75,12 @@ class Claim:
             out_claimants.append(f"{iso3}:{';'.join(sorted(out_perspectives))}")
         assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", c) for c in out_claimants)
         return Claim(out_claimants, self.geometry)
+
+@dataclasses.dataclass
+class Boundary:
+    claims1: list[tuple[str, set[str]]]
+    claims2: list[tuple[str, set[str]]]
+    geometry: shapely.geometry.base.BaseGeometry
 
 class TestCase (unittest.TestCase):
 
@@ -459,137 +464,35 @@ def write_country_boundaries(dirname, configs):
             row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
             if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
                 continue
-            claims1 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)
-            claims2 = re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)
-            geometry = clean_linestring(row1.geometry.intersection(row2.geometry))
+            boundary = Boundary(
+                [(a, set(b.split(";"))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)],
+                [(a, set(b.split(";"))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)],
+                clean_linestring(row1.geometry.intersection(row2.geometry)),
+            )
             stable_believers, disputed_believers, non_believers = set(), set(), set()
-            if len(claims1) == 1 and len(claims2) == 1:
-                stable_believers = set(claims1[0][1].split(";"))
+            if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
+                stable_believers = boundary.claims1[0][1] & boundary.claims2[0][1]
             else:
-                for claim1, claim2 in itertools.product(claims1, claims2):
-                    observers = set(claim1[1].split(";")) & set(claim2[1].split(";"))
-                    if claim1[0] == claim2[0]:
-                        observers.remove(claim1[0])
-                        non_believers.add(claim1[0])
-                        if observers:
-                            disputed_believers |= observers
+                neighbor_combos = itertools.product(boundary.claims1, boundary.claims2)
+                for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
+                    common_observers = observers_a & observers_b
+                    if iso3a == iso3b:
+                        common_observers.remove(iso3a)
+                        non_believers.add(iso3a)
+                        if common_observers:
+                            disputed_believers |= common_observers
                     else:
-                        if claim1[0] in observers:
-                            observers.remove(claim1[0])
-                            stable_believers.add(claim1[0])
-                        if claim2[0] in observers:
-                            observers.remove(claim2[0])
-                            stable_believers.add(claim2[0])
-                        if observers:
-                            disputed_believers |= observers
+                        if iso3a in common_observers:
+                            common_observers.remove(iso3a)
+                            stable_believers.add(iso3a)
+                        if iso3b in common_observers:
+                            common_observers.remove(iso3b)
+                            stable_believers.add(iso3b)
+                        if common_observers:
+                            disputed_believers |= common_observers
             row = dict(stable=";".join(stable_believers), disputed=";".join(disputed_believers), nonexistent=";".join(non_believers))
             print("Writing border", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": dump_wkt(geometry)})
-
-    return
-
-    df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
-
-    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
-    gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
-
-    # Note each country's own view of itself
-    self_views: dict[str, shapely.geometry.base.BaseGeometry] = {
-        r.iso3: r.geometry for i, r in gdf.iterrows() if r.iso3 in r.perspectives
-    }
-
-    # Calculate all neighbor pairings in all possible views (expensive!)
-    print("Calculating neighbor pairings...", file=sys.stderr)
-    gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
-    iso3_pairings = {
-        (min(row.iso3_left, row.iso3_right), max(row.iso3_left, row.iso3_right))
-        for i, row in gdf_neighbors[["iso3_left", "iso3_right"]].iterrows()
-    }
-
-    with open(os.path.join(dirname, BOUNDARIES_NAME), "w") as file:
-        rows = csv.DictWriter(file, fieldnames=("iso3a", "iso3b", "perspectives", "agreed_geometry", "disputed_geometry"))
-        rows.writeheader()
-        for iso3a, iso3b in iso3_pairings:
-            # Populate single perspectives to gdf polygon row ID pairs
-            row_pairings: dict[str, tuple[int, int]] = {}
-
-            for iso3c in configs.keys():
-                gdf1 = gdf[(gdf.iso3 == iso3a) & gdf.perspectives.str.contains(iso3c)]
-                gdf2 = gdf[(gdf.iso3 == iso3b) & gdf.perspectives.str.contains(iso3c)]
-                assert len(gdf1) == 1
-                assert len(gdf2) == 1
-                _geom1, _geom2 = gdf1.iloc[0].geometry, gdf2.iloc[0].geometry
-                index1, index2 = int(gdf1.index.values[0]), int(gdf2.index.values[0])
-                row_pairings[iso3c] = (index1, index2)
-
-            # Populate gdf polygon row ID pairs to matching sets of perspectives
-            other_pairings: dict[tuple[int, int], set[str]] = {}
-
-            party1: tuple[int, int] = row_pairings.pop(iso3a)
-            party2: tuple[int, int] = row_pairings.pop(iso3b)
-            for other_party, pairing in row_pairings.items():
-                if pairing in other_pairings:
-                    other_pairings[pairing].add(other_party)
-                else:
-                    other_pairings[pairing] = {other_party}
-            other_parties: dict[tuple[str], tuple[int, int]] = {
-                tuple(sorted(parties)): pairing for pairing, parties in other_pairings.items()
-            }
-
-            # print(iso3a, party1, iso3b, party2, other_parties, file=sys.stderr)
-
-            # Caculate boundaries for each claimant + those of outside observers
-            line1 = clean_interection(gdf.iloc[party1[0]].geometry, gdf.iloc[party1[1]].geometry)
-            line2 = clean_interection(gdf.iloc[party2[0]].geometry, gdf.iloc[party2[1]].geometry)
-            other_lines: dict[tuple[str], shapely.geometry.base.BaseGeometry] = {
-                k: clean_interection(gdf.iloc[i1].geometry, gdf.iloc[i2].geometry)
-                for k, (i1, i2) in other_parties.items()
-            }
-            # print(iso3a, str(line1)[:50], iso3b, str(line2)[:50], {k: str(v)[:50] for k, v in other_lines.items()}, file=sys.stderr)
-
-            # Write unambiguous geometries
-            row1 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3a)
-            print("Writing first-party border", row1, file=sys.stderr)
-            rows.writerow({**row1, "agreed_geometry": dump_wkt(line1), "disputed_geometry": EMPTY_LINE_WKT})
-
-            row2 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=iso3b)
-            print("Writing first-party border", row2, file=sys.stderr)
-            rows.writerow({**row2, "agreed_geometry": dump_wkt(line2), "disputed_geometry": EMPTY_LINE_WKT})
-
-            # Write alternative disputed geometries
-            for other_iso3s, linestring in other_lines.items():
-                linestrings = [line1, line2, linestring]
-                agreed_linestring = functools.reduce(clean_interection, linestrings)
-                disputed_linestring = functools.reduce(clean_union, linestrings).difference(agreed_linestring)
-
-                # Identify 3rd parties with a potential interest in this border
-                interested_iso3s: set[str] = {
-                    o for o in other_iso3s
-                    if disputed_linestring.intersects(self_views[o]) or agreed_linestring.intersects(self_views[o])
-                }
-                disinterested_iso3s: set[str] = set(other_iso3s) - interested_iso3s
-
-                # Subtract this border from within interested parties' interiors
-                for other_iso3 in interested_iso3s:
-                    other_polygon, other_boundary = self_views[other_iso3], self_views[other_iso3].boundary
-
-                    agreed_linestring = agreed_linestring.difference(other_polygon).difference(other_boundary)
-                    disputed_linestring = disputed_linestring.difference(other_polygon).difference(other_boundary)
-                    agreed_wkt = dump_wkt(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
-                    disputed_wkt = dump_wkt(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
-
-                    row3 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=other_iso3)
-                    print("Writing interested party border", row3, file=sys.stderr)
-                    rows.writerow({**row3, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
-
-                # Show this border for all disinterested parties
-                if disinterested_iso3s:
-                    agreed_wkt = dump_wkt(agreed_linestring) if agreed_linestring.length else EMPTY_LINE_WKT
-                    disputed_wkt = dump_wkt(disputed_linestring) if disputed_linestring.length else EMPTY_LINE_WKT
-
-                    row4 = dict(iso3a=iso3a, iso3b=iso3b, perspectives=DELIM.join(sorted(disinterested_iso3s)))
-                    print("Writing disinterested parties border", row4, file=sys.stderr)
-                    rows.writerow({**row4, "agreed_geometry": agreed_wkt, "disputed_geometry": disputed_wkt})
+            rows.writerow({**row, "geometry": dump_wkt(boundary.geometry)})
 
 def write_country_claims(dirname, configs) -> str:
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
