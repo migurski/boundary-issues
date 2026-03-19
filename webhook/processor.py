@@ -643,9 +643,9 @@ const map = new maplibregl.Map({
         "source": "protomaps", "source-layer": "boundaries",
         "filter": ["boolean", false],
         "paint": {
-          "line-color": "rgba(0, 0, 0, 0.35)",
-          "line-width": 6,
-          "line-dasharray": [1, 2]
+          "line-color": "rgba(0, 0, 0, 1)",
+          "line-width": 2,
+          "line-dasharray": [1, 3]
         },
         "layout": {
           "line-cap": "round",
