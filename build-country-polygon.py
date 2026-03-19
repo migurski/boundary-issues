@@ -544,7 +544,7 @@ def write_country_claims(dirname, configs) -> str:
 
     for iso3s in networkx.connected_components(dispute_graph):
         print("Evaluating claims for", iso3s, 'with', len(dispute_graph.subgraph(iso3s).edges), "conflicts...", file=sys.stderr)
-        gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
+        gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})")) & gdf.perspectives]
         out_claims = []
         for _, new_row in gdf_sub.iterrows():
             new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(D2)))
