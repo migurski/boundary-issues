@@ -201,6 +201,9 @@ Resources:
       PackageType: Image
       Code:
         ImageUri: !Ref ProcessorImageUri
+      ImageConfig:
+        EntryPoint: ["python3", "-m", "awslambdaric"]
+        Command: ["processor.lambda_handler"]
       Role: !GetAtt ProcessorFunctionRole.Arn
       Timeout: 300
       MemorySize: 4096

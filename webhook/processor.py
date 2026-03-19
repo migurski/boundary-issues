@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import argparse
 import boto3
 import csv
+import glob
 import json
 import logging
 import shutil
 import subprocess
 import os
 import sys
+import tempfile
 import typing
 import urllib.parse
 import osgeo.ogr
@@ -34,7 +37,7 @@ def make_error(message: str) -> dict[str, typing.Any]:
     return {'statusCode': 500, 'status': 'error', 'error': message}
 
 
-def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typing.Any]:
+def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typing.Any]:
     """
     Docker Lambda handler that processes GitHub PR events.
 
@@ -48,8 +51,10 @@ def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typi
     """
     logging.info(f"Received event: {json.dumps(event)}")
 
-    # Extract task token if present (for Step Functions integration)
-    task_token = event.get('taskToken')
+    # Extract event fields
+    destination: str = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+    check_fresh_osm: bool = event.get('checkFreshOSM', False)
+    task_token: typing.Optional[str] = event.get('taskToken')
     sfn_client = None
 
     if task_token:
@@ -98,8 +103,6 @@ def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typi
     else:
         assert changed_configs is not None
 
-    # Determine if we should check Fresh OSM files
-    check_fresh_osm = event.get('checkFreshOSM', False)
     logging.info(f"check Fresh OSM files: {check_fresh_osm}")
 
     # Run the script
@@ -107,18 +110,20 @@ def handler(event: dict[str, typing.Any], context: typing.Any) -> dict[str, typi
     if err6:
         return err6
 
+    s3_client = boto3.client('s3')
+
     # Generate tiles on first run (when checkFreshOSM is not set)
     if not check_fresh_osm:
         err7 = convert_csvs_to_geojson(clone_dir, on_failure)
         if err7:
             return err7
-        err8 = generate_tiles(event, clone_dir, on_failure)
+        err8 = generate_tiles(s3_client, destination, clone_dir, on_failure)
         if err8:
             return err8
-        err9 = generate_preview_html(event, clone_dir, on_failure)
+        err9 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
         if err9:
             return err9
-        err10 = update_status_html(event, on_failure)
+        err10 = update_status_html(s3_client, destination, clone_dir, on_failure)
         if err10:
             return err10
 
@@ -189,11 +194,11 @@ def extract_pr_information(event: dict[str, typing.Any], on_failure: FailCallabl
 
 
 def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
-    """ Clone repository to /tmp/repo """
+    """ Clone repository to temp """
     try:
         parsed_url = urllib.parse.urlparse(clone_url)
         repo_url = urllib.parse.urlunparse((parsed_url.scheme, f'{github_token}@github.com', *parsed_url[2:]))
-        clone_dir = '/tmp/repo'
+        clone_dir = tempfile.mkdtemp(dir='/tmp', prefix='repo-')
 
         # Clean up any previous clone
         subprocess.run(['rm', '-rf', clone_dir], check=False)
@@ -335,9 +340,12 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
             indexes = sorted(list({f['properties']['iso3'] for f in features}))
             for feature in features:
                 feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
-            with open(areas_geojson, 'w') as f:
-                json.dump({'type': 'FeatureCollection', 'features': features}, f)
-            logging.info(f"Wrote {len(features)} area features to {areas_geojson}")
+            if features:
+                with open(areas_geojson, 'w') as f:
+                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
+                logging.info(f"Wrote {len(features)} area features to {areas_geojson}")
+            else:
+                logging.info(f"Skipping areas GeoJSON: no features found in {areas_csv}")
         else:
             logging.info(f"Skipping areas conversion: {areas_csv} not found")
 
@@ -371,9 +379,12 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
             indexes = sorted(list({f['properties']['iso3a'] for f in features}))
             for feature in features:
                 feature['properties']['index'] = indexes.index(feature['properties']['iso3a'])
-            with open(boundaries_geojson, 'w') as f:
-                json.dump({'type': 'FeatureCollection', 'features': features}, f)
-            logging.info(f"Wrote {len(features)} boundary features to {boundaries_geojson}")
+            if features:
+                with open(boundaries_geojson, 'w') as f:
+                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
+                logging.info(f"Wrote {len(features)} boundary features to {boundaries_geojson}")
+            else:
+                logging.info(f"Skipping boundaries GeoJSON: no features found in {boundaries_csv}")
         else:
             logging.info(f"Skipping boundaries conversion: {boundaries_csv} not found")
 
@@ -403,9 +414,12 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
             indexes = sorted(list({f['properties']['iso3'] for f in features}))
             for feature in features:
                 feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
-            with open(points_geojson, 'w') as f:
-                json.dump({'type': 'FeatureCollection', 'features': features}, f)
-            logging.info(f"Wrote {len(features)} validation point features to {points_geojson}")
+            if features:
+                with open(points_geojson, 'w') as f:
+                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
+                logging.info(f"Wrote {len(features)} validation point features to {points_geojson}")
+            else:
+                logging.info(f"Skipping validation-points GeoJSON: no features found in {points_csv}")
         else:
             logging.info(f"Skipping validation-points conversion: {points_csv} not found")
 
@@ -417,8 +431,8 @@ def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[st
         return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}')
 
 
-def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
-    """ Run the Planetiler JAR to generate preview.pmtiles, then upload to S3 """
+def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+    """ Run the Planetiler JAR to generate preview.pmtiles, then upload to S3 if s3_client is provided """
     try:
         areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
         boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
@@ -428,11 +442,11 @@ def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: Fai
             logging.info("No GeoJSON files found, skipping tile generation")
             return None
 
-        output_path = '/tmp/preview.pmtiles'
-        data_dir = '/tmp/tiles-data'
+        output_path = os.path.join(clone_dir, 'preview.pmtiles')
+        data_dir = tempfile.mkdtemp(dir='/tmp', prefix='data-')
         os.makedirs(data_dir, exist_ok=True)
 
-        # /var/data is read-only at Lambda runtime; copy GPKG to /tmp so SQLite can write sidecar files
+        # /var/data is read-only at Lambda runtime; copy GPKG to temp so SQLite can write sidecar files
         bundled_landcover = '/var/data/daylight-landcover.gpkg'
         landcover_file = f'{data_dir}/daylight-landcover.gpkg'
         if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
@@ -446,7 +460,7 @@ def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: Fai
             f'--landcover_path={landcover_file}',
             '--download',
             '--force',
-            '--maxzoom', '5',
+            '--maxzoom', '7',
         ]
         if os.path.exists(areas_geojson):
             cmd.append(f'--areas={areas_geojson}')
@@ -457,9 +471,12 @@ def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: Fai
         logging.info(f"Running tile generation: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Tile generation output: {result.stdout}")
-        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+
+        if s3_client is None or destination is None:
+            logging.info(f"Skipping S3 upload; preview.pmtiles written to {output_path}")
+            return None
+
         parsed = urllib.parse.urlparse(destination)
-        s3_client = boto3.client('s3')
         s3_client.put_object(
             Bucket=parsed.netloc,
             Key=os.path.join(parsed.path, 'preview.log').lstrip('/'),
@@ -493,13 +510,9 @@ def generate_tiles(event: dict[str, typing.Any], clone_dir: str, on_failure: Fai
         return make_error(f'Tile generation failed: {str(e)}')
 
 
-def generate_preview_html(event: dict[str, typing.Any], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
-        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
-        parsed = urllib.parse.urlparse(destination)
-        s3_client = boto3.client('s3')
-
         csv_names = ('country-areas.csv', 'country-boundaries.csv', 'validation-points.csv')
         perspective_set = set()
         for csv_name in csv_names:
@@ -723,6 +736,13 @@ map.on('load', function() {
 </body>
 </html>""".replace('$PERSPECTIVES_JSON$', perspectives_json)
 
+        with open(os.path.join(clone_dir, 'preview.html'), "w") as file:
+            file.write(html)
+
+        if s3_client is None or destination is None:
+            return None
+
+        parsed = urllib.parse.urlparse(destination)
         html_key = os.path.join(parsed.path, 'preview.html').lstrip('/')
         logging.info(f"Uploading preview.html to s3://{parsed.netloc}/{html_key}")
         s3_client.put_object(
@@ -741,17 +761,23 @@ map.on('load', function() {
         on_failure('PreviewHTMLError', str(e))
         return make_error(f'Failed to generate preview HTML: {str(e)}')
 
-def update_status_html(event: dict[str, typing.Any], on_failure: FailCallable) -> dict[str, typing.Any]|None:
+def update_status_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+    status_text = 'First check looks fine. Waiting until second check.'
+
     try:
-        destination = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
+        with open(os.path.join(clone_dir, 'status.html'), "w") as file:
+            file.write(status_text)
+
+        if s3_client is None or destination is None:
+            return None
+
         parsed = urllib.parse.urlparse(destination)
-        s3_client = boto3.client('s3')
         s3_client.put_object(
             Bucket=parsed.netloc,
             Key=os.path.join(parsed.path, 'status.html').lstrip('/'),
             ACL='public-read',
             ContentType='text/html',
-            Body='First check looks fine. Waiting until second check.'.encode('utf8'),
+            Body=status_text.encode('utf8'),
             StorageClass='INTELLIGENT_TIERING',
         )
         logging.info("Successfully updated status.html")
@@ -761,3 +787,48 @@ def update_status_html(event: dict[str, typing.Any], on_failure: FailCallable) -
         logging.error(f"Failed to update status HTML: {e}")
         on_failure('StatusHTMLError', str(e))
         return make_error(f'Failed to update status HTML: {str(e)}')
+
+
+def main() -> int:
+    """ Standalone CLI entry point: build tiles locally without S3 uploads """
+    parser = argparse.ArgumentParser(description='Build political boundary tiles locally')
+    parser.add_argument('--configs', nargs='*', help='Config YAML paths (default: config/*.yaml)')
+    args = parser.parse_args()
+
+    def on_failure(error: str, cause: str) -> None:
+        logging.error(f"{error}: {cause}")
+
+    if args.configs:
+        changed_configs = args.configs
+    else:
+        changed_configs = sorted(glob.glob('config/*.yaml'))
+
+    logging.info(f"Using configs: {changed_configs}")
+
+    s3_client, destination, clone_dir = None, None, '.'
+
+    err1 = run_build_script(changed_configs, False, clone_dir, on_failure)
+    if err1:
+        return 1
+
+    err2 = convert_csvs_to_geojson(clone_dir, on_failure)
+    if err2:
+        return 1
+
+    err3 = generate_tiles(s3_client, destination, clone_dir, on_failure)
+    if err3:
+        return 1
+
+    err4 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
+    if err4:
+        return 1
+
+    err5 = update_status_html(s3_client, destination, clone_dir, on_failure)
+    if err5:
+        return 1
+
+    return 0
+
+
+if __name__ == '__main__':
+    exit(main())

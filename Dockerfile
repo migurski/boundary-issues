@@ -51,7 +51,7 @@ COPY --from=jarbuilder /build/target/political-views-tiles-1.0.0-with-deps.jar /
 # Copy the processor handler
 COPY webhook/processor.py /var/task/processor.py
 
-# Set the Lambda handler using awslambdaric
+# Default: run as standalone CLI (no S3 uploads)
+# Lambda overrides this via ImageConfig in CloudFormation
 WORKDIR /var/task
-ENTRYPOINT ["python3", "-m", "awslambdaric"]
-CMD ["processor.handler"]
+ENTRYPOINT ["python3", "/var/task/processor.py"]
