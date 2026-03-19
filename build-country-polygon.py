@@ -37,6 +37,8 @@ EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
 DELIM = ";"
 
+CLAIMANT = tuple[str, set[str]]
+
 class Relationship (enum.Enum):
     NO_OVERLAP = 0
     IDENTICAL = 1
@@ -46,7 +48,7 @@ class Relationship (enum.Enum):
 
 @dataclasses.dataclass
 class Claim:
-    claimants: list[str]  # Must match r"^\w\w\w:\w\w\w(;\w\w\w)*$"
+    claimants: list[CLAIMANT]
     geometry: shapely.geometry.base.BaseGeometry | None
 
     def relationship(self, other:Claim) -> Relationship:
@@ -66,20 +68,16 @@ class Claim:
 
     def coalesced(self) -> Claim:
         """ Return a new Claim with the claimants sorted and grouped """
-        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", c) for c in self.claimants)
-        out_claimants = []
-        for iso3, sub_claimants in itertools.groupby(sorted(self.claimants), key=lambda c: c[:3]):
-            out_perspectives = []
-            for sub_claimant in sub_claimants:
-                out_perspectives.extend(sub_claimant[4:].split(";"))
-            out_claimants.append(f"{iso3}:{';'.join(sorted(out_perspectives))}")
-        assert all(re.match(r"^\w\w\w:\w\w\w(;\w\w\w)*$", c) for c in out_claimants)
+        out: dict[str, set[str]] = {}
+        for iso3, perspectives in self.claimants:
+            out.setdefault(iso3, set()).update(perspectives)
+        out_claimants: list[CLAIMANT] = sorted(out.items())
         return Claim(out_claimants, self.geometry)
 
 @dataclasses.dataclass
 class Boundary:
-    claims1: list[tuple[str, set[str]]]
-    claims2: list[tuple[str, set[str]]]
+    claims1: list[CLAIMANT]
+    claims2: list[CLAIMANT]
     geometry: shapely.geometry.base.BaseGeometry
 
 class TestCase (unittest.TestCase):
@@ -514,7 +512,7 @@ def write_country_claims(dirname, configs) -> str:
         gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
         out_claims = []
         for _, new_row in gdf_sub.iterrows():
-            new_claimant = f"{new_row.iso3}:{new_row.perspectives}"
+            new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(";")))
             new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
@@ -563,7 +561,7 @@ def write_country_claims(dirname, configs) -> str:
         rows = csv.DictWriter(file, ("claimants", "geometry"))
         rows.writeheader()
         for claim in all_claims:
-            row = dict(claimants=" ".join(claim.coalesced().claimants))
+            row = dict(claimants=" ".join(f"{iso3}:{';'.join(sorted(perspectives))}" for iso3, perspectives in claim.coalesced().claimants))
             print("Writing claim polygon", row, file=sys.stderr)
             rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
 
