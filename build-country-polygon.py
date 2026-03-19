@@ -292,7 +292,7 @@ def validate_claims(configs, claims_path):
             neutral_povs = all_povs - local_povs
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*({'|'.join(neutral_povs)})[\s$]", claimants)
+                if neutral_povs and re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*({'|'.join(neutral_povs)})[\s$]", claimants)
             ]
         else:
             matching_claims = [
