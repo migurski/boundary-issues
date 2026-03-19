@@ -35,7 +35,7 @@ CLAIMS_NAME = "country-claims.csv"
 AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
-DELIM = ";"
+D1, D2 = ":", ";"
 
 CLAIMANT = tuple[str, set[str]]
 
@@ -139,9 +139,9 @@ class TestCase (unittest.TestCase):
             borders = []
             file.readline()
             for row in csv.reader(file):
-                stable_set = set(row[0].split(";")) if row[0] else set()
-                disputed_set = set(row[1].split(";")) if row[1] else set()
-                nonexistent_set = set(row[2].split(";")) if row[2] else set()
+                stable_set = set(row[0].split(D2)) if row[0] else set()
+                disputed_set = set(row[1].split(D2)) if row[1] else set()
+                nonexistent_set = set(row[2].split(D2)) if row[2] else set()
                 geom = osgeo.ogr.CreateGeometryFromWkt(row[3])
                 borders.append((stable_set, disputed_set, nonexistent_set, geom))
 
@@ -436,7 +436,7 @@ def write_validation_points(dirname, configs):
                 # "Neutral" point of view = anyone without a defined perspective
                 local_povs = set(configs[test_iso3a].get("perspectives", {}).keys())
                 neutral_povs = all_povs - local_povs
-                test_iso3b = ";".join(neutral_povs)
+                test_iso3b = D2.join(neutral_povs)
             relation = "interior" if is_in else "exterior"
             row = dict(iso3=test_iso3a, perspectives=test_iso3b, relation=relation)
             print("Writing validation point", row, file=sys.stderr)
@@ -463,8 +463,8 @@ def write_country_boundaries(dirname, configs):
             if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
                 continue
             boundary = Boundary(
-                [(a, set(b.split(";"))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)],
-                [(a, set(b.split(";"))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)],
                 clean_linestring(row1.geometry.intersection(row2.geometry)),
             )
             stable_believers, disputed_believers, non_believers = set(), set(), set()
@@ -488,7 +488,7 @@ def write_country_boundaries(dirname, configs):
                             stable_believers.add(iso3b)
                         if common_observers:
                             disputed_believers |= common_observers
-            row = dict(stable=";".join(stable_believers), disputed=";".join(disputed_believers), nonexistent=";".join(non_believers))
+            row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
             print("Writing border", row, file=sys.stderr)
             rows.writerow({**row, "geometry": dump_wkt(boundary.geometry)})
 
@@ -512,7 +512,7 @@ def write_country_claims(dirname, configs) -> str:
         gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
         out_claims = []
         for _, new_row in gdf_sub.iterrows():
-            new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(";")))
+            new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(D2)))
             new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
@@ -561,7 +561,7 @@ def write_country_claims(dirname, configs) -> str:
         rows = csv.DictWriter(file, ("claimants", "geometry"))
         rows.writeheader()
         for claim in all_claims:
-            row = dict(claimants=" ".join(f"{iso3}:{';'.join(sorted(perspectives))}" for iso3, perspectives in claim.coalesced().claimants))
+            row = dict(claimants=" ".join(f"{iso3}{D1}{D2.join(sorted(perspectives))}" for iso3, perspectives in claim.coalesced().claimants))
             print("Writing claim polygon", row, file=sys.stderr)
             rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
 
@@ -576,7 +576,7 @@ def write_country_areas(dirname, configs, check_fresh_osm: bool) -> str:
 
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
-            row1 = dict(iso3=iso3a, perspectives=DELIM.join(sorted(neutral_pov)))
+            row1 = dict(iso3=iso3a, perspectives=D2.join(sorted(neutral_pov)))
             print("Writing base polygon", row1, file=sys.stderr)
             rows.writerow({**row1, "geometry": geom1.ExportToWkt()})
 
