@@ -26,10 +26,7 @@ FRA:
 DEU:
   base:
     - [plus, relation, 51477] # Germany
-    - [minus, relation, 2323309] # Subtract Ems estuary, a part of Netherlands base
   perspectives:
-    DEU:
-      - [plus, relation, 51477] # Re-add Ems estuary
     LUX:
       - [minus, relation, 2171347] # Subtract Luxembourg overlap along Our River
   interior-points:
@@ -37,7 +34,7 @@ DEU:
       - [13.395, 52.517] # Berlin
       - [6.247462, 50.597583] # Rückschlag, an exclave in Belgium
     DEU:
-      - [6.93501, 53.37087] # Ems estuary
+      - [6.95543, 53.34948] # Ems estuary
 ITA:
   base:
     - [plus, relation, 365331] # Italy
@@ -63,15 +60,12 @@ NLD:
   base:
     - [plus, relation, 2323309] # Netherlands
     - [minus, relation, 52411] # Subtract Belgium's exclaves in Baarle
-  perspectives:
-    DEU:
-      - [minus, relation, 51477] # Subtract Ems estuary
   interior-points:
     base:
       - [4.892, 52.373] # Amsterdam
       - [4.930486, 51.444901] # Baarle-Nassau, near an exclave of Belgium
     NLD:
-      - [6.93501, 53.37087] # Ems estuary
+      - [6.91172, 53.42117] # Ems estuary
 
 # Accession: 1973
 DNK:
