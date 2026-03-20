@@ -1,0 +1,37 @@
+# Accession: 1958
+BEL:
+  base:
+    - [plus, relation, 52411] # Belgium
+  interior-points:
+    base:
+      - [4.352, 50.846] # Brussels
+FRA:
+  base:
+    - [plus, relation, 2202162] # France
+  interior-points:
+    base:
+      - [2.348, 48.853] # Paris
+DEU:
+  base:
+    - [plus, relation, 51477] # Germany
+  interior-points:
+    base:
+      - [13.395, 52.517] # Berlin
+ITA:
+  base:
+    - [plus, relation, 365331] # Italy
+  interior-points:
+    base:
+      - [12.482, 41.893] # Rome
+LUX:
+  base:
+    - [plus, relation, 2171347] # Luxembourg
+  interior-points:
+    base:
+      - [6.129, 49.611] # Luxembourg
+NLD:
+  base:
+    - [plus, relation, 2323309] # Netherlands
+  interior-points:
+    base:
+      - [4.892, 52.373] # Amsterdam
