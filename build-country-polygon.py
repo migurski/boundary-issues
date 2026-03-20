@@ -549,7 +549,21 @@ def write_country_claims(dirname, configs) -> str:
             new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
-                relationship = new_claim.relationship(out_claim)
+                if new_claim.geometry.is_empty:
+                    # Stop if the new geometry has been completely eliminated
+                    break
+                elif out_claim.geometry.is_empty:
+                    # Move on to another one if the out geometry has been completely eliminated
+                    continue
+                try:
+                    relationship = new_claim.relationship(out_claim)
+                except ValueError:
+                    with open(os.path.join(dirname, "bad-relationship.csv"), "w") as file:
+                        rows = csv.DictWriter(file, ("claimants", "geometry"))
+                        rows.writeheader()
+                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_claim.geometry)})
+                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_claim.geometry)})
+                    raise
                 if relationship is Relationship.NO_OVERLAP:
                     # new_claim does not overlap out_claim
                     continue
