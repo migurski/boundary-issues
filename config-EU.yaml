@@ -26,15 +26,13 @@ FRA:
 DEU:
   base:
     - [plus, relation, 51477] # Germany
-  perspectives:
-    LUX:
-      - [minus, relation, 2171347] # Subtract Luxembourg overlap along Our River
   interior-points:
     base:
       - [13.395, 52.517] # Berlin
       - [6.247462, 50.597583] # Rückschlag, an exclave in Belgium
     DEU:
       - [6.95543, 53.34948] # Ems estuary
+      - [6.1326912, 50.0431462] # Our River
 ITA:
   base:
     - [plus, relation, 365331] # Italy
@@ -49,13 +47,10 @@ ITA:
 LUX:
   base:
     - [plus, relation, 2171347] # Luxembourg
-    - [minus, relation, 51477] # Subtract German overlap along Our River
-  perspectives:
-    LUX:
-        - [plus, relation, 2171347] # Re-add German overlap along Our River
   interior-points:
     base:
       - [6.129, 49.611] # Luxembourg
+      - [6.1311375, 50.0443762] # Our River
 NLD:
   base:
     - [plus, relation, 2323309] # Netherlands
