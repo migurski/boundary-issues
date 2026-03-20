@@ -1,0 +1,6 @@
+GBR:
+  base:
+    - [plus, relation, 62149] # United Kingdom
+  interior-points:
+    base:
+      - [-0.127, 51.507] # London
