@@ -6,6 +6,10 @@ BEL:
   interior-points:
     base:
       - [4.352, 50.846] # Brussels
+      - [4.932650, 51.437910] # Baarle-Hertog, an exclave in Netherlands
+  exterior-points:
+    base:
+      - [6.247462, 50.597583] # Rückschlag, an exclave of Germany
 FRA:
   base:
     - [plus, relation, 2202162] # France
@@ -13,6 +17,9 @@ FRA:
   interior-points:
     base:
       - [2.348, 48.853] # Paris
+  exterior-points:
+    base:
+      - [6.867267, 45.830445] # Mont Blanc southern face
 DEU:
   base:
     - [plus, relation, 51477] # Germany
@@ -20,12 +27,14 @@ DEU:
   interior-points:
     base:
       - [13.395, 52.517] # Berlin
+      - [6.247462, 50.597583] # Rückschlag, an exclave in Belgium
 ITA:
   base:
     - [plus, relation, 365331] # Italy
   interior-points:
     base:
       - [12.482, 41.893] # Rome
+      - [6.867267, 45.830445] # Mont Blanc southern face
 LUX:
   base:
     - [plus, relation, 2171347] # Luxembourg
@@ -40,3 +49,4 @@ NLD:
   interior-points:
     base:
       - [4.892, 52.373] # Amsterdam
+      - [4.930486, 51.444901] # Baarle-Nassau, near an exclave of Belgium
