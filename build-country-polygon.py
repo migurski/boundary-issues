@@ -310,12 +310,12 @@ def validate_claims(configs, claims_path):
             neutral_povs = all_povs - local_povs
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(f"{test_iso3a}:(\w\w\w;)*({'|'.join(neutral_povs)})", claimants)
+                if re.search(rf"(?<![A-Z]){test_iso3a}(?:-\w\w\w)*:(\w\w\w;)*({'|'.join(neutral_povs)})", claimants)
             ]
         else:
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(f"{test_iso3a}:(\w\w\w;)*{test_iso3b}", claimants)
+                if re.search(rf"(?<![A-Z]){test_iso3a}(?:-\w\w\w)*:(\w\w\w;)*{test_iso3b}", claimants)
             ]
 
         if not matching_claims:
@@ -510,8 +510,8 @@ def write_country_boundaries(dirname, configs):
             if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
                 continue
             boundary = Boundary(
-                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)],
-                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w(?:-\w\w\w)*):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w(?:-\w\w\w)*):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)],
                 clean_linestring(row1.geometry.intersection(row2.geometry)),
             )
             stable_believers, disputed_believers, non_believers = set(), set(), set()
@@ -522,10 +522,14 @@ def write_country_boundaries(dirname, configs):
                 for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
                     common_observers = observers_a & observers_b
                     if iso3a == iso3b:
-                        common_observers.remove(iso3a)
-                        non_believers.add(iso3a)
-                        if common_observers:
-                            disputed_believers |= common_observers
+                        if "-" in iso3a:
+                            # Joint-owner condominium: all observers agree on this border
+                            stable_believers |= common_observers
+                        else:
+                            common_observers.remove(iso3a)
+                            non_believers.add(iso3a)
+                            if common_observers:
+                                disputed_believers |= common_observers
                     else:
                         if iso3a in common_observers:
                             common_observers.remove(iso3a)
@@ -608,7 +612,18 @@ def write_country_claims(dirname, configs) -> str:
         rows = csv.DictWriter(file, ("claimants", "geometry"))
         rows.writeheader()
         for claim in all_claims:
-            row = dict(claimants=" ".join(f"{iso3}{D1}{D2.join(sorted(perspectives))}" for iso3, perspectives in claim.coalesced().claimants))
+            coalesced = claim.coalesced()
+            # Group claimants that share an identical observer set into joint-owner tokens
+            groups: dict[frozenset[str], list[str]] = {}
+            for iso3, perspectives in coalesced.claimants:
+                key = frozenset(perspectives)
+                groups.setdefault(key, []).append(iso3)
+            tokens = []
+            for key, iso3s in sorted(groups.items(), key=lambda kv: kv[1]):
+                owner = "-".join(sorted(iso3s))
+                observers = D2.join(sorted(key))
+                tokens.append(f"{owner}{D1}{observers}")
+            row = dict(claimants=" ".join(tokens))
             print("Writing claim polygon", row, file=sys.stderr)
             rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
 
