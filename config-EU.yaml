@@ -2,18 +2,21 @@
 BEL:
   base:
     - [plus, relation, 52411] # Belgium
+    - [minus, relation, 11662943] # Rückschlag, a German exclave
   interior-points:
     base:
       - [4.352, 50.846] # Brussels
 FRA:
   base:
     - [plus, relation, 2202162] # France
+    - [minus, relation, 365331] # Subtract piece of Italy on south side of Mont Blanc
   interior-points:
     base:
       - [2.348, 48.853] # Paris
 DEU:
   base:
     - [plus, relation, 51477] # Germany
+    - [minus, relation, 2323309] # Subtract German overlap east of Groningen
   interior-points:
     base:
       - [13.395, 52.517] # Berlin
@@ -26,12 +29,14 @@ ITA:
 LUX:
   base:
     - [plus, relation, 2171347] # Luxembourg
+    - [minus, relation, 51477] # Subtract German overlap along Our River
   interior-points:
     base:
       - [6.129, 49.611] # Luxembourg
 NLD:
   base:
     - [plus, relation, 2323309] # Netherlands
+    - [minus, relation, 52411] # Subtract Belgium's exclaves in Baarle
   interior-points:
     base:
       - [4.892, 52.373] # Amsterdam
