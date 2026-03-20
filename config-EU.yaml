@@ -20,9 +20,9 @@ FRA:
   interior-points:
     base:
       - [2.348, 48.853] # Paris
+      - [-1.764589, 43.343075] # Pheasant Island on the Bidasoa
     FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face
-      - [-1.764589, 43.343075] # Pheasant Island on the Bidasoa
 DEU:
   base:
     - [plus, relation, 51477] # Germany
@@ -30,7 +30,6 @@ DEU:
     base:
       - [13.395, 52.517] # Berlin
       - [6.247462, 50.597583] # Rückschlag, an exclave in Belgium
-    DEU:
       - [6.95543, 53.34948] # Ems estuary
       - [6.1326912, 50.0431462] # Our River
 ITA:
@@ -59,7 +58,6 @@ NLD:
     base:
       - [4.892, 52.373] # Amsterdam
       - [4.930486, 51.444901] # Baarle-Nassau, near an exclave of Belgium
-    NLD:
       - [6.91172, 53.42117] # Ems estuary
 
 # Accession: 1973
@@ -97,5 +95,4 @@ ESP:
   interior-points:
     base:
       - [-3.703, 40.416] # Madrid
-    ESP:
       - [-1.766388, 43.342600] # Pheasant Island on the Bidasoa
