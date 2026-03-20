@@ -13,30 +13,25 @@ BEL:
 FRA:
   base:
     - [plus, relation, 2202162] # France
-    - [minus, relation, 365331] # Subtract piece of Italy on south side of Mont Blanc, a part of Italy base
+    - [minus, relation, 365331] # Subtract south side of Mont Blanc, a part of Italy base
   perspectives:
     FRA:
-      - [plus, relation, 2202162] # Re-add that south side of Mont Blanc
+      - [plus, relation, 2202162] # Re-add Mont Blanc
   interior-points:
     base:
       - [2.348, 48.853] # Paris
+      - [-1.764589, 43.343075] # Pheasant Island on the Bidasoa
     FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face
 DEU:
   base:
     - [plus, relation, 51477] # Germany
-    - [minus, relation, 2323309] # Subtract Ems estuary, a part of Netherlands base
-  perspectives:
-    DEU:
-      - [plus, relation, 51477] # Re-add Ems estuary
-    LUX:
-      - [minus, relation, 2171347] # Subtract Luxembourg overlap along Our River
   interior-points:
     base:
       - [13.395, 52.517] # Berlin
       - [6.247462, 50.597583] # Rückschlag, an exclave in Belgium
-    DEU:
-      - [6.93501, 53.37087] # Ems estuary
+      - [6.95543, 53.34948] # Ems estuary
+      - [6.1326912, 50.0431462] # Our River
 ITA:
   base:
     - [plus, relation, 365331] # Italy
@@ -51,23 +46,53 @@ ITA:
 LUX:
   base:
     - [plus, relation, 2171347] # Luxembourg
-    - [minus, relation, 51477] # Subtract German overlap along Our River
-  perspectives:
-    LUX:
-        - [plus, relation, 2171347] # Re-add German overlap along Our River
   interior-points:
     base:
       - [6.129, 49.611] # Luxembourg
+      - [6.1311375, 50.0443762] # Our River
 NLD:
   base:
     - [plus, relation, 2323309] # Netherlands
     - [minus, relation, 52411] # Subtract Belgium's exclaves in Baarle
-  perspectives:
-    DEU:
-      - [minus, relation, 51477] # Subtract Ems estuary
   interior-points:
     base:
       - [4.892, 52.373] # Amsterdam
       - [4.930486, 51.444901] # Baarle-Nassau, near an exclave of Belgium
-    NLD:
-      - [6.93501, 53.37087] # Ems estuary
+      - [6.91172, 53.42117] # Ems estuary
+
+# Accession: 1973
+DNK:
+  base:
+    - [plus, relation, 9112011] # Denmark
+  interior-points:
+    base:
+      - [12.570, 55.686] # Copenhagen
+IRL:
+  base:
+    - [plus, relation, 62273] # Ireland
+  interior-points:
+    base:
+      - [-6.260, 53.349] # Dublin
+
+# Accession: 1981
+GRC:
+  base:
+    - [plus, relation, 192307] # Greece
+  interior-points:
+    base:
+      - [23.734, 37.975] # Athens
+
+# Accession: 1986
+PRT:
+  base:
+    - [plus, relation, 295480] # Portugal
+  interior-points:
+    base:
+      - [-9.136, 38.707] # Lisbon
+ESP:
+  base:
+    - [plus, relation, 1311341] # Spain
+  interior-points:
+    base:
+      - [-3.703, 40.416] # Madrid
+      - [-1.766388, 43.342600] # Pheasant Island on the Bidasoa

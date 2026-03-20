@@ -35,7 +35,10 @@ CLAIMS_NAME = "country-claims.csv"
 AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
-D1, D2 = ":", ";"
+
+D0 = "-"  # owner-owner
+D1 = ":"  # owners:observers
+D2 = ";"  # observer;observer
 
 CLAIMANT = tuple[str, set[str]]
 
@@ -134,7 +137,8 @@ class TestCase (unittest.TestCase):
         with self.assertRaises(ValueError):
             merge_country_config(base_with_conflict, addition_with_conflict)
 
-    def test_boundaries(self):
+    @staticmethod
+    def _load_borders():
         with open(os.path.join(TestCase.tempdir, BOUNDARIES_NAME), "r") as file:
             borders = []
             file.readline()
@@ -144,94 +148,119 @@ class TestCase (unittest.TestCase):
                 nonexistent_set = set(row[2].split(D2)) if row[2] else set()
                 geom = osgeo.ogr.CreateGeometryFromWkt(row[3])
                 borders.append((stable_set, disputed_set, nonexistent_set, geom))
+        return borders
 
-        def stable_for(country):
-            """ Union of all border segments where country is in the stable set """
-            geoms = [g for stable_set, _, _, g in borders if country in stable_set]
-            return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
+    @staticmethod
+    def stable_for(country):
+        """ Union of all border segments where country is in the stable set """
+        borders = TestCase._load_borders()
+        geoms = [g for stable_set, _, _, g in borders if country in stable_set]
+        return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
 
-        def disputed_for(country):
-            """ Union of all border segments where country is in the disputed set """
-            geoms = [g for _, disputed_set, _, g in borders if country in disputed_set]
-            return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
+    @staticmethod
+    def disputed_for(country):
+        """ Union of all border segments where country is in the disputed set """
+        borders = TestCase._load_borders()
+        geoms = [g for _, disputed_set, _, g in borders if country in disputed_set]
+        return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
 
+    def test_boundaries_ind_chn_pak_npl(self):
         # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
         # PAK sees this border as stable (it's the border of Azad Kashmir as PAK claims it)
         # IND does not see this as stable (IND claims Azad Kashmir)
         # NPL, RUS, UKR see this as disputed
-        self.assertTrue(stable_for("PAK").Contains(make_point(2.9, 2)))
-        self.assertFalse(stable_for("IND").Contains(make_point(2.9, 2)))
-        self.assertTrue(disputed_for("NPL").Contains(make_point(2.9, 2)))
+        self.assertTrue(self.stable_for("PAK").Contains(make_point(2.9, 2)))
+        self.assertFalse(self.stable_for("IND").Contains(make_point(2.9, 2)))
+        self.assertTrue(self.disputed_for("NPL").Contains(make_point(2.9, 2)))
 
         # A point along the border of fake Azad Kashmir and fake Islamabad
         # IND sees this border as stable (it's the border of J&K as IND claims it)
         # PAK does not see this as stable (PAK claims Azad Kashmir)
         # NPL, RUS, UKR see this as disputed
-        self.assertTrue(stable_for("IND").Contains(make_point(2, 3)))
-        self.assertFalse(stable_for("PAK").Contains(make_point(2, 3)))
-        self.assertTrue(disputed_for("RUS").Contains(make_point(2, 3)))
+        self.assertTrue(self.stable_for("IND").Contains(make_point(2, 3)))
+        self.assertFalse(self.stable_for("PAK").Contains(make_point(2, 3)))
+        self.assertTrue(self.disputed_for("RUS").Contains(make_point(2, 3)))
 
         # A point along the fake Line Of Control
         # Neither IND nor PAK sees this as stable (it's the contested LoC)
         # NPL, RUS, UKR see this as disputed
-        self.assertFalse(stable_for("IND").Contains(make_point(2.5, 2.5)))
-        self.assertFalse(stable_for("PAK").Contains(make_point(2.5, 2.5)))
-        self.assertTrue(disputed_for("UKR").Contains(make_point(2.5, 2.5)))
-
-        # A point along the border of fake Crimea and fake Russia
-        # UKR sees this as stable (it's the border of Crimea as UKR claims it)
-        # RUS does not see this as stable (RUS claims Crimea)
-        # CHN, IND, NPL, PAK see this as disputed
-        self.assertTrue(stable_for("UKR").Contains(make_point(-2, 2)))
-        self.assertFalse(stable_for("RUS").Contains(make_point(-2, 2)))
-        self.assertTrue(disputed_for("CHN").Contains(make_point(-2, 2)))
-
-        # A point along the border of fake Crimea and fake Ukraine
-        # RUS sees this as stable (it's the border of Crimea as RUS claims it)
-        # UKR does not see this as stable (UKR claims Crimea)
-        # CHN, IND, NPL, PAK see this as disputed
-        self.assertTrue(stable_for("RUS").Contains(make_point(-3, 1)))
-        self.assertFalse(stable_for("UKR").Contains(make_point(-3, 1)))
-        self.assertTrue(disputed_for("IND").Contains(make_point(-3, 1)))
+        self.assertFalse(self.stable_for("IND").Contains(make_point(2.5, 2.5)))
+        self.assertFalse(self.stable_for("PAK").Contains(make_point(2.5, 2.5)))
+        self.assertTrue(self.disputed_for("UKR").Contains(make_point(2.5, 2.5)))
 
         # A point along the border of fake Jammu/Kashmir and fake Aksai Chin
         # CHN sees this as stable (it's the border of Aksai Chin as CHN claims it)
         # IND does not see this as stable (IND claims Aksai Chin)
         # RUS, UKR see this as disputed
-        self.assertTrue(stable_for("CHN").Contains(make_point(3, 2.1)))
-        self.assertFalse(stable_for("IND").Contains(make_point(3, 2.1)))
-        self.assertTrue(disputed_for("RUS").Contains(make_point(3, 2.1)))
+        self.assertTrue(self.stable_for("CHN").Contains(make_point(3, 2.1)))
+        self.assertFalse(self.stable_for("IND").Contains(make_point(3, 2.1)))
+        self.assertTrue(self.disputed_for("RUS").Contains(make_point(3, 2.1)))
 
         # A point along the border of fake India and fake Aksai Chin
         # CHN sees this as stable (it's the southern border of Aksai Chin as CHN claims it)
         # IND does not see this as stable (IND claims Aksai Chin)
         # RUS, UKR see this as disputed
-        self.assertTrue(stable_for("CHN").Contains(make_point(3.1, 2)))
-        self.assertFalse(stable_for("IND").Contains(make_point(3.1, 2)))
-        self.assertTrue(disputed_for("UKR").Contains(make_point(3.1, 2)))
+        self.assertTrue(self.stable_for("CHN").Contains(make_point(3.1, 2)))
+        self.assertFalse(self.stable_for("IND").Contains(make_point(3.1, 2)))
+        self.assertTrue(self.disputed_for("UKR").Contains(make_point(3.1, 2)))
 
         # A point along the border of fake Pakistan and fake China (Trans-Karakoram area)
         # All parties agree on CHN-PAK border here: stable for CHN, PAK, IND, NPL, RUS, UKR
         # No one sees it as disputed
-        self.assertTrue(stable_for("CHN").Contains(make_point(3, 3.2)))
-        self.assertTrue(stable_for("PAK").Contains(make_point(3, 3.2)))
-        self.assertTrue(stable_for("IND").Contains(make_point(3, 3.2)))
-        self.assertTrue(stable_for("NPL").Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed_for("CHN").Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed_for("PAK").Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed_for("IND").Contains(make_point(3, 3.2)))
-        self.assertFalse(disputed_for("NPL").Contains(make_point(3, 3.2)))
+        self.assertTrue(self.stable_for("CHN").Contains(make_point(3, 3.2)))
+        self.assertTrue(self.stable_for("PAK").Contains(make_point(3, 3.2)))
+        self.assertTrue(self.stable_for("IND").Contains(make_point(3, 3.2)))
+        self.assertTrue(self.stable_for("NPL").Contains(make_point(3, 3.2)))
+        self.assertFalse(self.disputed_for("CHN").Contains(make_point(3, 3.2)))
+        self.assertFalse(self.disputed_for("PAK").Contains(make_point(3, 3.2)))
+        self.assertFalse(self.disputed_for("IND").Contains(make_point(3, 3.2)))
+        self.assertFalse(self.disputed_for("NPL").Contains(make_point(3, 3.2)))
 
         # A point along the fake Trans-Karakoram Tract border
         # CHN and PAK agree it's their border: stable for CHN, PAK
         # IND sees the IND-PAK border here (where PAK-held territory meets IND-claimed territory): stable for IND
         # RUS/UKR/NPL see this as disputed (counterintuitive: they don't recognize India up here)
-        self.assertTrue(stable_for("CHN").Contains(make_point(3, 3.7)))
-        self.assertTrue(stable_for("PAK").Contains(make_point(3, 3.7)))
-        self.assertTrue(stable_for("IND").Contains(make_point(3, 3.7)))
-        self.assertTrue(disputed_for("RUS").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
-        self.assertTrue(disputed_for("UKR").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
-        self.assertTrue(disputed_for("NPL").Contains(make_point(3, 3.7)), "Counterintuitive because NPL doesn't see India up here")
+        self.assertTrue(self.stable_for("CHN").Contains(make_point(3, 3.7)))
+        self.assertTrue(self.stable_for("PAK").Contains(make_point(3, 3.7)))
+        self.assertTrue(self.stable_for("IND").Contains(make_point(3, 3.7)))
+        self.assertTrue(self.disputed_for("RUS").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+        self.assertTrue(self.disputed_for("UKR").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
+        self.assertTrue(self.disputed_for("NPL").Contains(make_point(3, 3.7)), "Counterintuitive because NPL doesn't see India up here")
+
+    def test_boundaries_ukr_rus(self):
+        # A point along the border of fake Crimea and fake Russia
+        # UKR sees this as stable (it's the border of Crimea as UKR claims it)
+        # RUS does not see this as stable (RUS claims Crimea)
+        # CHN, IND, NPL, PAK see this as disputed
+        self.assertTrue(self.stable_for("UKR").Contains(make_point(-2, 2)))
+        self.assertFalse(self.stable_for("RUS").Contains(make_point(-2, 2)))
+        self.assertTrue(self.disputed_for("CHN").Contains(make_point(-2, 2)))
+
+        # A point along the border of fake Crimea and fake Ukraine
+        # RUS sees this as stable (it's the border of Crimea as RUS claims it)
+        # UKR does not see this as stable (UKR claims Crimea)
+        # CHN, IND, NPL, PAK see this as disputed
+        self.assertTrue(self.stable_for("RUS").Contains(make_point(-3, 1)))
+        self.assertFalse(self.stable_for("UKR").Contains(make_point(-3, 1)))
+        self.assertTrue(self.disputed_for("IND").Contains(make_point(-3, 1)))
+
+    def test_boundaries_esp_fra(self):
+        # A point along the bottom edge of the condominium polygon, bordering ESP/FRA mainland
+        # All observers agree the condominium border is stable — nobody disputes it
+        self.assertTrue(self.stable_for("ESP").Contains(make_point(-2.5, 5)))
+        self.assertTrue(self.stable_for("FRA").Contains(make_point(-2.5, 5)))
+        self.assertTrue(self.stable_for("CHN").Contains(make_point(-2.5, 5)))
+        self.assertFalse(self.disputed_for("ESP").Contains(make_point(-2.5, 5)))
+        self.assertFalse(self.disputed_for("FRA").Contains(make_point(-2.5, 5)))
+        self.assertFalse(self.disputed_for("CHN").Contains(make_point(-2.5, 5)))
+
+    def test_claims_esp_fra(self):
+        with open(os.path.join(TestCase.tempdir, CLAIMS_NAME)) as f:
+            f.readline()
+            claimant_strings = [row[0] for row in csv.reader(f)]
+        # The condominium region must appear as a joint-owner claim
+        joint_owner_rows = [c for c in claimant_strings if "ESP-FRA:" in c]
+        self.assertGreater(len(joint_owner_rows), 0, "Expected ESP-FRA joint-owner token in claims")
 
     def test_claims(self):
         validate_claims(TestCase.config, os.path.join(TestCase.tempdir, CLAIMS_NAME))
@@ -263,12 +292,12 @@ def validate_claims(configs, claims_path):
             neutral_povs = all_povs - local_povs
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(f"{test_iso3a}:(\w\w\w;)*({'|'.join(neutral_povs)})", claimants)
+                if re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*({'|'.join(neutral_povs)})[\s$]", claimants)
             ]
         else:
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(f"{test_iso3a}:(\w\w\w;)*{test_iso3b}", claimants)
+                if re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*{test_iso3b}[\s$]", claimants)
             ]
 
         if not matching_claims:
@@ -463,8 +492,8 @@ def write_country_boundaries(dirname, configs):
             if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
                 continue
             boundary = Boundary(
-                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)],
-                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row2.claimants)],
                 clean_linestring(row1.geometry.intersection(row2.geometry)),
             )
             stable_believers, disputed_believers, non_believers = set(), set(), set()
@@ -475,10 +504,14 @@ def write_country_boundaries(dirname, configs):
                 for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
                     common_observers = observers_a & observers_b
                     if iso3a == iso3b:
-                        common_observers.remove(iso3a)
-                        non_believers.add(iso3a)
-                        if common_observers:
-                            disputed_believers |= common_observers
+                        if D0 in iso3a:
+                            # Joint-owner condominium: all observers agree on this border
+                            stable_believers |= common_observers
+                        else:
+                            common_observers.remove(iso3a)
+                            non_believers.add(iso3a)
+                            if common_observers:
+                                disputed_believers |= common_observers
                     else:
                         if iso3a in common_observers:
                             common_observers.remove(iso3a)
@@ -561,7 +594,18 @@ def write_country_claims(dirname, configs) -> str:
         rows = csv.DictWriter(file, ("claimants", "geometry"))
         rows.writeheader()
         for claim in all_claims:
-            row = dict(claimants=" ".join(f"{iso3}{D1}{D2.join(sorted(perspectives))}" for iso3, perspectives in claim.coalesced().claimants))
+            coalesced = claim.coalesced()
+            # Group claimants that share an identical observer set into joint-owner tokens
+            groups: dict[frozenset[str], list[str]] = {}
+            for iso3, perspectives in coalesced.claimants:
+                key = frozenset(perspectives)
+                groups.setdefault(key, []).append(iso3)
+            tokens = []
+            for key, iso3s in sorted(groups.items(), key=lambda kv: kv[1]):
+                owner = D0.join(sorted(iso3s))
+                observers = D2.join(sorted(key))
+                tokens.append(f"{owner}{D1}{observers}")
+            row = dict(claimants=" ".join(tokens))
             print("Writing claim polygon", row, file=sys.stderr)
             rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
 

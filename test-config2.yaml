@@ -10,3 +10,17 @@ IND:
 NPL:
   base:
     - [plus, relation, "fake-NPL"]
+
+ESP:
+  base:
+    - [plus, relation, "fake-ESP"]
+  interior-points:
+    base:
+      - [-2.3, 5.5] # fake-Pheasant-Island
+
+FRA:
+  base:
+    - [plus, relation, "fake-FRA"]
+  interior-points:
+    base:
+      - [-2.7, 5.5] # fake-Pheasant-Island
