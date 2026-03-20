@@ -84,48 +84,49 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
     else:
         assert pull_request is not None and pr_sha is not None and pr_number is not None and clone_url is not None
 
-    # Clone repository
-    err3, clone_dir = clone_repository(clone_url, github_token, on_failure)
-    if err3:
-        return err3
-    else:
-        assert clone_dir is not None
+    with tempfile.TemporaryDirectory(prefix='processor-') as execution_dir:
+        # Clone repository
+        err3, clone_dir = clone_repository(clone_url, github_token, execution_dir, on_failure)
+        if err3:
+            return err3
+        else:
+            assert clone_dir is not None
 
-    # Checkout PR HEAD
-    err4, _ = checkout_pr_head(clone_dir, pr_sha, pr_number, on_failure)
-    if err4:
-        return err4
+        # Checkout PR HEAD
+        err4, _ = checkout_pr_head(clone_dir, pr_sha, pr_number, on_failure)
+        if err4:
+            return err4
 
-    # Find changed config files
-    err5, changed_configs = find_changed_configs(pull_request, clone_dir, on_failure)
-    if err5:
-        return err5
-    else:
-        assert changed_configs is not None
+        # Find changed config files
+        err5, changed_configs = find_changed_configs(pull_request, clone_dir, on_failure)
+        if err5:
+            return err5
+        else:
+            assert changed_configs is not None
 
-    logging.info(f"check Fresh OSM files: {check_fresh_osm}")
+        logging.info(f"check Fresh OSM files: {check_fresh_osm}")
 
-    # Run the script
-    err6 = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
-    if err6:
-        return err6
+        # Run the script
+        err6 = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
+        if err6:
+            return err6
 
-    s3_client = boto3.client('s3')
+        s3_client = boto3.client('s3')
 
-    # Generate tiles on first run (when checkFreshOSM is not set)
-    if not check_fresh_osm:
-        err7 = convert_csvs_to_geojson(clone_dir, on_failure)
-        if err7:
-            return err7
-        err8 = generate_tiles(s3_client, destination, clone_dir, on_failure)
-        if err8:
-            return err8
-        err9 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
-        if err9:
-            return err9
-        err10 = update_status_html(s3_client, destination, clone_dir, on_failure)
-        if err10:
-            return err10
+        # Generate tiles on first run (when checkFreshOSM is not set)
+        if not check_fresh_osm:
+            err7 = convert_csvs_to_geojson(clone_dir, on_failure)
+            if err7:
+                return err7
+            err8 = generate_tiles(s3_client, destination, clone_dir, on_failure)
+            if err8:
+                return err8
+            err9 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
+            if err9:
+                return err9
+            err10 = update_status_html(s3_client, destination, clone_dir, on_failure)
+            if err10:
+                return err10
 
     # Success!
     success_response = {
@@ -193,12 +194,12 @@ def extract_pr_information(event: dict[str, typing.Any], on_failure: FailCallabl
         return error_response, (None, None, None, None)
 
 
-def clone_repository(clone_url: str, github_token: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
+def clone_repository(clone_url: str, github_token: str, execution_dir: str, on_failure: FailCallable) -> tuple[dict[str, typing.Any]|None, str|None]:
     """ Clone repository to temp """
     try:
         parsed_url = urllib.parse.urlparse(clone_url)
         repo_url = urllib.parse.urlunparse((parsed_url.scheme, f'{github_token}@github.com', *parsed_url[2:]))
-        clone_dir = tempfile.mkdtemp(dir='/tmp', prefix='repo-')
+        clone_dir = tempfile.mkdtemp(dir=execution_dir, prefix='repo-')
 
         # Clean up any previous clone
         subprocess.run(['rm', '-rf', clone_dir], check=False)
@@ -435,34 +436,32 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
             return None
 
         output_path = os.path.join(clone_dir, 'preview.pmtiles')
-        data_dir = tempfile.mkdtemp(dir='/tmp', prefix='data-')
-        os.makedirs(data_dir, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=clone_dir, prefix='data-') as data_dir:
+            # /var/data is read-only at Lambda runtime; copy GPKG to temp so SQLite can write sidecar files
+            bundled_landcover = '/var/data/daylight-landcover.gpkg'
+            landcover_file = f'{data_dir}/daylight-landcover.gpkg'
+            if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
+                shutil.copy2(bundled_landcover, landcover_file)
 
-        # /var/data is read-only at Lambda runtime; copy GPKG to temp so SQLite can write sidecar files
-        bundled_landcover = '/var/data/daylight-landcover.gpkg'
-        landcover_file = f'{data_dir}/daylight-landcover.gpkg'
-        if os.path.exists(bundled_landcover) and not os.path.exists(landcover_file):
-            shutil.copy2(bundled_landcover, landcover_file)
-
-        cmd = [
-            'java', '-jar', '/var/task/tiles.jar',
-            f'--data={data_dir}',
-            f'--tmpdir={data_dir}/tmp',
-            f'--output={output_path}',
-            f'--landcover_path={landcover_file}',
-            '--download',
-            '--force',
-            '--maxzoom', '7',
-        ]
-        if os.path.exists(areas_geojson):
-            cmd.append(f'--areas={areas_geojson}')
-        if os.path.exists(boundaries_geojson):
-            cmd.append(f'--boundaries={boundaries_geojson}')
-        if os.path.exists(points_geojson):
-            cmd.append(f'--points={points_geojson}')
-        logging.info(f"Running tile generation: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        logging.info(f"Tile generation output: {result.stdout}")
+            cmd = [
+                'java', '-jar', '/var/task/tiles.jar',
+                f'--data={data_dir}',
+                f'--tmpdir={data_dir}/tmp',
+                f'--output={output_path}',
+                f'--landcover_path={landcover_file}',
+                '--download',
+                '--force',
+                '--maxzoom', '7',
+            ]
+            if os.path.exists(areas_geojson):
+                cmd.append(f'--areas={areas_geojson}')
+            if os.path.exists(boundaries_geojson):
+                cmd.append(f'--boundaries={boundaries_geojson}')
+            if os.path.exists(points_geojson):
+                cmd.append(f'--points={points_geojson}')
+            logging.info(f"Running tile generation: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            logging.info(f"Tile generation output: {result.stdout}")
 
         if s3_client is None or destination is None:
             logging.info(f"Skipping S3 upload; preview.pmtiles written to {output_path}")
