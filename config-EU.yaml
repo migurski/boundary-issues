@@ -29,6 +29,8 @@ DEU:
   perspectives:
     DEU:
       - [plus, relation, 51477] # Re-add Ems estuary
+    LUX:
+      - [minus, relation, 2171347] # Subtract Luxembourg overlap along Our River
   interior-points:
     base:
       - [13.395, 52.517] # Berlin
@@ -38,6 +40,9 @@ DEU:
 ITA:
   base:
     - [plus, relation, 365331] # Italy
+  perspectives:
+    FRA:
+      - [minus, relation, 2202162] # Subtract south side of Mont Blanc
   interior-points:
     base:
       - [12.482, 41.893] # Rome
@@ -47,6 +52,9 @@ LUX:
   base:
     - [plus, relation, 2171347] # Luxembourg
     - [minus, relation, 51477] # Subtract German overlap along Our River
+  perspectives:
+    LUX:
+        - [plus, relation, 2171347] # Re-add German overlap along Our River
   interior-points:
     base:
       - [6.129, 49.611] # Luxembourg
@@ -54,6 +62,9 @@ NLD:
   base:
     - [plus, relation, 2323309] # Netherlands
     - [minus, relation, 52411] # Subtract Belgium's exclaves in Baarle
+  perspectives:
+    DEU:
+      - [minus, relation, 51477] # Subtract Ems estuary
   interior-points:
     base:
       - [4.892, 52.373] # Amsterdam
