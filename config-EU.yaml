@@ -14,16 +14,15 @@ FRA:
   base:
     - [plus, relation, 2202162] # France
     - [minus, relation, 365331] # Subtract south side of Mont Blanc, a part of Italy base
-    - [minus, relation, 1311341] # Subtract Pheasant Island on the Bidasoa, a part of Spain base
   perspectives:
     FRA:
-      - [plus, relation, 2202162] # Re-add Mont Blanc and Pheasant Island
+      - [plus, relation, 2202162] # Re-add Mont Blanc
   interior-points:
     base:
       - [2.348, 48.853] # Paris
     FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face
-      - [-1.7654780, 43.3428038] # Pheasant Island on the Bidasoa
+      - [-1.764589, 43.343075] # Pheasant Island on the Bidasoa
 DEU:
   base:
     - [plus, relation, 51477] # Germany
@@ -106,11 +105,8 @@ PRT:
 ESP:
   base:
     - [plus, relation, 1311341] # Spain
-  perspectives:
-    FRA:
-      - [minus, relation, 2202162] # Subtract Pheasant Island on the Bidasoa
   interior-points:
     base:
       - [-3.703, 40.416] # Madrid
     ESP:
-      - [-1.7654780, 43.3428038] # Pheasant Island on the Bidasoa
+      - [-1.766388, 43.342600] # Pheasant Island on the Bidasoa
