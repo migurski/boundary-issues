@@ -13,12 +13,10 @@ BEL:
 FRA:
   base:
     - [plus, relation, 2202162] # France
-    - [minus, relation, 365331] # Subtract piece of Italy on south side of Mont Blanc
   interior-points:
     base:
       - [2.348, 48.853] # Paris
-  exterior-points:
-    base:
+    FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face
 DEU:
   base:
@@ -34,6 +32,7 @@ ITA:
   interior-points:
     base:
       - [12.482, 41.893] # Rome
+    ITA:
       - [6.867267, 45.830445] # Mont Blanc southern face
 LUX:
   base:
