@@ -21,11 +21,11 @@ FRA:
 DEU:
   base:
     - [plus, relation, 51477] # Germany
-    - [minus, relation, 2323309] # Subtract German overlap east of Groningen
   interior-points:
     base:
       - [13.395, 52.517] # Berlin
       - [6.247462, 50.597583] # Rückschlag, an exclave in Belgium
+      - [6.93501, 53.37087] # Ems estuary
 ITA:
   base:
     - [plus, relation, 365331] # Italy
@@ -49,3 +49,4 @@ NLD:
     base:
       - [4.892, 52.373] # Amsterdam
       - [4.930486, 51.444901] # Baarle-Nassau, near an exclave of Belgium
+      - [6.93501, 53.37087] # Ems estuary
