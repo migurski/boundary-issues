@@ -169,6 +169,9 @@ POL:
 SVN:
   base:
     - [plus, relation, 218657] # Slovenia includes Gulf of Piran
+  perspectives:
+    HRV:
+    - [minus, relation, 214885] # Subtract Gulf of Piran
   interior-points:
     base:
       - [14.506, 46.050] # Ljubljana
