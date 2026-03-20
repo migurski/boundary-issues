@@ -35,7 +35,10 @@ CLAIMS_NAME = "country-claims.csv"
 AREAS_NAME = "country-areas.csv"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
-D1, D2 = ":", ";"
+
+D0 = "-"  # owner-owner
+D1 = ":"  # owners:observers
+D2 = ";"  # observer;observer
 
 CLAIMANT = tuple[str, set[str]]
 
@@ -310,12 +313,12 @@ def validate_claims(configs, claims_path):
             neutral_povs = all_povs - local_povs
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(rf"(?<![A-Z]){test_iso3a}(?:-\w\w\w)*:(\w\w\w;)*({'|'.join(neutral_povs)})", claimants)
+                if re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*({'|'.join(neutral_povs)})[\s$]", claimants)
             ]
         else:
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(rf"(?<![A-Z]){test_iso3a}(?:-\w\w\w)*:(\w\w\w;)*{test_iso3b}", claimants)
+                if re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*{test_iso3b}[\s$]", claimants)
             ]
 
         if not matching_claims:
@@ -510,8 +513,8 @@ def write_country_boundaries(dirname, configs):
             if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
                 continue
             boundary = Boundary(
-                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w(?:-\w\w\w)*):(\w\w\w(?:;\w\w\w)*)\b", row1.claimants)],
-                [(a, set(b.split(D2))) for a, b in re.findall(r"\b(\w\w\w(?:-\w\w\w)*):(\w\w\w(?:;\w\w\w)*)\b", row2.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
+                [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row2.claimants)],
                 clean_linestring(row1.geometry.intersection(row2.geometry)),
             )
             stable_believers, disputed_believers, non_believers = set(), set(), set()
@@ -522,7 +525,7 @@ def write_country_boundaries(dirname, configs):
                 for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
                     common_observers = observers_a & observers_b
                     if iso3a == iso3b:
-                        if "-" in iso3a:
+                        if D0 in iso3a:
                             # Joint-owner condominium: all observers agree on this border
                             stable_believers |= common_observers
                         else:
@@ -620,7 +623,7 @@ def write_country_claims(dirname, configs) -> str:
                 groups.setdefault(key, []).append(iso3)
             tokens = []
             for key, iso3s in sorted(groups.items(), key=lambda kv: kv[1]):
-                owner = "-".join(sorted(iso3s))
+                owner = D0.join(sorted(iso3s))
                 observers = D2.join(sorted(key))
                 tokens.append(f"{owner}{D1}{observers}")
             row = dict(claimants=" ".join(tokens))
