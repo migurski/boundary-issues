@@ -25,6 +25,7 @@ DEU:
     base:
       - [13.395, 52.517] # Berlin
       - [6.247462, 50.597583] # Rückschlag, an exclave in Belgium
+    DEU:
       - [6.93501, 53.37087] # Ems estuary
 ITA:
   base:
@@ -49,4 +50,5 @@ NLD:
     base:
       - [4.892, 52.373] # Amsterdam
       - [4.930486, 51.444901] # Baarle-Nassau, near an exclave of Belgium
+    NLD:
       - [6.93501, 53.37087] # Ems estuary
