@@ -13,6 +13,10 @@ BEL:
 FRA:
   base:
     - [plus, relation, 2202162] # France
+    - [minus, relation, 365331] # Subtract piece of Italy on south side of Mont Blanc, a part of Italy base
+  perspectives:
+    FRA:
+      - [plus, relation, 2202162] # Re-add that south side of Mont Blanc
   interior-points:
     base:
       - [2.348, 48.853] # Paris
@@ -21,6 +25,10 @@ FRA:
 DEU:
   base:
     - [plus, relation, 51477] # Germany
+    - [minus, relation, 2323309] # Subtract Ems estuary, a part of Netherlands base
+  perspectives:
+    DEU:
+      - [plus, relation, 51477] # Re-add Ems estuary
   interior-points:
     base:
       - [13.395, 52.517] # Berlin
