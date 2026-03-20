@@ -133,6 +133,7 @@ CZE:
 EST:
   base:
     - [plus, relation, 79510] # Estonia
+    - [minus, relation, 60189] # Subtract a tiny sliver of Russia base view
   interior-points:
     base:
       - [24.757, 59.437] # Tallinn
@@ -163,6 +164,7 @@ MLT:
 POL:
   base:
     - [plus, relation, 49715] # Poland
+    - [minus, relation, 60199] # Subtract a tiny sliver of Ukraine base view
   interior-points:
     base:
       - [21.006, 52.231] # Warsaw
@@ -194,6 +196,7 @@ BGR:
 ROU:
   base:
     - [plus, relation, 90689] # Romania
+    - [minus, relation, 60199] # Subtract a tiny sliver of Ukraine base view
   interior-points:
     base:
       - [26.102, 44.436] # Bucharest
