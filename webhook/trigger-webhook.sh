@@ -1,8 +1,21 @@
 #!/bin/bash
 set -e
 
-# Lambda function URL - update this when redeploying
-LAMBDA_URL="https://a7k64ccuvmrw2flfvwa55ydviy0utlrl.lambda-url.us-west-2.on.aws/"
+# Configuration
+REGION="us-west-2"
+WEBHOOK_STACK_NAME="boundary-issues-webhook"
+
+# Get Lambda function URL from CloudFormation stack outputs
+LAMBDA_URL=$(aws cloudformation describe-stacks \
+    --stack-name "$WEBHOOK_STACK_NAME" \
+    --region "$REGION" \
+    --query 'Stacks[0].Outputs[?OutputKey==`WebhookUrl`].OutputValue' \
+    --output text)
+
+if [ -z "$LAMBDA_URL" ]; then
+    echo "ERROR: Could not retrieve WebhookUrl from stack $WEBHOOK_STACK_NAME" >&2
+    exit 1
+fi
 
 # Read payload from stdin or file
 if [ -n "$1" ]; then
