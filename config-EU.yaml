@@ -96,3 +96,121 @@ ESP:
     base:
       - [-3.703, 40.416] # Madrid
       - [-1.766388, 43.342600] # Pheasant Island on the Bidasoa
+
+# Accession: 1995
+AUT:
+  base:
+    - [plus, relation, 16239] # Austria
+  interior-points:
+    base:
+      - [16.372, 48.208] # Vienna
+FIN:
+  base:
+    - [plus, relation, 54224] # Finland
+  interior-points:
+    base:
+      - [24.943, 60.166] # Helsinki
+SWE:
+  base:
+    - [plus, relation, 52822] # Sweden
+  interior-points:
+    base:
+      - [18.071, 59.325] # Stockholm
+
+# Accession: 2004
+CYP:
+  base:
+    - [plus, relation, 307787] # Cyprus
+  interior-points:
+    base:
+      - [33.3638783, 35.1746503] # Nicosia
+CZE:
+  base:
+    - [plus, relation, 51684] # Czechia
+  interior-points:
+    base:
+      - [14.421, 50.087] # Prague
+EST:
+  base:
+    - [plus, relation, 79510] # Estonia
+    - [minus, relation, 60189] # Subtract a tiny sliver of Russia base view
+  interior-points:
+    base:
+      - [24.757, 59.437] # Tallinn
+HUN:
+  base:
+    - [plus, relation, 21335] # Hungary
+  interior-points:
+    base:
+      - [19.040, 47.497] # Budapest
+LVA:
+  base:
+    - [plus, relation, 72594] # Latvia
+  interior-points:
+    base:
+      - [24.105, 56.949] # Riga
+LTU:
+  base:
+    - [plus, relation, 72596] # Lithuania
+  interior-points:
+    base:
+      - [25.282, 54.687] # Vilnius
+MLT:
+  base:
+    - [plus, relation, 365307] # Malta
+  interior-points:
+    base:
+      - [14.513, 35.898] # Valletta
+POL:
+  base:
+    - [plus, relation, 49715] # Poland
+    - [minus, relation, 60199] # Subtract a tiny sliver of Ukraine base view
+  interior-points:
+    base:
+      - [21.006, 52.231] # Warsaw
+SVN:
+  base:
+    - [plus, relation, 218657] # Slovenia includes Gulf of Piran
+  perspectives:
+    HRV:
+    - [minus, relation, 214885] # Subtract Gulf of Piran
+  interior-points:
+    base:
+      - [14.506, 46.050] # Ljubljana
+    SVN:
+      - [13.45861, 45.55971] # Gulf of Piran
+SVK:
+  base:
+    - [plus, relation, 14296] # Slovakia
+  interior-points:
+    base:
+      - [17.109, 48.151] # Bratislava
+
+# Accession: 2007
+BGR:
+  base:
+    - [plus, relation, 186382] # Bulgaria
+  interior-points:
+    base:
+      - [23.321, 42.697] # Sofia
+ROU:
+  base:
+    - [plus, relation, 90689] # Romania
+    - [minus, relation, 60199] # Subtract a tiny sliver of Ukraine base view
+  interior-points:
+    base:
+      - [26.102, 44.436] # Bucharest
+
+# Accession: 2013
+HRV:
+  base:
+    - [plus, relation, 214885] # Croatia
+    - [minus, relation, 218657] # Subtract Gulf of Piran, a part of Slovenia base
+  perspectives:
+    HRV:
+      - [plus, relation, 214885] # Re-add Gulf of Piran
+  interior-points:
+    base:
+      - [15.977, 45.813] # Zagreb
+    HRV:
+      - [13.45861, 45.55971] # Gulf of Piran

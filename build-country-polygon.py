@@ -404,7 +404,7 @@ def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.
 
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
-    for delay in (15, 60, None):
+    for delay in (10, 20, None):
         newly_downloaded = False
         try:
             if check_fresh_osm or not os.path.exists(local_path):
@@ -412,13 +412,14 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.og
                 with gzip.open(local_path, "wb", compresslevel=9) as file:
                     url = f"https://api.openstreetmap.org/api/0.6/{el_type}/{osm_id}/full"
                     print("Downloading", url, file=sys.stderr)
+                    time.sleep(5)
                     file.write(urllib.request.urlopen(url).read())
                     newly_downloaded = True
             ds = osgeo.ogr.Open(f"/vsigzip/{local_path}")
             lyr = ds.GetLayer("multipolygons")
             geometries = [feat.GetGeometryRef().Clone() for feat in lyr]
         except Exception:
-            if newly_downloaded and delay is not None:
+            if (newly_downloaded or check_fresh_osm) and delay is not None:
                 print("Must retry", url, file=sys.stderr)
                 time.sleep(delay)
             else:
@@ -489,7 +490,8 @@ def write_country_boundaries(dirname, configs):
         rows.writeheader()
         for i1, i2 in sorted(index_pairings):
             row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
-            if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
+            if not row1.geometry.relate_pattern(row2.geometry, 'F*2*1*2*2'):
+                # No overlap, including touching at a point
                 continue
             boundary = Boundary(
                 [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
@@ -549,7 +551,21 @@ def write_country_claims(dirname, configs) -> str:
             new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
-                relationship = new_claim.relationship(out_claim)
+                if new_claim.geometry.is_empty:
+                    # Stop if the new geometry has been completely eliminated
+                    break
+                elif out_claim.geometry.is_empty:
+                    # Move on to another one if the out geometry has been completely eliminated
+                    continue
+                try:
+                    relationship = new_claim.relationship(out_claim)
+                except ValueError:
+                    with open(os.path.join(dirname, "bad-relationship.csv"), "w") as file:
+                        rows = csv.DictWriter(file, ("claimants", "geometry"))
+                        rows.writeheader()
+                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_claim.geometry)})
+                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_claim.geometry)})
+                    raise
                 if relationship is Relationship.NO_OVERLAP:
                     # new_claim does not overlap out_claim
                     continue
