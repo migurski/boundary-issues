@@ -489,7 +489,8 @@ def write_country_boundaries(dirname, configs):
         rows.writeheader()
         for i1, i2 in sorted(index_pairings):
             row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
-            if not row1.geometry.relate_pattern(row2.geometry, 'FF2F11212'):
+            if not row1.geometry.relate_pattern(row2.geometry, 'F*2*1*2*2'):
+                # No overlap, including touching at a point
                 continue
             boundary = Boundary(
                 [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
