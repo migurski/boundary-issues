@@ -404,7 +404,7 @@ def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.
 
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
-    for delay in (15, 60, None):
+    for delay in (10, 20, None):
         newly_downloaded = False
         try:
             if check_fresh_osm or not os.path.exists(local_path):
@@ -412,6 +412,7 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.og
                 with gzip.open(local_path, "wb", compresslevel=9) as file:
                     url = f"https://api.openstreetmap.org/api/0.6/{el_type}/{osm_id}/full"
                     print("Downloading", url, file=sys.stderr)
+                    time.sleep(5)
                     file.write(urllib.request.urlopen(url).read())
                     newly_downloaded = True
             ds = osgeo.ogr.Open(f"/vsigzip/{local_path}")
