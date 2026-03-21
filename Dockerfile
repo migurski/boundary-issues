@@ -19,7 +19,7 @@ RUN apt-get update -y \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY webhook/tiles/ /build/
+COPY tiles/ /build/
 
 RUN mvn clean package -DskipTests
 
@@ -49,7 +49,7 @@ COPY --from=gpkgbuilder /tmp/daylight-landcover.gpkg /var/data/daylight-landcove
 COPY --from=jarbuilder /build/target/political-views-tiles-1.0.0-with-deps.jar /var/task/tiles.jar
 
 # Copy the processor handler
-COPY webhook/processor.py /var/task/processor.py
+COPY processor.py /var/task/processor.py
 
 # Default: run as standalone CLI (no S3 uploads)
 # Lambda overrides this via ImageConfig in CloudFormation
