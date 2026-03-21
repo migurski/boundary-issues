@@ -18,10 +18,11 @@ country reflecting different international viewpoints.
 Non-overlapping [MECE](https://en.wikipedia.org/wiki/MECE_principle) coverage showing
 assembled viewpoints for each unit of area.
 
-- `claimants`: space-delimited groupings of ISO3 codes and supporting observers
+- `claimants`: space-delimited groupings of owners and supporting observers
+  - Grouping format: dash-delimited list of owners, then a colon, then semicolon-delimited list of ISO3 supporters
   - `PRT:ESP;FRA;ITA;PRT` – Portugal's territorial extent supported by its neighbors
   - `ESP-FRA:ESP;FRA;ITA;PRT` – Spain/France jointly-administered condominium recognized by all
-  - `FRA:FRA ITA:ESP;ITA;PRT` – France and Italy’s respective territorial claims with respective supporters
+  - `FRA:FRA ITA:ESP;ITA;PRT` – France and Italy’s competing territorial claims with respective points of view
 - `geometry`: Polygon or MultiPolygon in WGS84 coordinates
 
 ### `country-boundaries`
