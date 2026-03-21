@@ -1,6 +1,11 @@
-name: Redeploy Webhook on Push
+name: Test and Deploy Webhook
 
 on:
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - 'webhook/**'
   push:
     branches:
       - migurski/deploy-webhook-action
@@ -10,7 +15,29 @@ on:
       - 'webhook/**'
 
 jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.9'
+
+      - name: Test code
+        run: |
+          pip install mypy ruff boto3
+          ruff check webhook/*.py
+          mypy --strict --config-file webhook/mypy.ini webhook/*.py
+          python -m unittest webhook/webhook.py -v
+          python -m unittest webhook/task.py -v
+          python -m unittest webhook/finish.py -v
+
   deploy-webhook:
+    needs: run-tests
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -22,7 +49,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Send pull request event to Lambda
+      - name: Deploy webhook to Lambda
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
