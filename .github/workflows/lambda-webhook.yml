@@ -4,9 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'build-country-polygon.py'
       - '*.yaml'
       - 'data/**'
+      - 'build-country-polygon.py'
+      - 'webhook/trigger-webhook.sh'
 
 jobs:
   trigger-webhook:
