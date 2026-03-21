@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")"
 
 # Configuration
-REGION="us-west-2"
+REGION="${AWS_DEFAULT_REGION:-us-west-2}"
 DOCKERFILE_DIR=".."
 ENV_FILE="../.env"
 
@@ -104,24 +104,23 @@ echo "PHASE 2: Update GitHub Token Secret"
 echo "========================================="
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: .env file not found at $ENV_FILE"
-    exit 1
-fi
+    echo "Skipping put-secret-value, .env file not found at $ENV_FILE"
+else
+    # Read GitHub token from .env file
+    GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' "$ENV_FILE" | cut -d= -f2)
+    if [ -z "$GITHUB_TOKEN" ]; then
+        echo "ERROR: GITHUB_TOKEN not found in $ENV_FILE"
+        exit 1
+    fi
 
-# Read GitHub token from .env file
-GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' "$ENV_FILE" | cut -d= -f2)
-if [ -z "$GITHUB_TOKEN" ]; then
-    echo "ERROR: GITHUB_TOKEN not found in $ENV_FILE"
-    exit 1
+    echo "Updating GitHub token in secret: $SECRET_NAME"
+    aws secretsmanager put-secret-value \
+        --secret-id "$SECRET_NAME" \
+        --secret-string "$GITHUB_TOKEN" \
+        --region "$REGION" \
+        --output text > /dev/null
+    echo "Secret updated successfully"
 fi
-
-echo "Updating GitHub token in secret: $SECRET_NAME"
-aws secretsmanager put-secret-value \
-    --secret-id "$SECRET_NAME" \
-    --secret-string "$GITHUB_TOKEN" \
-    --region "$REGION" \
-    --output text > /dev/null
-echo "Secret updated successfully"
 
 # ============================================================================
 # PHASE 3: Build and Push Docker Image
@@ -143,11 +142,20 @@ echo "Building Docker image..."
 echo "  Context: $DOCKERFILE_DIR"
 echo "  Platform: linux/arm64"
 echo "  Destination: ${ECR_REPO_URI}:${IMAGE_TAG}"
-docker build --platform linux/arm64 -t "${ECR_REPO_URI}:${IMAGE_TAG}" "$DOCKERFILE_DIR"
 
-# Push to ECR
-echo "Pushing Docker image to ECR..."
-docker push "${ECR_REPO_URI}:${IMAGE_TAG}"
+CACHE_FLAGS=""
+if [ "${GITHUB_ACTIONS}" = "true" ]; then
+    echo "  Cache: registry (GitHub Actions)"
+    CACHE_FLAGS="--cache-from type=registry,ref=${ECR_REPO_URI}:cache --cache-to type=registry,ref=${ECR_REPO_URI}:cache,mode=max"
+fi
+
+docker buildx build \
+    --platform linux/arm64 \
+    --provenance=false \
+    ${CACHE_FLAGS} \
+    --tag "${ECR_REPO_URI}:${IMAGE_TAG}" \
+    --push \
+    "$DOCKERFILE_DIR"
 
 # Get image digest for CloudFormation
 IMAGE_DIGEST=$(aws ecr describe-images \

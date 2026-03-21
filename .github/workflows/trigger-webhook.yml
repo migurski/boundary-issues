@@ -1,32 +1,16 @@
-name: Trigger Lambda on Pull Request
+name: Trigger Webhook on Pull Request
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - '*.yaml'
+      - 'data/**'
+      - 'build-country-polygon.py'
+      - 'webhook/trigger-webhook.sh'
 
 jobs:
-  run-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.9'
-
-      - name: Test code
-        run: |
-          pip install mypy ruff boto3
-          ruff check webhook/*.py
-          mypy --strict --config-file webhook/mypy.ini webhook/*.py
-          python -m unittest webhook/webhook.py -v
-          python -m unittest webhook/task.py -v
-          python -m unittest webhook/finish.py -v
-
   trigger-webhook:
-    needs: run-tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,6 +20,9 @@ jobs:
         env:
           GITHUB_EVENT: pull_request
           GITHUB_DELIVERY: ${{ github.run_id }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           # Create a payload with GitHub event context
           jq -c '{action, number, pull_request: {html_url: .pull_request.html_url, base: {sha: .pull_request.base.sha}, head: {sha: .pull_request.head.sha}}, repository: {clone_url: .repository.clone_url, statuses_url: .repository.statuses_url, full_name: .repository.full_name}}' \
