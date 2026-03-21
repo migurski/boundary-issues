@@ -1,4 +1,4 @@
-name: Redeploy Webhook Code on Push
+name: Redeploy Webhook on Push
 
 on:
   push:
