@@ -6,8 +6,8 @@ cd "$(dirname "$0")"
 
 # Configuration
 REGION="us-west-2"
-DOCKERFILE_DIR=".."
-ENV_FILE="../.env"
+DOCKERFILE_DIR="."
+ENV_FILE="./.env"
 
 BOOTSTRAP_STACK_NAME="boundary-issues-bootstrap"
 BOOTSTRAP_TEMPLATE_FILE="./bootstrap-template.yaml"

@@ -10,8 +10,6 @@ CMakeLists.txt
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
-Makefile
-Dockerfile
 build.sh
 
 # Build directories
