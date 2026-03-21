@@ -142,11 +142,17 @@ echo "Building Docker image..."
 echo "  Context: $DOCKERFILE_DIR"
 echo "  Platform: linux/arm64"
 echo "  Destination: ${ECR_REPO_URI}:${IMAGE_TAG}"
+
+CACHE_FLAGS=""
+if [ "${GITHUB_ACTIONS}" = "true" ]; then
+    echo "  Cache: registry (GitHub Actions)"
+    CACHE_FLAGS="--cache-from type=registry,ref=${ECR_REPO_URI}:cache --cache-to type=registry,ref=${ECR_REPO_URI}:cache,mode=max"
+fi
+
 docker buildx build \
     --platform linux/arm64 \
     --provenance=false \
-    --cache-from "type=registry,ref=${ECR_REPO_URI}:cache" \
-    --cache-to "type=registry,ref=${ECR_REPO_URI}:cache,mode=max" \
+    ${CACHE_FLAGS} \
     --tag "${ECR_REPO_URI}:${IMAGE_TAG}" \
     --push \
     "$DOCKERFILE_DIR"
