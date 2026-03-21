@@ -1,14 +1,14 @@
 name: Test and Deploy Webhook
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - 'webhook/**'
       - 'requirements.txt'
       - 'Dockerfile'
-  push:
-    branches:
-      - migurski/deploy-webhook-action
+  pull_request:
     paths:
       - 'webhook/**'
       - 'requirements.txt'
