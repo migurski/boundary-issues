@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-REGION="us-west-2"
+REGION="${AWS_DEFAULT_REGION:-us-west-2}"
 WEBHOOK_STACK_NAME="boundary-issues-webhook"
 
 # Get Lambda function URL from CloudFormation stack outputs

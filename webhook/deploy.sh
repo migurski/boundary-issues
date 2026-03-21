@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")"
 
 # Configuration
-REGION="us-west-2"
+REGION="${AWS_DEFAULT_REGION:-us-west-2}"
 DOCKERFILE_DIR=".."
 ENV_FILE="../.env"
 
