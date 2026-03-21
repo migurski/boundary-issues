@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - migurski/deploy-webhook-action
+    paths:
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - 'webhook/**'
 
 jobs:
   deploy-webhook:
