@@ -1,0 +1,40 @@
+PRT:
+  base:
+    - [plus, relation, 295480] # Portugal
+  interior-points:
+    base:
+      - [-9.136, 38.707] # Lisbon
+
+ESP:
+  base:
+    - [plus, relation, 1311341] # Spain
+  interior-points:
+    base:
+      - [-3.703, 40.416] # Madrid
+      - [-1.766388, 43.342600] # Pheasant Island on the Bidasoa
+
+FRA:
+  base:
+    - [plus, relation, 2202162] # France
+    - [minus, relation, 365331] # Subtract south side of Mont Blanc, a part of Italy base
+  perspectives:
+    FRA:
+      - [plus, relation, 2202162] # Re-add Mont Blanc
+  interior-points:
+    base:
+      - [2.348, 48.853] # Paris
+      - [-1.764589, 43.343075] # Pheasant Island on the Bidasoa
+    FRA:
+      - [6.867267, 45.830445] # Mont Blanc southern face
+
+ITA:
+  base:
+    - [plus, relation, 365331] # Italy
+  perspectives:
+    FRA:
+      - [minus, relation, 2202162] # Subtract south side of Mont Blanc
+  interior-points:
+    base:
+      - [12.482, 41.893] # Rome
+    ITA:
+      - [6.867267, 45.830445] # Mont Blanc southern face
