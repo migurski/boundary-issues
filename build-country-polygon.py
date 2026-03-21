@@ -418,7 +418,7 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.og
             lyr = ds.GetLayer("multipolygons")
             geometries = [feat.GetGeometryRef().Clone() for feat in lyr]
         except Exception:
-            if newly_downloaded and delay is not None:
+            if (newly_downloaded or check_fresh_osm) and delay is not None:
                 print("Must retry", url, file=sys.stderr)
                 time.sleep(delay)
             else:
