@@ -138,17 +138,14 @@ aws ecr get-login-password --region "$REGION" | \
 
 # Build Docker image for ARM64
 IMAGE_TAG="latest"
-echo "Pulling existing image for layer cache..."
-docker pull "${ECR_REPO_URI}:${IMAGE_TAG}" || true
-
 echo "Building Docker image..."
 echo "  Context: $DOCKERFILE_DIR"
 echo "  Platform: linux/arm64"
 echo "  Destination: ${ECR_REPO_URI}:${IMAGE_TAG}"
 docker buildx build \
     --platform linux/arm64 \
-    --cache-from "${ECR_REPO_URI}:${IMAGE_TAG}" \
-    --cache-to type=inline \
+    --cache-from "type=registry,ref=${ECR_REPO_URI}:cache" \
+    --cache-to "type=registry,ref=${ECR_REPO_URI}:cache,mode=max" \
     --tag "${ECR_REPO_URI}:${IMAGE_TAG}" \
     --push \
     "$DOCKERFILE_DIR"
