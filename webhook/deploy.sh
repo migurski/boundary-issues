@@ -138,15 +138,20 @@ aws ecr get-login-password --region "$REGION" | \
 
 # Build Docker image for ARM64
 IMAGE_TAG="latest"
+echo "Pulling existing image for layer cache..."
+docker pull "${ECR_REPO_URI}:${IMAGE_TAG}" || true
+
 echo "Building Docker image..."
 echo "  Context: $DOCKERFILE_DIR"
 echo "  Platform: linux/arm64"
 echo "  Destination: ${ECR_REPO_URI}:${IMAGE_TAG}"
-docker build --platform linux/arm64 -t "${ECR_REPO_URI}:${IMAGE_TAG}" "$DOCKERFILE_DIR"
-
-# Push to ECR
-echo "Pushing Docker image to ECR..."
-docker push "${ECR_REPO_URI}:${IMAGE_TAG}"
+docker buildx build \
+    --platform linux/arm64 \
+    --cache-from "${ECR_REPO_URI}:${IMAGE_TAG}" \
+    --cache-to type=inline \
+    --tag "${ECR_REPO_URI}:${IMAGE_TAG}" \
+    --push \
+    "$DOCKERFILE_DIR"
 
 # Get image digest for CloudFormation
 IMAGE_DIGEST=$(aws ecr describe-images \
