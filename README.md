@@ -2,6 +2,8 @@ About this repo: https://medium.com/@michalmigurski/weeknotes-2026w04-boundary-i
 
 ## Output Format
 
+Complete worked example from [`sample-EU.gpkg`](sample-EU.zip)
+
 Countries are referenced by their [three-letter ISO-8166 codes](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3).
 
 ### `country-areas`
