@@ -104,24 +104,23 @@ echo "PHASE 2: Update GitHub Token Secret"
 echo "========================================="
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: .env file not found at $ENV_FILE"
-    exit 1
-fi
+    echo "Skipping put-secret-value, .env file not found at $ENV_FILE"
+else
+    # Read GitHub token from .env file
+    GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' "$ENV_FILE" | cut -d= -f2)
+    if [ -z "$GITHUB_TOKEN" ]; then
+        echo "ERROR: GITHUB_TOKEN not found in $ENV_FILE"
+        exit 1
+    fi
 
-# Read GitHub token from .env file
-GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' "$ENV_FILE" | cut -d= -f2)
-if [ -z "$GITHUB_TOKEN" ]; then
-    echo "ERROR: GITHUB_TOKEN not found in $ENV_FILE"
-    exit 1
+    echo "Updating GitHub token in secret: $SECRET_NAME"
+    aws secretsmanager put-secret-value \
+        --secret-id "$SECRET_NAME" \
+        --secret-string "$GITHUB_TOKEN" \
+        --region "$REGION" \
+        --output text > /dev/null
+    echo "Secret updated successfully"
 fi
-
-echo "Updating GitHub token in secret: $SECRET_NAME"
-aws secretsmanager put-secret-value \
-    --secret-id "$SECRET_NAME" \
-    --secret-string "$GITHUB_TOKEN" \
-    --region "$REGION" \
-    --output text > /dev/null
-echo "Secret updated successfully"
 
 # ============================================================================
 # PHASE 3: Build and Push Docker Image
