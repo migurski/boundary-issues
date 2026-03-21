@@ -26,6 +26,9 @@ FRA:
       - [-1.764589, 43.343075] # Pheasant Island on the Bidasoa
     FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face
+  exterior-points:
+    ITA:
+      - [6.867267, 45.830445] # Mont Blanc southern face
 
 ITA:
   base:
@@ -37,4 +40,7 @@ ITA:
     base:
       - [12.482, 41.893] # Rome
     ITA:
+      - [6.867267, 45.830445] # Mont Blanc southern face
+  exterior-points:
+    FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face

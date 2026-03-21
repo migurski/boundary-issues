@@ -96,9 +96,12 @@ As a dispute, this area must be added and subtracted from each country’s point
 polygon. We also have to choose a base view for outside observers, so we go with NATO’s
 decision to use data from the Italian national mapping agency. The France base view has
 Italy subtracted from it, then added back at `perspectives` for the self-view. The Italy
-base view is untouched but has France subtracted from it for the France view. A test
-point within the area asserts each side’s point of view for testing. The resulting
-boundaries around Mont Blance are therefore marked as disputed.
+base view is untouched but has France subtracted from it for the France view.
+
+An interior test point within the area asserts each side’s point of view for testing,
+and `exterior-points` expressing interior (x, y) test points in WGS84 coordinates
+further assert each side’s mirroring alternative point of view. The resulting boundaries
+around Mont Blance are therefore marked as disputed.
 
 
 ```yaml
@@ -115,6 +118,9 @@ FRA:
       - [-1.764589, 43.343075] # Pheasant Island on the Bidasoa
     FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face
+  exterior-points:
+    ITA:
+      - [6.867267, 45.830445] # Mont Blanc southern face
 
 ITA:
   base:
@@ -126,6 +132,9 @@ ITA:
     base:
       - [12.482, 41.893] # Rome
     ITA:
+      - [6.867267, 45.830445] # Mont Blanc southern face
+  exterior-points:
+    FRA:
       - [6.867267, 45.830445] # Mont Blanc southern face
 ```
 
