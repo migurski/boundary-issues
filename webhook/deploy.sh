@@ -144,6 +144,7 @@ echo "  Platform: linux/arm64"
 echo "  Destination: ${ECR_REPO_URI}:${IMAGE_TAG}"
 docker buildx build \
     --platform linux/arm64 \
+    --provenance=false \
     --cache-from "type=registry,ref=${ECR_REPO_URI}:cache" \
     --cache-to "type=registry,ref=${ECR_REPO_URI}:cache,mode=max" \
     --tag "${ECR_REPO_URI}:${IMAGE_TAG}" \
