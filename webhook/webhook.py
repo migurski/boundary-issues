@@ -68,7 +68,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         logging.info(f"Starting state machine execution: {execution_name}")
 
         destination_prefix = f"s3://{os.environ.get('DATA_BUCKET')}/{context.aws_request_id[:8]}/"
-        wait_seconds = random.randint(120, 360)
+        wait_seconds = random.randint(15 * 60, 30 * 60)
         stepfunctions_payload = {"destination": destination_prefix, "wait_seconds": wait_seconds, **payload}
 
         response = sfn.start_execution(

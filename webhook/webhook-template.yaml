@@ -24,7 +24,7 @@ Parameters:
 
   GitHubRepo:
     Type: String
-    Description: GitHub repo full name, e.g. protomaps/political-multiviews
+    Description: GitHub repo full name, e.g. migurski/boundary-issues
 
 Resources:
   # Shared managed policy for GitHub secret access

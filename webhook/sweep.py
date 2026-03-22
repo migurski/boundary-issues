@@ -186,13 +186,13 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         logging.info('No stale relations; nothing to do')
         return {'statusCode': 200, 'message': 'No stale relations'}
 
-    chosen = random.choice(stale)
-    logging.info(f'Selected relation {chosen} for refresh')
+    choices = random.choices(stale, k=min(3, len(stale)))
+    for chosen in choices:
+        logging.info(f'Selected relation {chosen} for refresh')
+        data = download_relation(chosen)
+        upload_to_cache(chosen, data, data_bucket)
 
-    data = download_relation(chosen)
-    upload_to_cache(chosen, data, data_bucket)
-
-    return {'statusCode': 200, 'message': f'Cached relation {chosen}'}
+    return {'statusCode': 200, 'message': f"Cached relations {', '.join(map(str, choices))}"}
 
 
 # ---------------------------------------------------------------------------
