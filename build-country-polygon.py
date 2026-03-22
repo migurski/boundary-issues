@@ -390,20 +390,22 @@ def clean_polygon(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.bas
         return g
     if g.geom_type == "GeometryCollection":
         polygon_parts = [_g for _g in g.geoms if _g.geom_type.endswith("Polygon")]
-        g = functools.reduce(lambda g1, g2: g1.union(g2), polygon_parts)
+        if polygon_parts:
+            g = functools.reduce(lambda g1, g2: g1.union(g2), polygon_parts)
     if g.geom_type.endswith("Polygon"):
         return g
-    raise ValueError(g.geom_type)
+    return shapely.wkt.loads('POLYGON EMPTY')
 
 def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
     if g.geom_type.endswith("LineString"):
         return shapely.line_merge(g)
     if g.geom_type == "GeometryCollection":
         linestring_parts = [_g for _g in g.geoms if _g.geom_type.endswith("LineString")]
-        g = functools.reduce(lambda g1, g2: g1.union(g2), linestring_parts)
+        if linestring_parts:
+            g = functools.reduce(lambda g1, g2: g1.union(g2), linestring_parts)
     if g.geom_type.endswith("LineString"):
         return shapely.line_merge(g)
-    raise ValueError(g.geom_type)
+    return shapely.wkt.loads('LINESTRING EMPTY')
 
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
@@ -563,10 +565,12 @@ def write_country_claims(dirname, configs) -> str:
             new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
-                if new_claim.geometry.is_empty:
+                new_polygon = clean_polygon(new_claim.geometry)
+                out_polygon = clean_polygon(out_claim.geometry)
+                if new_polygon.is_empty:
                     # Stop if the new geometry has been completely eliminated
                     break
-                elif out_claim.geometry.is_empty:
+                elif out_polygon.is_empty:
                     # Move on to another one if the out geometry has been completely eliminated
                     continue
                 try:
@@ -575,8 +579,8 @@ def write_country_claims(dirname, configs) -> str:
                     with open(os.path.join(dirname, "bad-relationship.csv"), "w") as file:
                         rows = csv.DictWriter(file, ("claimants", "geometry"))
                         rows.writeheader()
-                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_claim.geometry)})
-                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_claim.geometry)})
+                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_polygon)})
+                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_polygon)})
                     raise
                 if relationship is Relationship.NO_OVERLAP:
                     # new_claim does not overlap out_claim
@@ -589,8 +593,8 @@ def write_country_claims(dirname, configs) -> str:
                     break
                 elif relationship is Relationship.IS_INSIDE:
                     # new_claim is inside out_claim
-                    shared_geom = clean_polygon(out_claim.geometry.intersection(new_claim.geometry))
-                    untouched_geom = out_claim.geometry.difference(new_claim.geometry)
+                    shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
+                    untouched_geom = out_polygon.difference(new_polygon)
                     out_claim.geometry = untouched_geom
                     new_claim.claimants.extend(out_claim.claimants)
                     new_claim.geometry = shared_geom
@@ -598,16 +602,16 @@ def write_country_claims(dirname, configs) -> str:
                     break
                 elif relationship is Relationship.ENCLOSES:
                     # new_claim encloses out_claim
-                    remaining_geom = new_claim.geometry.difference(out_claim.geometry)
+                    remaining_geom = new_polygon.difference(out_polygon)
                     out_claim.claimants.extend(new_claim.claimants)
                     new_claim.geometry = remaining_geom
                     # Some of new_claim's area remains to check against other out_claims
                     continue
                 elif relationship is Relationship.CONTENDS:
                     # new_claim contends with out_claim
-                    shared_geom = clean_polygon(out_claim.geometry.intersection(new_claim.geometry))
-                    untouched_geom = out_claim.geometry.difference(new_claim.geometry)
-                    remaining_geom = new_claim.geometry.difference(out_claim.geometry)
+                    shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
+                    untouched_geom = out_polygon.difference(new_polygon)
+                    remaining_geom = new_polygon.difference(out_polygon)
                     add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom))
                     out_claim.geometry = untouched_geom
                     new_claim.geometry = remaining_geom
