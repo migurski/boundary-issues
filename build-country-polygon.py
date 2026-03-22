@@ -16,6 +16,7 @@ import tempfile
 import time
 import typing
 import unittest
+import urllib.parse
 import urllib.request
 
 import geopandas
@@ -402,8 +403,16 @@ def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.
         return shapely.line_merge(g)
     raise ValueError(g.geom_type)
 
-def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.ogr.Geometry:
+def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
+    if cache_base_url and not check_fresh_osm and not os.path.exists(local_path):
+        cache_url = urllib.parse.urljoin(cache_base_url, f"/cache/{el_type}/{osm_id}.osm.xml.gz")
+        try:
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            print("Fetching from cache", cache_url, file=sys.stderr)
+            urllib.request.urlretrieve(cache_url, local_path)
+        except Exception:
+            pass  # fall through to OSM download
     for delay in (10, 20, None):
         newly_downloaded = False
         try:
@@ -428,13 +437,13 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool) -> osgeo.og
         else:
             return functools.reduce(lambda g1, g2: g1.Union(g2), geometries)
 
-def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool) -> osgeo.ogr.Geometry:
+def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     assert shapes[0][0] == "plus"
-    return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
+    return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
-def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool) -> osgeo.ogr.Geometry:
+def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     direction2, el_type2, osm_id2 = shape2
-    geom2 = load_shape(el_type2, osm_id2, check_fresh_osm)
+    geom2 = load_shape(el_type2, osm_id2, check_fresh_osm, cache_base_url)
     if direction2 == "plus" and geom1 is None:
         geom3 = geom2.Clone()
     elif direction2 == "plus" and geom1 is not None:
@@ -627,12 +636,12 @@ def write_country_claims(dirname, configs) -> str:
 
         return file.name
 
-def write_country_areas(dirname, configs, check_fresh_osm: bool) -> str:
+def write_country_areas(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = None) -> str:
     with open(os.path.join(dirname, AREAS_NAME), "w") as file:
         rows = csv.DictWriter(file, ("iso3", "perspectives", "geometry"))
         rows.writeheader()
         for (iso3a, config) in configs.items():
-            geom1 = combine_shapes(config[BASE], check_fresh_osm)
+            geom1 = combine_shapes(config[BASE], check_fresh_osm, cache_base_url)
 
             # "Neutral" point of view = anyone without a defined perspective
             neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
@@ -642,7 +651,7 @@ def write_country_areas(dirname, configs, check_fresh_osm: bool) -> str:
 
             # Generate perspectives
             for (iso3b, shapes) in config.get("perspectives", {}).items():
-                geom2 = functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm), shapes, geom1)
+                geom2 = functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, geom1)
 
                 row2 = dict(iso3=iso3a, perspectives=iso3b)
                 print("Writing perspective polygon", row2, file=sys.stderr)
@@ -650,8 +659,8 @@ def write_country_areas(dirname, configs, check_fresh_osm: bool) -> str:
 
         return file.name
 
-def main(dirname, configs, check_fresh_osm: bool):
-    areas_path = write_country_areas(dirname, configs, check_fresh_osm)
+def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = None):
+    areas_path = write_country_areas(dirname, configs, check_fresh_osm, cache_base_url)
     claims_path = write_country_claims(dirname, configs)
     print("Validating interior and exterior points...", file=sys.stderr)
     validate_areas(configs, areas_path)
@@ -663,9 +672,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
     parser.add_argument('--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
     parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
+    parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 
     config_paths = args.configs if args.configs else glob.glob('config*.yaml')
     config = load_configs(config_paths)
 
-    exit(main(".", config, args.check_fresh_osm))
+    exit(main(".", config, args.check_fresh_osm, args.cache_base_url))

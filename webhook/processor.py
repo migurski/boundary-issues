@@ -282,18 +282,20 @@ def find_changed_configs(pull_request: dict[str, typing.Any], clone_dir: str, on
 
 def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Run build-country-polygon.py with appropriate arguments """
+    cache_base_url = os.environ.get('CACHE_BASE_URL')
     try:
         if not changed_configs:
             logging.info("No config files changed, skipping build-country-polygon.py")
             # Successfully skip processing - nothing to do
             pass
         else:
+            cmd = ['./build-country-polygon.py', '--configs'] + changed_configs
             if check_fresh_osm:
-                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)} --check-fresh-osm")
-                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs + ['--check-fresh-osm'], clone_dir)
-            else:
-                logging.info(f"Running build-country-polygon.py with --configs {' '.join(changed_configs)}")
-                result = run_in(['./build-country-polygon.py', '--configs'] + changed_configs, clone_dir)
+                cmd += ['--check-fresh-osm']
+            if cache_base_url:
+                cmd += ['--cache-base-url', cache_base_url]
+            logging.info(f"Running {' '.join(cmd)}")
+            result = run_in(cmd, clone_dir)
             logging.info(f"Run output: {result.stdout}")
             logging.info("Successfully ran build-country-polygon.py")
         return None
