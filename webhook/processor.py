@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import boto3
 import csv
-import datetime
 import glob
 import json
 import logging
@@ -55,7 +54,6 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
     # Extract event fields
     destination: str = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
     check_fresh_osm: bool = event.get('checkFreshOSM', False)
-    wait_seconds: int = event.get('wait_seconds', 0)
     task_token: typing.Optional[str] = event.get('taskToken')
     sfn_client = None
 
@@ -126,7 +124,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
             err9 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
             if err9:
                 return err9
-            err10 = update_status_html(s3_client, destination, clone_dir, on_failure, wait_seconds)
+            err10 = update_status_html(s3_client, destination, clone_dir, on_failure)
             if err10:
                 return err10
 
@@ -754,9 +752,8 @@ map.on('load', function() {
         on_failure('PreviewHTMLError', str(e))
         return make_error(f'Failed to generate preview HTML: {str(e)}')
 
-def update_status_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable, wait_seconds: int = 0) -> dict[str, typing.Any]|None:
-    second_check_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=wait_seconds)
-    status_text = f'First check looks fine. Second check expected at {second_check_at.strftime("%H:%M")} UTC.'
+def update_status_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+    status_text = 'First check looks fine. Waiting until second check.'
 
     try:
         with open(os.path.join(clone_dir, 'status.html'), "w") as file:
@@ -817,7 +814,7 @@ def main() -> int:
     if err4:
         return 1
 
-    err5 = update_status_html(s3_client, destination, clone_dir, on_failure, 0)
+    err5 = update_status_html(s3_client, destination, clone_dir, on_failure)
     if err5:
         return 1
 

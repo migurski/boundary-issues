@@ -31,15 +31,15 @@ GitHub → webhook.py → start state machine → return immediately
 The webhook can be triggered two ways:
 
 #### A. Via GitHub Actions (Production)
-Push changes to the `migurski/relation-scanner` branch and sync to `migurski/do-not-merge`:
+Push changes to the `migurski/custom-tiles` branch and sync to `migurski/do-not-merge`:
 
 ```bash
-git push origin migurski/relation-scanner
+git push origin migurski/custom-tiles
 git checkout migurski/do-not-merge
 sleep 1
-git rebase --onto migurski/relation-scanner HEAD~1 # just one commit
+git rebase --onto migurski/custom-tiles HEAD~1 # just one commit
 git push -f origin migurski/do-not-merge
-git checkout migurski/relation-scanner
+git checkout migurski/custom-tiles
 ```
 
 Wait 15-30 seconds for GitHub Actions to trigger.
