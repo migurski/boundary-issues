@@ -366,6 +366,8 @@ def merge_country_config(base: dict[str, typing.Any], addition: dict[str, typing
 def load_configs(paths: list[str]) -> dict[str, dict[str, typing.Any]]:
     config: dict[str, dict[str, typing.Any]] = {}
     for path in paths:
+        if not os.path.exists(path):
+            continue
         with open(path, "r") as file:
             for iso3, entry in yaml.safe_load(file).items():
                 if iso3 in config:
