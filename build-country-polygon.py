@@ -93,7 +93,7 @@ class TestCase (unittest.TestCase):
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
-        cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"])
+        cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"], None)
         write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
         write_country_claims(cls.tempdir, cls.config)
         write_validation_points(cls.tempdir, cls.config)
@@ -363,7 +363,7 @@ def merge_country_config(base: dict[str, typing.Any], addition: dict[str, typing
         merged["base"] = addition["base"]
     return merged
 
-def load_configs(paths: list[str]) -> dict[str, dict[str, typing.Any]]:
+def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str, typing.Any]]:
     config: dict[str, dict[str, typing.Any]] = {}
     for path in paths:
         if not os.path.exists(path):
@@ -374,6 +374,21 @@ def load_configs(paths: list[str]) -> dict[str, dict[str, typing.Any]]:
                     config[iso3] = merge_country_config(config[iso3], entry)
                 else:
                     config[iso3] = entry
+
+    if iso3s is None:
+        return config
+
+    # Remove everything not in the given list of iso3s
+    for iso3a in list(config):
+        if iso3a not in iso3s:
+            del config[iso3a]
+        else:
+            for key in ("perspectives", "interior-points", "exterior-points"):
+                if key in config[iso3a]:
+                    for iso3b in list(config[iso3a][key]):
+                        if iso3b not in iso3s:
+                            del config[iso3a][key][iso3b]
+
     return config
 
 def make_point(x, y):
@@ -390,20 +405,22 @@ def clean_polygon(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.bas
         return g
     if g.geom_type == "GeometryCollection":
         polygon_parts = [_g for _g in g.geoms if _g.geom_type.endswith("Polygon")]
-        g = functools.reduce(lambda g1, g2: g1.union(g2), polygon_parts)
+        if polygon_parts:
+            g = functools.reduce(lambda g1, g2: g1.union(g2), polygon_parts)
     if g.geom_type.endswith("Polygon"):
         return g
-    raise ValueError(g.geom_type)
+    return shapely.wkt.loads('POLYGON EMPTY')
 
 def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.base.BaseGeometry:
     if g.geom_type.endswith("LineString"):
         return shapely.line_merge(g)
     if g.geom_type == "GeometryCollection":
         linestring_parts = [_g for _g in g.geoms if _g.geom_type.endswith("LineString")]
-        g = functools.reduce(lambda g1, g2: g1.union(g2), linestring_parts)
+        if linestring_parts:
+            g = functools.reduce(lambda g1, g2: g1.union(g2), linestring_parts)
     if g.geom_type.endswith("LineString"):
         return shapely.line_merge(g)
-    raise ValueError(g.geom_type)
+    return shapely.wkt.loads('LINESTRING EMPTY')
 
 def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
@@ -563,10 +580,12 @@ def write_country_claims(dirname, configs) -> str:
             new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
-                if new_claim.geometry.is_empty:
+                new_polygon = clean_polygon(new_claim.geometry)
+                out_polygon = clean_polygon(out_claim.geometry)
+                if new_polygon.is_empty:
                     # Stop if the new geometry has been completely eliminated
                     break
-                elif out_claim.geometry.is_empty:
+                elif out_polygon.is_empty:
                     # Move on to another one if the out geometry has been completely eliminated
                     continue
                 try:
@@ -575,8 +594,8 @@ def write_country_claims(dirname, configs) -> str:
                     with open(os.path.join(dirname, "bad-relationship.csv"), "w") as file:
                         rows = csv.DictWriter(file, ("claimants", "geometry"))
                         rows.writeheader()
-                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_claim.geometry)})
-                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_claim.geometry)})
+                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_polygon)})
+                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_polygon)})
                     raise
                 if relationship is Relationship.NO_OVERLAP:
                     # new_claim does not overlap out_claim
@@ -589,8 +608,8 @@ def write_country_claims(dirname, configs) -> str:
                     break
                 elif relationship is Relationship.IS_INSIDE:
                     # new_claim is inside out_claim
-                    shared_geom = clean_polygon(out_claim.geometry.intersection(new_claim.geometry))
-                    untouched_geom = out_claim.geometry.difference(new_claim.geometry)
+                    shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
+                    untouched_geom = out_polygon.difference(new_polygon)
                     out_claim.geometry = untouched_geom
                     new_claim.claimants.extend(out_claim.claimants)
                     new_claim.geometry = shared_geom
@@ -598,16 +617,16 @@ def write_country_claims(dirname, configs) -> str:
                     break
                 elif relationship is Relationship.ENCLOSES:
                     # new_claim encloses out_claim
-                    remaining_geom = new_claim.geometry.difference(out_claim.geometry)
+                    remaining_geom = new_polygon.difference(out_polygon)
                     out_claim.claimants.extend(new_claim.claimants)
                     new_claim.geometry = remaining_geom
                     # Some of new_claim's area remains to check against other out_claims
                     continue
                 elif relationship is Relationship.CONTENDS:
                     # new_claim contends with out_claim
-                    shared_geom = clean_polygon(out_claim.geometry.intersection(new_claim.geometry))
-                    untouched_geom = out_claim.geometry.difference(new_claim.geometry)
-                    remaining_geom = new_claim.geometry.difference(out_claim.geometry)
+                    shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
+                    untouched_geom = out_polygon.difference(new_polygon)
+                    remaining_geom = new_polygon.difference(out_polygon)
                     add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom))
                     out_claim.geometry = untouched_geom
                     new_claim.geometry = remaining_geom
@@ -674,11 +693,13 @@ def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = Non
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
     parser.add_argument('--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
+    parser.add_argument('--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
     parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
     parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 
     config_paths = args.configs if args.configs else glob.glob('config*.yaml')
-    config = load_configs(config_paths)
+    iso3s = set(args.iso3s.split(",")) if args.iso3s and re.match(r"^\w\w\w(,\w\w\w)+$", args.iso3s) else None
+    config = load_configs(config_paths, iso3s)
 
     exit(main(".", config, args.check_fresh_osm, args.cache_base_url))
