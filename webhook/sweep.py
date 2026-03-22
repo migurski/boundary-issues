@@ -244,9 +244,10 @@ class TestSweepFunction(unittest.TestCase):
         'GITHUB_REPO': 'org/repo',
     })
     @unittest.mock.patch('boto3.client')
+    @unittest.mock.patch('time.sleep')
     @unittest.mock.patch('urllib.request.urlopen')
     def test_picks_and_uploads_stale_relation(
-        self, mock_urlopen: typing.Any, mock_boto_client: typing.Any
+        self, mock_urlopen: typing.Any, mock_sleep: typing.Any, mock_boto_client: typing.Any
     ) -> None:
         import datetime
 
