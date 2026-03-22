@@ -54,6 +54,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
     # Extract event fields
     destination: str = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
     check_fresh_osm: bool = event.get('checkFreshOSM', False)
+    iso3s: typing.Optional[str] = event.get('iso3s')
     task_token: typing.Optional[str] = event.get('taskToken')
     sfn_client = None
 
@@ -107,7 +108,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         logging.info(f"check Fresh OSM files: {check_fresh_osm}")
 
         # Run the script
-        err6 = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure)
+        err6 = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure, iso3s)
         if err6:
             return err6
 
@@ -280,7 +281,7 @@ def find_changed_configs(pull_request: dict[str, typing.Any], clone_dir: str, on
         return make_error(str(e)), None
 
 
-def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
+def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable, iso3s: typing.Optional[str] = None) -> dict[str, typing.Any]|None:
     """ Run build-country-polygon.py with appropriate arguments """
     cache_base_url = os.environ.get('CACHE_BASE_URL')
     try:
@@ -294,6 +295,8 @@ def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_di
                 cmd += ['--check-fresh-osm']
             if cache_base_url:
                 cmd += ['--cache-base-url', cache_base_url]
+            if iso3s:
+                cmd += ['--iso3s', iso3s]
             logging.info(f"Running {' '.join(cmd)}")
             result = run_in(cmd, clone_dir)
             logging.info(f"Run output: {result.stdout}")
@@ -784,6 +787,7 @@ def main() -> int:
     """ Standalone CLI entry point: build tiles locally without S3 uploads """
     parser = argparse.ArgumentParser(description='Build political boundary tiles locally')
     parser.add_argument('--configs', nargs='*', help='Config YAML paths (default: config/*.yaml)')
+    parser.add_argument('--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
     args = parser.parse_args()
 
     def on_failure(error: str, cause: str) -> None:
@@ -798,7 +802,7 @@ def main() -> int:
 
     s3_client, destination, clone_dir = None, None, '.'
 
-    err1 = run_build_script(changed_configs, False, clone_dir, on_failure)
+    err1 = run_build_script(changed_configs, False, clone_dir, on_failure, args.iso3s)
     if err1:
         return 1
 
