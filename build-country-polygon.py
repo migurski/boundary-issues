@@ -293,7 +293,7 @@ def validate_claims(configs, claims_path):
             neutral_povs = all_povs - local_povs
             matching_claims = [
                 (claimants, claim_geom) for claimants, claim_geom in claims
-                if re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*({'|'.join(neutral_povs)})[\s$]", claimants)
+                if neutral_povs and re.search(rf"[^\s]{test_iso3a}(?:{D0}\w\w\w)*{D1}(\w\w\w{D0})*({'|'.join(neutral_povs)})[\s$]", claimants)
             ]
         else:
             matching_claims = [
@@ -554,7 +554,7 @@ def write_country_claims(dirname, configs) -> str:
 
     for iso3s in networkx.connected_components(dispute_graph):
         print("Evaluating claims for", iso3s, 'with', len(dispute_graph.subgraph(iso3s).edges), "conflicts...", file=sys.stderr)
-        gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})"))]
+        gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})")) & gdf.perspectives]
         out_claims = []
         for _, new_row in gdf_sub.iterrows():
             new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(D2)))

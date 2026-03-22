@@ -2,15 +2,39 @@ RUS:
   base:
     # Russia includes Crimea in OSM, but this is not widely acknowledged
     - [plus, relation, 60189] # Russia
-    - [minus, relation, 3788824] # Crimea
+    - [minus, relation, 72639] # Crimea
+    - [minus, relation, 1574364] # Sevastopol
   perspectives:
     RUS:
-      - [plus, relation, 3788824] # Crimea
+      - [plus, relation, 72639] # Crimea
+      - [plus, relation, 1574364] # Sevastopol
+      # Russia expects to annex these in the future
+      - [plus, relation, 71971] # Luhansk Oblast
+      - [plus, relation, 71973] # Donetsk Oblast
+      - [plus, relation, 71022] # Kherson Oblast
+      - [plus, relation, 71980] # Zaporizhia Oblast
     UKR:
-      - [minus, relation, 3788824] # Crimea
+      - [minus, relation, 72639] # Crimea
+      - [minus, relation, 1574364] # Sevastopol
   interior-points:
     RUS:
-      - [34.25, 45.41] # Crimea
+      # Places claimed by Russia as part of 2014 annexation
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol (Crimea)
+      # Russia expects to annex these in the future
+      - [39.30, 48.57] # Luhansk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
+  exterior-points:
+    base:
+      # Places internationally recognized to be within Ukraine
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol (Crimea)
+      - [39.30, 48.57] # Luhansk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
 
 UKR:
   base:
@@ -18,10 +42,29 @@ UKR:
     - [plus, relation, 60199] # Ukraine
   perspectives:
     RUS:
-      - [minus, relation, 3788824] # Crimea
+      - [minus, relation, 72639] # Crimea
+      - [minus, relation, 1574364] # Sevastopol
+      # Russia expects to annex these in the future
+      - [minus, relation, 71971] # Luhansk Oblast
+      - [minus, relation, 71973] # Donetsk Oblast
+      - [minus, relation, 71022] # Kherson Oblast
+      - [minus, relation, 71980] # Zaporizhia Oblast
   interior-points:
     base:
-      - [34.25, 45.41] # Crimea
+      # Places internationally recognized to be within Ukraine
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol (Crimea)
+      - [39.30, 48.57] # Luhansk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
   exterior-points:
     RUS:
-      - [34.25, 45.41] # Crimea
+      # Places claimed by Russia as part of 2014 annexation
+      - [33.52, 44.61] # Sevastopol
+      - [34.10, 44.95] # Simferopol (Crimea)
+      # Russia expects to annex these in the future
+      - [39.30, 48.57] # Luhansk
+      - [37.80, 48.02] # Donetsk
+      - [32.61, 46.64] # Kherson
+      - [35.12, 47.85] # Zaporizhia
