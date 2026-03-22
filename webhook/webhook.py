@@ -68,7 +68,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         logging.info(f"Starting state machine execution: {execution_name}")
 
         destination_prefix = f"s3://{os.environ.get('DATA_BUCKET')}/{context.aws_request_id[:8]}/"
-        wait_seconds = random.randint(120, 360)
+        wait_seconds = random.randint(15 * 60, 30 * 60)
         stepfunctions_payload = {"destination": destination_prefix, "wait_seconds": wait_seconds, **payload}
 
         response = sfn.start_execution(
@@ -316,8 +316,8 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(input_payload['action'], 'synchronize')
         self.assertEqual(input_payload['number'], 4)
         self.assertIn('wait_seconds', input_payload)
-        self.assertGreaterEqual(input_payload['wait_seconds'], 120)
-        self.assertLessEqual(input_payload['wait_seconds'], 360)
+        self.assertGreaterEqual(input_payload['wait_seconds'], 15 * 60)
+        self.assertLessEqual(input_payload['wait_seconds'], 30 * 60)
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)
     def test_missing_state_machine_arn(self) -> None:
