@@ -24,3 +24,29 @@ FRA:
   interior-points:
     base:
       - [-2.7, 5.5] # fake-Pheasant-Island
+
+SRB:
+  base:
+    - [plus, relation, "fake-SRB"] # Serbia
+    - [minus, relation, "fake-XKK"] # Kosovo
+  perspectives:
+    SRB:
+      - [plus, relation, "fake-XKK"] # Kosovo
+  interior-points:
+    SRB:
+      - [2.5, 6.5] # Pristina
+  exterior-points:
+    base:
+      - [2.5, 6.5] # Pristina
+XKK:
+  base:
+    - [plus, relation, "fake-XKK"] # Kosovo
+  perspectives:
+    SRB:
+      - [minus, relation, "fake-XKK"] # Kosovo
+  interior-points:
+    base:
+      - [2.5, 6.5] # Pristina
+  exterior-points:
+    base:
+      - [2.5, 6.5] # Pristina
