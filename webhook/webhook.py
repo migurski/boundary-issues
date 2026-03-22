@@ -316,8 +316,8 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(input_payload['action'], 'synchronize')
         self.assertEqual(input_payload['number'], 4)
         self.assertIn('wait_seconds', input_payload)
-        self.assertGreaterEqual(input_payload['wait_seconds'], 120)
-        self.assertLessEqual(input_payload['wait_seconds'], 360)
+        self.assertGreaterEqual(input_payload['wait_seconds'], 15 * 60)
+        self.assertLessEqual(input_payload['wait_seconds'], 30 * 60)
 
     @unittest.mock.patch.dict(os.environ, {}, clear=True)
     def test_missing_state_machine_arn(self) -> None:

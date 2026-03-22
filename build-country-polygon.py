@@ -519,7 +519,8 @@ def write_country_boundaries(dirname, configs):
                             # Joint-owner condominium: all observers agree on this border
                             stable_believers |= common_observers
                         else:
-                            common_observers.remove(iso3a)
+                            if iso3a in common_observers:
+                                common_observers.remove(iso3a)
                             non_believers.add(iso3a)
                             if common_observers:
                                 disputed_believers |= common_observers
