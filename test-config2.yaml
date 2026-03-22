@@ -34,10 +34,10 @@ SRB:
       - [plus, relation, "fake-XKK"] # Kosovo
   interior-points:
     SRB:
-      - [2.5, 6.5] # Pristina
+      - [1.5, 5.5] # Pristina
   exterior-points:
     base:
-      - [2.5, 6.5] # Pristina
+      - [1.5, 5.5] # Pristina
 XKK:
   base:
     - [plus, relation, "fake-XKK"] # Kosovo
@@ -46,7 +46,4 @@ XKK:
       - [minus, relation, "fake-XKK"] # Kosovo
   interior-points:
     base:
-      - [2.5, 6.5] # Pristina
-  exterior-points:
-    base:
-      - [2.5, 6.5] # Pristina
+      - [1.5, 5.5] # Pristina
