@@ -93,7 +93,7 @@ class TestCase (unittest.TestCase):
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
-        cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"])
+        cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"], None)
         write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
         write_country_claims(cls.tempdir, cls.config)
         write_validation_points(cls.tempdir, cls.config)
@@ -363,7 +363,7 @@ def merge_country_config(base: dict[str, typing.Any], addition: dict[str, typing
         merged["base"] = addition["base"]
     return merged
 
-def load_configs(paths: list[str]) -> dict[str, dict[str, typing.Any]]:
+def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str, typing.Any]]:
     config: dict[str, dict[str, typing.Any]] = {}
     for path in paths:
         if not os.path.exists(path):
@@ -374,6 +374,21 @@ def load_configs(paths: list[str]) -> dict[str, dict[str, typing.Any]]:
                     config[iso3] = merge_country_config(config[iso3], entry)
                 else:
                     config[iso3] = entry
+
+    if iso3s is None:
+        return config
+
+    # Remove everything not in the given list of iso3s
+    for iso3a in list(config):
+        if iso3a not in iso3s:
+            del config[iso3a]
+        else:
+            for key in ("perspectives", "interior-points", "exterior-points"):
+                if key in config[iso3a]:
+                    for iso3b in list(config[iso3a][key]):
+                        if iso3b not in iso3s:
+                            del config[iso3a][key][iso3b]
+
     return config
 
 def make_point(x, y):
@@ -678,11 +693,13 @@ def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = Non
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
     parser.add_argument('--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
+    parser.add_argument('--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
     parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
     parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 
     config_paths = args.configs if args.configs else glob.glob('config*.yaml')
-    config = load_configs(config_paths)
+    iso3s = set(args.iso3s.split(",")) if args.iso3s and re.match(r"^\w\w\w(,\w\w\w)+$", args.iso3s) else None
+    config = load_configs(config_paths, iso3s)
 
     exit(main(".", config, args.check_fresh_osm, args.cache_base_url))
