@@ -55,6 +55,10 @@ Create an IAM user for deployment (e.g. `Boundary-Issues-Deployer`) and attach a
 
 - `logs:CreateLogGroup`, `DeleteLogGroup`, `DescribeLogGroups`, `PutRetentionPolicy` — scoped to `/aws/lambda/boundary-issues-webhook-*`
 
+### EventBridge
+
+- `events:PutRule`, `DeleteRule`, `DescribeRule`, `PutTargets`, `RemoveTargets`, `ListTargetsByRule`, `ListRules`, `TagResource`, `UntagResource` — scoped to `arn:aws:events:<region>:<account>:rule/boundary-issues-webhook-*` (covers all current and future scheduled rules in the webhook stack)
+
 ## GitHub Actions Secrets
 
 The deployer's credentials must be added to the repository as Actions secrets:
@@ -83,6 +87,8 @@ The deployer's credentials must be added to the repository as Actions secrets:
 | Task Lambda | Lambda (ZIP) | Invokes processor with Step Functions task token |
 | Processor Lambda | Lambda (Docker/ARM64) | Runs Planetiler tile generation |
 | Finish Lambda | Lambda (ZIP) | Reports success/failure back to GitHub PR status |
+| Sweep Lambda | Lambda (ZIP) | Refreshes stale OSM relation cache on a schedule |
+| Sweep schedule rule | EventBridge | Triggers SweepFunction on a cron schedule |
 | State machine | Step Functions | Orchestrates task → optional second task → finish |
 | IAM roles | IAM | One per Lambda function + one for the state machine |
 
