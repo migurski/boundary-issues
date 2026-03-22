@@ -1,0 +1,60 @@
+ALB:
+  base:
+    - [plus, relation, 53292] # Albania
+  interior-points:
+    base:
+      - [19.818, 41.328] # Tirana
+AND:
+  base:
+    - [plus, relation, 9407] # Andorra
+  interior-points:
+    base:
+      - [1.521, 42.506] # Andorra la Vella
+ARM:
+  base:
+    - [plus, relation, 364066] # Armenia
+  interior-points:
+    base:
+      - [44.512, 40.177] # Yerevan
+AZE:
+  base:
+    - [plus, relation, 364110] # Azerbaijan
+  interior-points:
+    base:
+      - [49.832, 40.375] # Baku
+BLR:
+  base:
+    - [plus, relation, 59065] # Belarus
+  interior-points:
+    base:
+      - [27.561, 53.902] # Minsk
+BIH:
+  base:
+    - [plus, relation, 2528142] # Bosnia and Herzegovina
+  interior-points:
+    base:
+      - [18.412, 43.857] # Sarajevo
+GEO:
+  base:
+    - [plus, relation, 28699] # Georgia
+  interior-points:
+    base:
+      - [44.801, 41.693] # Tbilisi
+ISL:
+  base:
+    - [plus, relation, 299133] # Iceland
+  interior-points:
+    base:
+      - [-21.942, 64.145] # Reykjavik
+KAZ:
+  base:
+    - [plus, relation, 214665] # Kazakhstan
+  interior-points:
+    base:
+      - [71.430, 51.128] # Astana
+LIE:
+  base:
+    - [plus, relation, 1155955] # Liechtenstein
+  interior-points:
+    base:
+      - [9.522, 47.139] # Vaduz
