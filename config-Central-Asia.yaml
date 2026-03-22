@@ -1,0 +1,36 @@
+IRN:
+  base:
+    - [plus, relation, 304938] # Iran
+  interior-points:
+    base:
+      - [51.389, 35.689] # Tehran
+AFG:
+  base:
+    - [plus, relation, 303427] # Afghanistan
+  interior-points:
+    base:
+      - [69.185, 34.526] # Kabul
+TJK:
+  base:
+    - [plus, relation, 214626] # Tajikistan
+  interior-points:
+    base:
+      - [68.785, 38.576] # Dushanbe
+TKM:
+  base:
+    - [plus, relation, 223026] # Turkmenistan
+  interior-points:
+    base:
+      - [58.382, 37.940] # Ashgabat
+UZB:
+  base:
+    - [plus, relation, 196240] # Uzbekistan
+  interior-points:
+    base:
+      - [69.278, 41.312] # Tashkent
+KGZ:
+  base:
+    - [plus, relation, 178009] # Kyrgyzstan
+  interior-points:
+    base:
+      - [74.603, 42.876] # Bishkek
