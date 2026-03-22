@@ -105,11 +105,8 @@ def _scan_shape_list(shape_list: typing.Any) -> list[int]:
     if not isinstance(shape_list, list):
         return ids
     for item in shape_list:
-        if isinstance(item, list) and len(item) >= 3 and item[1] == 'relation':
-            try:
-                ids.append(int(item[2]))
-            except (ValueError, TypeError):
-                pass
+        if isinstance(item, list) and len(item) >= 3 and item[1] == 'relation' and isinstance(item[2], int):
+            ids.append(item[2])
     return ids
 
 
