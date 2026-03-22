@@ -1,0 +1,43 @@
+ISR:
+  base:
+    - [plus, relation, 1473946] # Israel
+  perspectives:
+    ISR:
+      - [plus, relation, 12331025] # West Bank
+      - [plus, relation, 1473938] # Gaza Strip
+    PSE:
+      - [minus, relation, 12331025] # West Bank
+      - [minus, relation, 1473938] # Gaza Strip
+  interior-points:
+    base:
+      - [34.782, 32.086] # Tel Aviv
+      - [35.211, 31.775] # Western Jerusalem
+    ISR:
+      - [34.458, 31.513] # Gaza
+      - [35.195, 31.903] # Ramallah
+      - [35.239, 31.768] # Eastern Jerusalem
+  exterior-points:
+    PSE:
+      - [34.458, 31.513] # Gaza
+      - [35.239, 31.768] # Eastern Jerusalem
+PSE:
+  base:
+    - [plus, relation, 12331025] # West Bank
+    - [plus, relation, 1473938] # Gaza Strip
+  perspectives:
+    ISR:
+      - [minus, relation, 12331025] # West Bank
+      - [minus, relation, 1473938] # Gaza Strip
+  interior-points:
+    base:
+      - [34.458, 31.513] # Gaza
+      - [35.195, 31.903] # Ramallah
+    PSE:
+      - [35.239, 31.768] # Eastern Jerusalem
+  exterior-points:
+    ISR:
+      - [34.782, 32.086] # Tel Aviv
+      - [34.458, 31.513] # Gaza
+      - [35.195, 31.903] # Ramallah
+      - [35.211, 31.775] # Western Jerusalem
+      - [35.239, 31.768] # Eastern Jerusalem
