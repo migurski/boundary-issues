@@ -211,7 +211,7 @@ if aws cloudformation describe-stacks \
             ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
             ParameterKey=GitHubSecretName,ParameterValue="$SECRET_NAME" \
             ParameterKey=DataBucket,ParameterValue="boundary-issues" \
-            ParameterKey=GitHubRepo,ParameterValue="protomaps/political-multiviews" \
+            ParameterKey=GitHubRepo,ParameterValue="migurski/boundary-issues" \
         --capabilities CAPABILITY_NAMED_IAM \
         --region "$REGION" \
         --output text > /dev/null || {
@@ -239,7 +239,7 @@ else
             ParameterKey=ProcessorImageUri,ParameterValue="$PROCESSOR_IMAGE_URI" \
             ParameterKey=GitHubSecretName,ParameterValue="$SECRET_NAME" \
             ParameterKey=DataBucket,ParameterValue="boundary-issues" \
-            ParameterKey=GitHubRepo,ParameterValue="protomaps/political-multiviews" \
+            ParameterKey=GitHubRepo,ParameterValue="migurski/boundary-issues" \
         --capabilities CAPABILITY_NAMED_IAM \
         --region "$REGION" \
         --output text > /dev/null
