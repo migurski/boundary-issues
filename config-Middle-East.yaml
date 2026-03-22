@@ -1,9 +1,3 @@
-SYR:
-  base:
-    - [plus, relation, 184840] # Syria
-  interior-points:
-    base:
-      - [36.309, 33.513] # Damascus
 LBN:
   base:
     - [plus, relation, 184843] # Lebanon
