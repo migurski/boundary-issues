@@ -65,7 +65,8 @@ class Claim:
             return Relationship.IDENTICAL
         if re.match(r"^2.F...2.2$", pattern):
             return Relationship.IS_INSIDE
-        if re.match(r"^2.2...F.2$", pattern):
+        if re.match(r"^2.2...[01F].2$", pattern):
+            # Allow [01F] after observing CHN/PAK border
             return Relationship.ENCLOSES
         if re.match(r"^2.2...2.2$", pattern):
             return Relationship.CONTENDS
@@ -563,16 +564,17 @@ def write_country_claims(dirname, configs) -> str:
     geometry = geopandas.GeoSeries.from_wkt(df.geometry)
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
 
-    # Conflicted regions
-    dispute_graph = networkx.Graph()
-    dispute_graph.add_nodes_from(gdf.iso3)
     # Need to separately include partial overlaps and complete containments
     gdf_disputants1 = geopandas.sjoin(gdf, gdf, predicate="overlaps")
     gdf_disputants2 = geopandas.sjoin(gdf, gdf, predicate="contains")
     gdf_disputants = pandas.concat((gdf_disputants1, gdf_disputants2))
-    for _, row in gdf_disputants.iterrows():
-        if row.iso3_left != row.iso3_right:
-            dispute_graph.add_edge(row.iso3_left, row.iso3_right)
+
+    # Conflicted regions graph
+    dispute_graph = networkx.Graph()
+    dispute_graph.add_nodes_from(gdf.iso3)
+    dispute_graph.add_edges_from(
+        (r.iso3_left, r.iso3_right) for _, r in gdf_disputants.iterrows() if r.iso3_left != r.iso3_right
+    )
 
     all_claims = []
 
