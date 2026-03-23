@@ -1,0 +1,70 @@
+LBN:
+  base:
+    - [plus, relation, 184843] # Lebanon
+  interior-points:
+    base:
+      - [35.478, 33.895] # Beirut
+JOR:
+  base:
+    - [plus, relation, 184818] # Jordan
+  interior-points:
+    base:
+      - [35.923, 31.951] # Amman
+IRQ:
+  base:
+    - [plus, relation, 304934] # Iraq
+  interior-points:
+    base:
+      - [44.387, 33.306] # Baghdad
+KWT:
+  base:
+    - [plus, relation, 305099] # Kuwait
+  interior-points:
+    base:
+      - [47.973, 29.379] # Kuwait City
+SAU:
+  base:
+    - [plus, relation, 307584] # Saudi Arabia
+  interior-points:
+    base:
+      - [46.716, 24.638] # Riyadh
+YEM:
+  base:
+    - [plus, relation, 305092] # Yemen
+  interior-points:
+    base:
+      - [44.206, 15.354] # Sana'a
+OMN:
+  base:
+    - [plus, relation, 305138] # Oman
+  interior-points:
+    base:
+      - [58.593, 23.612] # Muscat
+      - [56.332, 25.287] # Madha
+      - [56.257, 25.651] # Dibba
+ARE:
+  base:
+    - [plus, relation, 307763] # United Arab Emirates
+  interior-points:
+    base:
+      - [54.377, 24.453] # Abu Dhabi
+      - [56.362, 25.277] # Mirbah
+      - [56.284, 25.274] # Nahwa
+QAT:
+  base:
+    - [plus, relation, 305095] # Qatar
+  interior-points:
+    base:
+      - [51.526, 25.285] # Doha
+BHR:
+  base:
+    - [plus, relation, 378734] # Bahrain
+  interior-points:
+    base:
+      - [50.582, 26.223] # Manama
+KWT:
+  base:
+    - [plus, relation, 305099] # Kuwait
+  interior-points:
+    base:
+      - [47.973, 29.379] # Kuwait City

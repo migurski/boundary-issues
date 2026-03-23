@@ -1,0 +1,68 @@
+ISR:
+  base:
+    - [plus, relation, 1473946] # Israel
+    - [minus, relation, 16119376] # Golan Heights
+  perspectives:
+    ISR:
+      - [plus, relation, 12331025] # West Bank
+      - [plus, relation, 1473938] # Gaza Strip
+      - [plus, relation, 184888] # UNDOF
+      - [plus, relation, 16119376] # Golan Heights
+    PSE:
+      - [minus, relation, 12331025] # West Bank
+      - [minus, relation, 1473938] # Gaza Strip
+  interior-points:
+    base:
+      - [34.782, 32.086] # Tel Aviv
+      - [35.211, 31.775] # Western Jerusalem
+    ISR:
+      - [34.458, 31.513] # Gaza
+      - [35.195, 31.903] # Ramallah
+      - [35.239, 31.768] # Eastern Jerusalem
+      - [35.8685, 33.1694] # Al-Salam (UNDOF)
+      - [35.6877, 32.9920] # Katzrin (Golan Heights)
+  exterior-points:
+    PSE:
+      - [34.458, 31.513] # Gaza
+      - [35.239, 31.768] # Eastern Jerusalem
+    SYR:
+      - [35.8685, 33.1694] # Al-Salam (UNDOF)
+      - [35.6877, 32.9920] # Katzrin (Golan Heights)
+PSE:
+  base:
+    - [plus, relation, 12331025] # West Bank
+    - [plus, relation, 1473938] # Gaza Strip
+  perspectives:
+    ISR:
+      - [minus, relation, 12331025] # West Bank
+      - [minus, relation, 1473938] # Gaza Strip
+  interior-points:
+    base:
+      - [34.458, 31.513] # Gaza
+      - [35.195, 31.903] # Ramallah
+    PSE:
+      - [35.239, 31.768] # Eastern Jerusalem
+  exterior-points:
+    ISR:
+      - [34.782, 32.086] # Tel Aviv
+      - [34.458, 31.513] # Gaza
+      - [35.195, 31.903] # Ramallah
+      - [35.211, 31.775] # Western Jerusalem
+      - [35.239, 31.768] # Eastern Jerusalem
+SYR:
+  base:
+    - [plus, relation, 184840] # Syria
+    - [plus, relation, 16119376] # Golan Heights
+  perspectives:
+    ISR:
+      - [minus, relation, 184888] # UNDOF
+      - [minus, relation, 16119376] # Golan Heights
+  interior-points:
+    base:
+      - [36.309, 33.513] # Damascus
+      - [35.8685, 33.1694] # Al-Salam (UNDOF)
+      - [35.6877, 32.9920] # Katzrin (Golan Heights)
+  exterior-points:
+    ISR:
+      - [35.8685, 33.1694] # Al-Salam (UNDOF)
+      - [35.6877, 32.9920] # Katzrin (Golan Heights)
