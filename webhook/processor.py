@@ -568,7 +568,8 @@ const map = new maplibregl.Map({
     sources: {
       protomaps: {
         type: 'vector',
-        url: 'pmtiles://preview.pmtiles'
+        url: 'pmtiles://preview.pmtiles',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       }
     },
     layers: [
