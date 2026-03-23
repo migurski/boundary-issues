@@ -1,5 +1,11 @@
 About this repo: https://medium.com/@michalmigurski/weeknotes-2026w04-boundary-issues-f037407a7f45
 
+## Current Release: [v0.1](https://github.com/migurski/boundary-issues/releases/tag/v0.1)
+
+Preview: https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.1/preview.html#2.2/37.5/50.0
+
+<img width="1404" height="779" alt="Screenshot 2026-03-23 at 1 13 47 PM" src="https://github.com/user-attachments/assets/06345f20-d41b-44aa-9dd8-23650dff5be1" />
+
 ## Output Format
 
 Complete worked example from [`sample-EU.gpkg`](sample-EU.zip)
