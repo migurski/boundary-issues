@@ -16,6 +16,8 @@ TJK:
   interior-points:
     base:
       - [68.785, 38.576] # Dushanbe
+      - [70.567, 39.853] # Vorukh
+      - [70.6503, 40.9311] # Чароғон
 TKM:
   base:
     - [plus, relation, 223026] # Turkmenistan
@@ -25,12 +27,17 @@ TKM:
 UZB:
   base:
     - [plus, relation, 196240] # Uzbekistan
+    - [minus, relation, 18593399] # Sarvak
   interior-points:
     base:
       - [69.278, 41.312] # Tashkent
+      - [71.806, 39.997] # Shohimardon
+      - [71.130, 39.977] # Ravan
 KGZ:
   base:
     - [plus, relation, 178009] # Kyrgyzstan
+    - [minus, relation, 18556890] # Vorukh
+    - [minus, relation, 2560214] # Shohimardon
   interior-points:
     base:
       - [74.603, 42.876] # Bishkek
