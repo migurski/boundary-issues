@@ -40,12 +40,16 @@ OMN:
   interior-points:
     base:
       - [58.593, 23.612] # Muscat
+      - [56.332, 25.287] # Madha
+      - [56.257, 25.651] # Dibba
 ARE:
   base:
     - [plus, relation, 307763] # United Arab Emirates
   interior-points:
     base:
       - [54.377, 24.453] # Abu Dhabi
+      - [56.362, 25.277] # Mirbah
+      - [56.284, 25.274] # Nahwa
 QAT:
   base:
     - [plus, relation, 305095] # Qatar
