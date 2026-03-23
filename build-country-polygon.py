@@ -23,6 +23,7 @@ import geopandas
 import networkx
 import osgeo.gdal
 import osgeo.ogr
+import pandas
 import shapely
 import shapely.wkt
 import yaml
@@ -378,15 +379,15 @@ def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str
     if iso3s is None:
         return config
 
-    # Remove everything not in the given list of iso3s
+    # Remove everything not in the given list of iso3s + BASE
     for iso3a in list(config):
-        if iso3a not in iso3s:
+        if iso3a not in {*iso3s, *{BASE}}:
             del config[iso3a]
         else:
             for key in ("perspectives", "interior-points", "exterior-points"):
                 if key in config[iso3a]:
                     for iso3b in list(config[iso3a][key]):
-                        if iso3b not in iso3s:
+                        if iso3b not in {*iso3s, *{BASE}}:
                             del config[iso3a][key][iso3b]
 
     return config
@@ -565,9 +566,13 @@ def write_country_claims(dirname, configs) -> str:
     # Conflicted regions
     dispute_graph = networkx.Graph()
     dispute_graph.add_nodes_from(gdf.iso3)
-    gdf_disputants = geopandas.sjoin(gdf, gdf, predicate="overlaps")
+    # Need to separately include partial overlaps and complete containments
+    gdf_disputants1 = geopandas.sjoin(gdf, gdf, predicate="overlaps")
+    gdf_disputants2 = geopandas.sjoin(gdf, gdf, predicate="contains")
+    gdf_disputants = pandas.concat((gdf_disputants1, gdf_disputants2))
     for _, row in gdf_disputants.iterrows():
-        dispute_graph.add_edge(row.iso3_left, row.iso3_right)
+        if row.iso3_left != row.iso3_right:
+            dispute_graph.add_edge(row.iso3_left, row.iso3_right)
 
     all_claims = []
 
