@@ -697,14 +697,14 @@ def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = Non
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
-    parser.add_argument('--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
-    parser.add_argument('--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
+    parser.add_argument('-c', '--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
+    parser.add_argument('-i', '--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
     parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
     parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 
     config_paths = args.configs if args.configs else glob.glob('config*.yaml')
-    iso3s = set(args.iso3s.split(",")) if args.iso3s and re.match(r"^\w\w\w(,\w\w\w)+$", args.iso3s) else None
+    iso3s = set(args.iso3s.split(",")) if args.iso3s and re.match(r"^\w\w\w(,\w\w\w)*$", args.iso3s) else None
     config = load_configs(config_paths, iso3s)
 
     exit(main(".", config, args.check_fresh_osm, args.cache_base_url))

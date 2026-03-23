@@ -786,8 +786,8 @@ def update_status_html(s3_client: typing.Any, destination: str|None, clone_dir: 
 def main() -> int:
     """ Standalone CLI entry point: build tiles locally without S3 uploads """
     parser = argparse.ArgumentParser(description='Build political boundary tiles locally')
-    parser.add_argument('--configs', nargs='*', help='Config YAML paths (default: config/*.yaml)')
-    parser.add_argument('--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
+    parser.add_argument('-c', '--configs', nargs='*', help='Config YAML paths (default: config/*.yaml)')
+    parser.add_argument('-i', '--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
     args = parser.parse_args()
 
     def on_failure(error: str, cause: str) -> None:
