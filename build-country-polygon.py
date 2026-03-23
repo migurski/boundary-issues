@@ -65,7 +65,8 @@ class Claim:
             return Relationship.IDENTICAL
         if re.match(r"^2.F...2.2$", pattern):
             return Relationship.IS_INSIDE
-        if re.match(r"^2.2...F.2$", pattern):
+        if re.match(r"^2.2...[01F].2$", pattern):
+            # Allow [01F] after observing CHN/PAK border
             return Relationship.ENCLOSES
         if re.match(r"^2.2...2.2$", pattern):
             return Relationship.CONTENDS
