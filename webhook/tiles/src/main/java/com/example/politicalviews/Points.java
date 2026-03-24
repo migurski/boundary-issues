@@ -23,7 +23,7 @@ public class Points implements ForwardingProfile.LayerPostProcessor {
       .setAttr("iso3", sf.getString("iso3"))
       .setAttr("perspectives", sf.getString("perspectives"))
       .setAttr("relation", sf.getString("relation"))
-      .setZoomRange(0, 7);
+      .setZoomRange(0, 18);
   }
 
   @Override

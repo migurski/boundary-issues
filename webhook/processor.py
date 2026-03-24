@@ -456,7 +456,7 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
                 f'--landcover_path={landcover_file}',
                 '--download',
                 '--force',
-                '--maxzoom', '7',
+                '--maxzoom', '12',
             ]
             if os.path.exists(areas_geojson):
                 cmd.append(f'--areas={areas_geojson}')
