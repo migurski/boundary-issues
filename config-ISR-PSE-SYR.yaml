@@ -1,15 +1,15 @@
 ISR:
   base:
-    - [plus, relation, 1473946] # Israel
-    - [minus, relation, 16119376] # Golan Heights
+    - [plus, relation, 1473946] # Israel (includes Golan Heights)
   perspectives:
     ISR:
       - [plus, relation, 12331025] # West Bank
       - [plus, relation, 1473938] # Gaza Strip
-      - [plus, relation, 16119376] # Golan Heights
     PSE:
       - [minus, relation, 12331025] # West Bank
       - [minus, relation, 1473938] # Gaza Strip
+    SYR:
+      - [minus, relation, 16119376] # Golan Heights
   interior-points:
     base:
       - [34.782, 32.086] # Tel Aviv
@@ -51,18 +51,37 @@ PSE:
       - [35.239, 31.768] # Eastern Jerusalem
 SYR:
   base:
-    - [plus, relation, 184840] # Syria
-    - [plus, relation, 16119376] # Golan Heights
+    - [plus, relation, 184840] # Syria (includes UNDOF, excludes Golan Heights)
+    - [minus, relation, 184888] # UNDOF
   perspectives:
     ISR:
       - [minus, relation, 184888] # UNDOF
       - [minus, relation, 16119376] # Golan Heights
+    SYR:
+      - [plus, relation, 184888] # UNDOF
+      - [plus, relation, 16119376] # Golan Heights
   interior-points:
     base:
       - [36.309, 33.513] # Damascus
+    SYR:
       - [35.8685, 33.1694] # Al-Salam (UNDOF)
       - [35.6877, 32.9920] # Katzrin (Golan Heights)
   exterior-points:
     ISR:
       - [35.8685, 33.1694] # Al-Salam (UNDOF)
       - [35.6877, 32.9920] # Katzrin (Golan Heights)
+
+# Code for UN-administered UNDOF region
+# https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3#User-assigned_code_elements
+ZZZ:
+  base:
+    - [plus, relation, 184888] # UNDOF
+  perspectives:
+    SYR:
+      - [minus, relation, 184888] # UNDOF
+  interior-points:
+    base:
+      - [35.8685, 33.1694] # Al-Salam (UNDOF)
+  exterior-points:
+    SYR:
+      - [35.8685, 33.1694] # Al-Salam (UNDOF)
