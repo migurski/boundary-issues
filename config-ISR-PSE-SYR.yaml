@@ -6,7 +6,6 @@ ISR:
     ISR:
       - [plus, relation, 12331025] # West Bank
       - [plus, relation, 1473938] # Gaza Strip
-      - [plus, relation, 184888] # UNDOF
       - [plus, relation, 16119376] # Golan Heights
     PSE:
       - [minus, relation, 12331025] # West Bank
@@ -19,12 +18,13 @@ ISR:
       - [34.458, 31.513] # Gaza
       - [35.195, 31.903] # Ramallah
       - [35.239, 31.768] # Eastern Jerusalem
-      - [35.8685, 33.1694] # Al-Salam (UNDOF)
       - [35.6877, 32.9920] # Katzrin (Golan Heights)
   exterior-points:
     PSE:
       - [34.458, 31.513] # Gaza
       - [35.239, 31.768] # Eastern Jerusalem
+    ISR:
+      - [35.8685, 33.1694] # Al-Salam (UNDOF)
     SYR:
       - [35.8685, 33.1694] # Al-Salam (UNDOF)
       - [35.6877, 32.9920] # Katzrin (Golan Heights)
