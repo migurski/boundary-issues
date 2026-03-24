@@ -28,7 +28,7 @@ public class Boundaries implements ForwardingProfile.LayerPostProcessor {
       .setAttr("stable", sf.getString("stable"))
       .setAttr("disputed", sf.getString("disputed"))
       .setAttr("nonexistent", sf.getString("nonexistent"))
-      .setZoomRange(0, 7)
+      .setZoomRange(0, 18)
       .setMinPixelSize(1.0);
   }
 

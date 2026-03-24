@@ -22,7 +22,7 @@ public class Areas implements ForwardingProfile.LayerPostProcessor {
       .setAttr("index", sf.getLong("index"))
       .setAttr("iso3", sf.getString("iso3"))
       .setAttr("perspectives", sf.getString("perspectives"))
-      .setZoomRange(0, 7)
+      .setZoomRange(0, 18)
       .setMinPixelSize(1.0);
   }
 
