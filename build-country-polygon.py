@@ -29,12 +29,13 @@ import shapely.wkt
 import yaml
 
 osgeo.gdal.UseExceptions()
-csv.field_size_limit(sys.maxsize)
+osgeo.ogr.UseExceptions()
 
-VALIDATION_POINTS_NAME = "validation-points.csv"
-BOUNDARIES_NAME = "country-boundaries.csv"
-CLAIMS_NAME = "country-claims.csv"
-AREAS_NAME = "country-areas.csv"
+GPKG_NAME = "out.gpkg"
+VALIDATION_POINTS_NAME = "validation-points"
+BOUNDARIES_NAME = "country-boundaries"
+CLAIMS_NAME = "country-claims"
+AREAS_NAME = "country-areas"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
 
@@ -96,16 +97,16 @@ class TestCase (unittest.TestCase):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
         cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"], None)
-        write_country_areas(cls.tempdir, cls.config, check_fresh_osm=False)
-        write_country_claims(cls.tempdir, cls.config)
-        write_validation_points(cls.tempdir, cls.config)
-        write_country_boundaries(cls.tempdir, cls.config)
+        gpkg_path = os.path.join(cls.tempdir, GPKG_NAME)
+        write_country_areas(gpkg_path, cls.config, check_fresh_osm=False)
+        write_country_claims(gpkg_path, cls.config)
+        write_validation_points(gpkg_path, cls.config)
+        write_country_boundaries(gpkg_path, cls.config)
 
     @classmethod
     def tearDownClass(cls):
         return  # Don't remove these so we can inspect them in QGIS
-        os.remove(os.path.join(cls.tempdir, BOUNDARIES_NAME))
-        os.remove(os.path.join(cls.tempdir, AREAS_NAME))
+        os.remove(os.path.join(cls.tempdir, GPKG_NAME))
         os.rmdir(cls.tempdir)
         cls.tempdir = None
 
@@ -142,15 +143,15 @@ class TestCase (unittest.TestCase):
 
     @staticmethod
     def _load_borders():
-        with open(os.path.join(TestCase.tempdir, BOUNDARIES_NAME), "r") as file:
-            borders = []
-            file.readline()
-            for row in csv.reader(file):
-                stable_set = set(row[0].split(D2)) if row[0] else set()
-                disputed_set = set(row[1].split(D2)) if row[1] else set()
-                nonexistent_set = set(row[2].split(D2)) if row[2] else set()
-                geom = osgeo.ogr.CreateGeometryFromWkt(row[3])
-                borders.append((stable_set, disputed_set, nonexistent_set, geom))
+        gpkg_path = os.path.join(TestCase.tempdir, GPKG_NAME)
+        gdf = geopandas.read_file(gpkg_path, layer=BOUNDARIES_NAME)
+        borders = []
+        for _, row in gdf.iterrows():
+            stable_set = set(row['stable'].split(D2)) if row['stable'] else set()
+            disputed_set = set(row['disputed'].split(D2)) if row['disputed'] else set()
+            nonexistent_set = set(row['nonexistent'].split(D2)) if row['nonexistent'] else set()
+            geom = shapely_geom_to_ogr(row.geometry)
+            borders.append((stable_set, disputed_set, nonexistent_set, geom))
         return borders
 
     @staticmethod
@@ -258,26 +259,25 @@ class TestCase (unittest.TestCase):
         self.assertFalse(self.disputed_for("CHN").Contains(make_point(-2.5, 5)))
 
     def test_claims_esp_fra(self):
-        with open(os.path.join(TestCase.tempdir, CLAIMS_NAME)) as f:
-            f.readline()
-            claimant_strings = [row[0] for row in csv.reader(f)]
+        gpkg_path = os.path.join(TestCase.tempdir, GPKG_NAME)
+        gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
+        claimant_strings = list(gdf['claimants'])
         # The condominium region must appear as a joint-owner claim
         joint_owner_rows = [c for c in claimant_strings if "ESP-FRA:" in c]
         self.assertGreater(len(joint_owner_rows), 0, "Expected ESP-FRA joint-owner token in claims")
 
     def test_claims(self):
-        validate_claims(TestCase.config, os.path.join(TestCase.tempdir, CLAIMS_NAME))
+        validate_claims(TestCase.config, os.path.join(TestCase.tempdir, GPKG_NAME))
 
     def test_areas(self):
-        validate_areas(TestCase.config, os.path.join(TestCase.tempdir, AREAS_NAME))
+        validate_areas(TestCase.config, os.path.join(TestCase.tempdir, GPKG_NAME))
 
-def validate_claims(configs, claims_path):
-    with open(claims_path, "r") as file:
-        file.readline()
-        claims = [
-            (row[0], osgeo.ogr.CreateGeometryFromWkt(row[1]))
-            for row in csv.reader(file)
-        ]
+def validate_claims(configs, gpkg_path):
+    gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
+    claims = [
+        (row['claimants'], shapely_geom_to_ogr(row.geometry))
+        for _, row in gdf.iterrows()
+    ]
 
     all_povs = set(configs.keys())
     cases = [
@@ -313,13 +313,12 @@ def validate_claims(configs, claims_path):
             assert all(not make_point(x, y).Within(claim_geom) for _, claim_geom in matching_claims), \
                 f"({x}, {y}) should be outside {test_iso3a} for all of {matching_claims} from the {test_iso3b} perspective"
 
-def validate_areas(configs, areas_path):
-    with open(areas_path, "r") as file:
-        file.readline()
-        areas = {
-            tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
-            for row in csv.reader(file)
-        }
+def validate_areas(configs, gpkg_path):
+    gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
+    areas = {
+        (row['iso3'], row['perspectives']): shapely_geom_to_ogr(row.geometry)
+        for _, row in gdf.iterrows()
+    }
 
     all_povs = set(configs.keys())
     cases = [
@@ -478,7 +477,13 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str
 def dump_wkt(shape: shapely.geometry.base.BaseGeometry) -> str:
     return shapely.wkt.dumps(shape, rounding_precision=7)
 
-def write_validation_points(dirname, configs):
+def shapely_geom_to_ogr(shape: shapely.geometry.base.BaseGeometry) -> osgeo.ogr.Geometry:
+    return osgeo.ogr.CreateGeometryFromWkb(shapely.to_wkb(shape))
+
+def ogr_geom_to_shapely(geom: osgeo.ogr.Geometry) -> shapely.geometry.base.BaseGeometry:
+    return shapely.from_wkb(bytes(geom.ExportToWkb()))
+
+def write_validation_points(gpkg_path, configs):
     all_povs = set(configs.keys())
     cases = [
         (is_in, test_iso3a, test_iso3b, x, y)
@@ -488,25 +493,26 @@ def write_validation_points(dirname, configs):
         for x, y in points
     ]
 
-    with open(os.path.join(dirname, VALIDATION_POINTS_NAME), "w") as file:
-        rows = csv.DictWriter(file, fieldnames=("iso3", "perspectives", "relation", "geometry"))
-        rows.writeheader()
-        for is_in, test_iso3a, test_iso3b, x, y in cases:
-            if test_iso3b == BASE:
-                # "Neutral" point of view = anyone without a defined perspective
-                local_povs = set(configs[test_iso3a].get("perspectives", {}).keys())
-                neutral_povs = all_povs - local_povs
-                test_iso3b = D2.join(neutral_povs)
-            relation = "interior" if is_in else "exterior"
-            row = dict(iso3=test_iso3a, perspectives=test_iso3b, relation=relation)
-            print("Writing validation point", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": f"POINT({x:.7f} {y:.7f})"})
+    data_rows = []
+    for is_in, test_iso3a, test_iso3b, x, y in cases:
+        if test_iso3b == BASE:
+            # "Neutral" point of view = anyone without a defined perspective
+            local_povs = set(configs[test_iso3a].get("perspectives", {}).keys())
+            neutral_povs = all_povs - local_povs
+            test_iso3b = D2.join(neutral_povs)
+        relation = "interior" if is_in else "exterior"
+        row = dict(iso3=test_iso3a, perspectives=test_iso3b, relation=relation)
+        print("Writing validation point", row, file=sys.stderr)
+        data_rows.append({**row, "geometry": shapely.geometry.Point(x, y)})
 
-def write_country_boundaries(dirname, configs):
-    df = geopandas.read_file(os.path.join(dirname, CLAIMS_NAME))
+    gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
+    iso3_index = sorted({r['iso3'] for r in data_rows})
+    gdf['color_index'] = gdf['iso3'].apply(iso3_index.index)
+    gdf.to_file(gpkg_path, layer=VALIDATION_POINTS_NAME, driver='GPKG')
+    return gpkg_path
 
-    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
-    gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
+def write_country_boundaries(gpkg_path, configs):
+    gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
 
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
 
@@ -515,54 +521,61 @@ def write_country_boundaries(dirname, configs):
         for index_left, row in gdf_neighbors.iterrows()
     }
 
-    with open(os.path.join(dirname, BOUNDARIES_NAME), "w") as file:
-        rows = csv.DictWriter(file, fieldnames=("stable", "disputed", "nonexistent", "geometry"))
-        rows.writeheader()
-        for i1, i2 in sorted(index_pairings):
-            row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
-            if not row1.geometry.relate_pattern(row2.geometry, 'F*2*1*2*2'):
-                # No overlap, including touching at a point
-                continue
-            boundary = Boundary(
-                [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
-                [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row2.claimants)],
-                clean_linestring(row1.geometry.intersection(row2.geometry)),
-            )
-            stable_believers, disputed_believers, non_believers = set(), set(), set()
-            if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
-                stable_believers = boundary.claims1[0][1] & boundary.claims2[0][1]
-            else:
-                neighbor_combos = itertools.product(boundary.claims1, boundary.claims2)
-                for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
-                    common_observers = observers_a & observers_b
-                    if iso3a == iso3b:
-                        if D0 in iso3a:
-                            # Joint-owner condominium: all observers agree on this border
-                            stable_believers |= common_observers
-                        else:
-                            if iso3a in common_observers:
-                                common_observers.remove(iso3a)
-                            non_believers.add(iso3a)
-                            if common_observers:
-                                disputed_believers |= common_observers
+    data_rows = []
+    for i1, i2 in sorted(index_pairings):
+        row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
+        polygon1 = clean_polygon(row1.geometry)
+        polygon2 = clean_polygon(row2.geometry)
+        if not polygon1.relate_pattern(polygon2, 'F*2*1*2*2'):
+            # No overlap, including touching at a point
+            continue
+        with open("forthcoming-boundary.csv", "w") as file:
+            rows2 = csv.DictWriter(file, ("claimants", "geometry"))
+            rows2.writeheader()
+            rows2.writerow({"claimants": row1.claimants, "geometry": dump_wkt(polygon1)})
+            rows2.writerow({"claimants": row2.claimants, "geometry": dump_wkt(polygon2)})
+        boundary = Boundary(
+            [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
+            [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row2.claimants)],
+            clean_linestring(polygon1.intersection(polygon2)),
+        )
+        stable_believers, disputed_believers, non_believers = set(), set(), set()
+        if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
+            stable_believers = boundary.claims1[0][1] & boundary.claims2[0][1]
+        else:
+            neighbor_combos = itertools.product(boundary.claims1, boundary.claims2)
+            for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
+                common_observers = observers_a & observers_b
+                if iso3a == iso3b:
+                    if D0 in iso3a:
+                        # Joint-owner condominium: all observers agree on this border
+                        stable_believers |= common_observers
                     else:
                         if iso3a in common_observers:
                             common_observers.remove(iso3a)
-                            stable_believers.add(iso3a)
-                        if iso3b in common_observers:
-                            common_observers.remove(iso3b)
-                            stable_believers.add(iso3b)
+                        non_believers.add(iso3a)
                         if common_observers:
                             disputed_believers |= common_observers
-            row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
-            print("Writing border", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": dump_wkt(boundary.geometry)})
+                else:
+                    if iso3a in common_observers:
+                        common_observers.remove(iso3a)
+                        stable_believers.add(iso3a)
+                    if iso3b in common_observers:
+                        common_observers.remove(iso3b)
+                        stable_believers.add(iso3b)
+                    if common_observers:
+                        disputed_believers |= common_observers
+        row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
+        print("Writing border", row, file=sys.stderr)
+        data_rows.append({**row, "geometry": boundary.geometry})
 
-def write_country_claims(dirname, configs) -> str:
-    df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
+    boundaries_gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
+    boundaries_gdf['color_index'] = range(len(boundaries_gdf))
+    boundaries_gdf.to_file(gpkg_path, layer=BOUNDARIES_NAME, driver='GPKG')
+    return gpkg_path
 
-    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
-    gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
+def write_country_claims(gpkg_path, configs) -> str:
+    gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
 
     # Need to separately include partial overlaps and complete containments
     gdf_disputants1 = geopandas.sjoin(gdf, gdf, predicate="overlaps")
@@ -598,11 +611,11 @@ def write_country_claims(dirname, configs) -> str:
                 try:
                     relationship = new_claim.relationship(out_claim)
                 except ValueError:
-                    with open(os.path.join(dirname, "bad-relationship.csv"), "w") as file:
+                    with open(os.path.join(os.path.dirname(gpkg_path), "bad-relationship.csv"), "w") as file:
                         rows = csv.DictWriter(file, ("claimants", "geometry"))
                         rows.writeheader()
-                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_polygon)})
-                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_polygon)})
+                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": dump_wkt(new_polygon)})
+                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": dump_wkt(out_polygon)})
                     raise
                 if relationship is Relationship.NO_OVERLAP:
                     # new_claim does not overlap out_claim
@@ -644,58 +657,65 @@ def write_country_claims(dirname, configs) -> str:
 
         all_claims.extend(out_claims)
 
-    with open(os.path.join(dirname, CLAIMS_NAME), 'w') as file:
-        rows = csv.DictWriter(file, ("claimants", "geometry"))
-        rows.writeheader()
-        for claim in all_claims:
-            coalesced = claim.coalesced()
-            # Group claimants that share an identical observer set into joint-owner tokens
-            groups: dict[frozenset[str], list[str]] = {}
-            for iso3, perspectives in coalesced.claimants:
-                key = frozenset(perspectives)
-                groups.setdefault(key, []).append(iso3)
-            tokens = []
-            for key, iso3s in sorted(groups.items(), key=lambda kv: kv[1]):
-                owner = D0.join(sorted(iso3s))
-                observers = D2.join(sorted(key))
-                tokens.append(f"{owner}{D1}{observers}")
-            row = dict(claimants=" ".join(tokens))
-            print("Writing claim polygon", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
+    data_rows = []
+    for claim in all_claims:
+        coalesced = claim.coalesced()
+        # Group claimants that share an identical observer set into joint-owner tokens
+        groups: dict[frozenset[str], list[str]] = {}
+        for iso3, perspectives in coalesced.claimants:
+            key = frozenset(perspectives)
+            groups.setdefault(key, []).append(iso3)
+        tokens = []
+        for key, iso3s in sorted(groups.items(), key=lambda kv: kv[1]):
+            owner = D0.join(sorted(iso3s))
+            observers = D2.join(sorted(key))
+            tokens.append(f"{owner}{D1}{observers}")
+        row = dict(claimants=" ".join(tokens))
+        print("Writing claim polygon", row, file=sys.stderr)
+        data_rows.append({**row, "geometry": claim.geometry})
 
-        return file.name
+    claims_gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
+    claims_gdf.to_file(gpkg_path, layer=CLAIMS_NAME, driver='GPKG')
+    return gpkg_path
 
-def write_country_areas(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = None) -> str:
-    with open(os.path.join(dirname, AREAS_NAME), "w") as file:
-        rows = csv.DictWriter(file, ("iso3", "perspectives", "geometry"))
-        rows.writeheader()
-        for (iso3a, config) in configs.items():
-            geom1 = combine_shapes(config[BASE], check_fresh_osm, cache_base_url)
+def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_url: str|None = None) -> str:
+    # Delete stale GPKG from previous runs before writing the first layer
+    if os.path.exists(gpkg_path):
+        os.remove(gpkg_path)
 
-            # "Neutral" point of view = anyone without a defined perspective
-            neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
-            row1 = dict(iso3=iso3a, perspectives=D2.join(sorted(neutral_pov)))
-            print("Writing base polygon", row1, file=sys.stderr)
-            rows.writerow({**row1, "geometry": geom1.ExportToWkt()})
+    data_rows = []
+    for (iso3a, config) in configs.items():
+        geom1 = combine_shapes(config[BASE], check_fresh_osm, cache_base_url)
 
-            # Generate perspectives
-            for (iso3b, shapes) in config.get("perspectives", {}).items():
-                geom2 = functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, geom1)
+        # "Neutral" point of view = anyone without a defined perspective
+        neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
+        row1 = dict(iso3=iso3a, perspectives=D2.join(sorted(neutral_pov)))
+        print("Writing base polygon", row1, file=sys.stderr)
+        data_rows.append({**row1, "geometry": ogr_geom_to_shapely(geom1)})
 
-                row2 = dict(iso3=iso3a, perspectives=iso3b)
-                print("Writing perspective polygon", row2, file=sys.stderr)
-                rows.writerow({**row2, "geometry": geom2.ExportToWkt()})
+        # Generate perspectives
+        for (iso3b, shapes) in config.get("perspectives", {}).items():
+            geom2 = functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, geom1)
 
-        return file.name
+            row2 = dict(iso3=iso3a, perspectives=iso3b)
+            print("Writing perspective polygon", row2, file=sys.stderr)
+            data_rows.append({**row2, "geometry": ogr_geom_to_shapely(geom2)})
+
+    gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
+    iso3_index = sorted({r['iso3'] for r in data_rows})
+    gdf['color_index'] = gdf['iso3'].apply(iso3_index.index)
+    gdf.to_file(gpkg_path, layer=AREAS_NAME, driver='GPKG')
+    return gpkg_path
 
 def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = None):
-    areas_path = write_country_areas(dirname, configs, check_fresh_osm, cache_base_url)
-    claims_path = write_country_claims(dirname, configs)
+    gpkg_path = os.path.join(dirname, GPKG_NAME)
+    write_country_areas(gpkg_path, configs, check_fresh_osm, cache_base_url)
+    write_country_claims(gpkg_path, configs)
     print("Validating interior and exterior points...", file=sys.stderr)
-    validate_areas(configs, areas_path)
-    validate_claims(configs, claims_path)
-    write_validation_points(dirname, configs)
-    write_country_boundaries(dirname, configs)
+    validate_areas(configs, gpkg_path)
+    validate_claims(configs, gpkg_path)
+    write_validation_points(gpkg_path, configs)
+    write_country_boundaries(gpkg_path, configs)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')

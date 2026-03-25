@@ -11,9 +11,9 @@ import java.nio.file.Path;
  *
  * This profile implements:
  * - A landcover layer from daylight-landcover.gpkg
- * - An areas layer from country-areas.geojson (polygon features)
- * - A boundaries layer from country-boundaries.geojson (linestring features)
- * - A points layer from validation-points.geojson (point features)
+ * - An areas layer from the country-areas layer of out.gpkg (polygon features)
+ * - A boundaries layer from the country-boundaries layer of out.gpkg (linestring features)
+ * - A points layer from the validation-points layer of out.gpkg (point features)
  */
 public class PoliticalViewsProfile extends ForwardingProfile {
 
@@ -24,15 +24,15 @@ public class PoliticalViewsProfile extends ForwardingProfile {
 
     var areas = new Areas();
     registerHandler(areas);
-    registerSourceHandler(Areas.SOURCE_NAME, areas::process_area);
+    registerSourceHandler("political", areas);
 
     var boundaries = new Boundaries();
     registerHandler(boundaries);
-    registerSourceHandler(Boundaries.SOURCE_NAME, boundaries::process_boundary);
+    registerSourceHandler("political", boundaries);
 
     var points = new Points();
     registerHandler(points);
-    registerSourceHandler(Points.SOURCE_NAME, points::process_point);
+    registerSourceHandler("political", points);
   }
 
   @Override
@@ -91,16 +91,12 @@ public class PoliticalViewsProfile extends ForwardingProfile {
         --output=<path>         Output file path (default: output.pmtiles)
         --maxzoom=<n>           Maximum zoom level (default: 7)
         --force                 Overwrite existing output file
-        --areas=<path>          Path to country-areas.geojson
-        --boundaries=<path>     Path to country-boundaries.geojson
-        --points=<path>         Path to validation-points.geojson
+        --gpkg=<path>           Path to out.gpkg (contains country-areas, country-boundaries, validation-points layers)
         --data=<path>           Directory for downloaded data files (default: data)
 
       Example:
         java -jar political-views-tiles-1.0.0-with-deps.jar \\
-          --areas=country-areas.geojson \\
-          --boundaries=country-boundaries.geojson \\
-          --points=validation-points.geojson \\
+          --gpkg=out.gpkg \\
           --output=preview.pmtiles --force
 
       For a complete list of Planetiler options, see:
@@ -114,9 +110,7 @@ public class PoliticalViewsProfile extends ForwardingProfile {
     String data_dir = args.getString("data", "Directory for downloaded data files", "data");
     Path sources_dir = Path.of(data_dir).resolve("sources");
 
-    String areas_path = args.getString("areas", "Path to country-areas.geojson", "");
-    String boundaries_path = args.getString("boundaries", "Path to country-boundaries.geojson", "");
-    String points_path = args.getString("points", "Path to validation-points.geojson", "");
+    String gpkg_path = args.getString("gpkg", "Path to out.gpkg", "");
     String output_name = args.getString("output", "Output PMTiles path", "output.pmtiles");
     String landcover_path = args.getString("landcover_path", "Path to daylight-landcover.gpkg",
       sources_dir.resolve("daylight-landcover.gpkg").toString());
@@ -125,16 +119,8 @@ public class PoliticalViewsProfile extends ForwardingProfile {
       .addGeoPackageSource("landcover", Path.of(landcover_path),
         "https://r2-public.protomaps.com/datasets/daylight-landcover.gpkg");
 
-    if (!areas_path.isBlank()) {
-      planetiler.addGeoJsonSource(Areas.SOURCE_NAME, Path.of(areas_path));
-    }
-
-    if (!boundaries_path.isBlank()) {
-      planetiler.addGeoJsonSource(Boundaries.SOURCE_NAME, Path.of(boundaries_path));
-    }
-
-    if (!points_path.isBlank()) {
-      planetiler.addGeoJsonSource(Points.SOURCE_NAME, Path.of(points_path));
+    if (!gpkg_path.isBlank()) {
+      planetiler.addGeoPackageSource("political", Path.of(gpkg_path), "");
     }
 
     planetiler
