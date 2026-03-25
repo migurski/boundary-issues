@@ -19,15 +19,25 @@ BGD:
 MMR:
   base:
     - [plus, relation, 50371] # Myanmar
+    - [minus, relation, 2067731] # Thailand (Andaman Sea islands)
+  perspectives:
+    MMR:
+      - [plus, relation, 50371] # Myanmar (Andaman Sea islands)
   interior-points:
     base:
       - [96.103, 19.775] # Nay Pyi Taw
+    MMR:
+      - [98.4835, 9.9310] # island
 THA:
   base:
     - [plus, relation, 2067731] # Thailand
+  perspectives:
+    MMR:
+      - [minus, relation, 50371] # Myanmar (Andaman Sea islands)
   interior-points:
     base:
       - [100.493, 13.752] # Bangkok
+      - [98.4835, 9.9310] # island
 KHM:
   base:
     - [plus, relation, 49898] # Cambodia
