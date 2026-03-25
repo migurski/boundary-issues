@@ -254,6 +254,7 @@ def find_changed_configs(pull_request: dict[str, typing.Any], clone_dir: str, on
             raise ValueError("Missing base or head SHA for diff")
 
         logging.info(f"Finding changed configs between {base_sha} and {head_sha}")
+        run_in(['git', 'fetch', '--depth=1', 'origin', base_sha], clone_dir)
         diff_result = run_in(['git', 'diff', '--name-only', f'{base_sha}...{head_sha}'], clone_dir)
 
         changed_files = diff_result.stdout.strip().split('\n')
