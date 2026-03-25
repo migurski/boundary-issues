@@ -206,9 +206,10 @@ HRV:
   base:
     - [plus, relation, 214885] # Croatia
     - [minus, relation, 218657] # Subtract Gulf of Piran, a part of Slovenia base
+    - [minus, relation, 1741311] # Serbia (Danube river pockets)
   perspectives:
     HRV:
-      - [plus, relation, 214885] # Re-add Gulf of Piran
+      - [plus, relation, 214885] # Re-add Gulf of Piran and Danube river pockets
   interior-points:
     base:
       - [15.977, 45.813] # Zagreb
