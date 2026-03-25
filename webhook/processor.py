@@ -2,20 +2,16 @@ from __future__ import annotations
 
 import argparse
 import boto3
-import csv
 import glob
+import geopandas
 import json
 import logging
 import shutil
 import subprocess
 import os
-import sys
 import tempfile
 import typing
 import urllib.parse
-import osgeo.ogr
-
-csv.field_size_limit(sys.maxsize)
 
 # Configure logging
 logging.basicConfig(format='%(levelname)s: %(message)s')
@@ -116,18 +112,15 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
 
         # Generate tiles on first run (when checkFreshOSM is not set)
         if not check_fresh_osm:
-            err7 = convert_csvs_to_geojson(clone_dir, on_failure)
+            err7 = generate_tiles(s3_client, destination, clone_dir, on_failure)
             if err7:
                 return err7
-            err8 = generate_tiles(s3_client, destination, clone_dir, on_failure)
+            err8 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
             if err8:
                 return err8
-            err9 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
+            err9 = update_status_html(s3_client, destination, clone_dir, on_failure)
             if err9:
                 return err9
-            err10 = update_status_html(s3_client, destination, clone_dir, on_failure)
-            if err10:
-                return err10
 
     # Success!
     success_response = {
@@ -314,130 +307,14 @@ def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_di
         return make_error(str(e))
 
 
-def convert_csvs_to_geojson(clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
-    """ Convert country-areas.csv and country-boundaries.csv to GeoJSON files in clone_dir """
-    try:
-        osgeo.ogr.UseExceptions()
-
-        areas_csv = os.path.join(clone_dir, 'country-areas.csv')
-        boundaries_csv = os.path.join(clone_dir, 'country-boundaries.csv')
-
-        # Convert areas CSV (iso3, perspectives, geometry)
-        areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
-        if os.path.exists(areas_csv):
-            features = []
-            with open(areas_csv, newline='') as f:
-                for row in csv.DictReader(f):
-                    wkt = row.get('geometry', '')
-                    if not wkt:
-                        continue
-                    geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
-                    if geom is None:
-                        continue
-                    features.append({
-                        'type': 'Feature',
-                        'geometry': json.loads(geom.ExportToJson()),
-                        'properties': {
-                            'index': None,
-                            'iso3': row.get('iso3', ''),
-                            'perspectives': row.get('perspectives', ''),
-                        },
-                    })
-            indexes = sorted(list({f['properties']['iso3'] for f in features}))
-            for feature in features:
-                feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
-            if features:
-                with open(areas_geojson, 'w') as f:
-                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
-                logging.info(f"Wrote {len(features)} area features to {areas_geojson}")
-            else:
-                logging.info(f"Skipping areas GeoJSON: no features found in {areas_csv}")
-        else:
-            logging.info(f"Skipping areas conversion: {areas_csv} not found")
-
-        # Convert boundaries CSV (stable, disputed, nonexistent, geometry)
-        boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
-        if os.path.exists(boundaries_csv):
-            features = []
-            with open(boundaries_csv, newline='') as f:
-                for index, row in enumerate(csv.DictReader(f)):
-                    wkt = row.get('geometry', '')
-                    if not wkt:
-                        continue
-                    geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
-                    if geom is None:
-                        continue
-                    features.append({
-                        'type': 'Feature',
-                        'geometry': json.loads(geom.ExportToJson()),
-                        'properties': {
-                            'index': index,
-                            'stable': row.get('stable', ''),
-                            'disputed': row.get('disputed', ''),
-                            'nonexistent': row.get('nonexistent', ''),
-                        },
-                    })
-            if features:
-                with open(boundaries_geojson, 'w') as f:
-                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
-                logging.info(f"Wrote {len(features)} boundary features to {boundaries_geojson}")
-            else:
-                logging.info(f"Skipping boundaries GeoJSON: no features found in {boundaries_csv}")
-        else:
-            logging.info(f"Skipping boundaries conversion: {boundaries_csv} not found")
-
-        # Convert validation-points CSV (iso3, perspectives, relation, geometry)
-        points_csv = os.path.join(clone_dir, 'validation-points.csv')
-        points_geojson = os.path.join(clone_dir, 'validation-points.geojson')
-        if os.path.exists(points_csv):
-            features = []
-            with open(points_csv, newline='') as f:
-                for row in csv.DictReader(f):
-                    wkt = row.get('geometry', '')
-                    if not wkt:
-                        continue
-                    geom = osgeo.ogr.CreateGeometryFromWkt(wkt)
-                    if geom is None:
-                        continue
-                    features.append({
-                        'type': 'Feature',
-                        'geometry': json.loads(geom.ExportToJson()),
-                        'properties': {
-                            'index': None,
-                            'iso3': row.get('iso3', ''),
-                            'perspectives': row.get('perspectives', ''),
-                            'relation': row.get('relation', ''),
-                        },
-                    })
-            indexes = sorted(list({f['properties']['iso3'] for f in features}))
-            for feature in features:
-                feature['properties']['index'] = indexes.index(feature['properties']['iso3'])
-            if features:
-                with open(points_geojson, 'w') as f:
-                    json.dump({'type': 'FeatureCollection', 'features': features}, f)
-                logging.info(f"Wrote {len(features)} validation point features to {points_geojson}")
-            else:
-                logging.info(f"Skipping validation-points GeoJSON: no features found in {points_csv}")
-        else:
-            logging.info(f"Skipping validation-points conversion: {points_csv} not found")
-
-        return None
-
-    except Exception as e:
-        logging.error(f"Failed to convert CSVs to GeoJSON: {e}")
-        on_failure('GeoJSONConversionError', str(e))
-        return make_error(f'Failed to convert CSVs to GeoJSON: {str(e)}')
-
 
 def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Run the Planetiler JAR to generate preview.pmtiles, then upload to S3 if s3_client is provided """
     try:
-        areas_geojson = os.path.join(clone_dir, 'country-areas.geojson')
-        boundaries_geojson = os.path.join(clone_dir, 'country-boundaries.geojson')
-        points_geojson = os.path.join(clone_dir, 'validation-points.geojson')
+        gpkg_path = os.path.join(clone_dir, 'out.gpkg')
 
-        if not os.path.exists(areas_geojson) and not os.path.exists(boundaries_geojson):
-            logging.info("No GeoJSON files found, skipping tile generation")
+        if not os.path.exists(gpkg_path):
+            logging.info("No out.gpkg found, skipping tile generation")
             return None
 
         output_path = os.path.join(clone_dir, 'preview.pmtiles')
@@ -457,13 +334,8 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
                 '--download',
                 '--force',
                 '--maxzoom', '12',
+                f'--gpkg={gpkg_path}',
             ]
-            if os.path.exists(areas_geojson):
-                cmd.append(f'--areas={areas_geojson}')
-            if os.path.exists(boundaries_geojson):
-                cmd.append(f'--boundaries={boundaries_geojson}')
-            if os.path.exists(points_geojson):
-                cmd.append(f'--points={points_geojson}')
             logging.info(f"Running tile generation: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             logging.info(f"Tile generation output: {result.stdout}")
@@ -509,26 +381,29 @@ def generate_tiles(s3_client: typing.Any, destination: typing.Optional[str], clo
 def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_dir: str, on_failure: FailCallable) -> dict[str, typing.Any]|None:
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
-        perspective_set = set()
-        for csv_name in ('country-areas.csv', 'validation-points.csv'):
-            csv_path = os.path.join(clone_dir, csv_name)
-            if not os.path.exists(csv_path):
-                continue
-            with open(csv_path, newline='') as f:
-                for row in csv.DictReader(f):
-                    for code in row.get('perspectives', '').split(';'):
-                        code = code.strip()
-                        if code:
-                            perspective_set.add(code)
-        boundaries_csv_path = os.path.join(clone_dir, 'country-boundaries.csv')
-        if os.path.exists(boundaries_csv_path):
-            with open(boundaries_csv_path, newline='') as f:
-                for row in csv.DictReader(f):
-                    for col in ('stable', 'disputed', 'nonexistent'):
-                        for code in row.get(col, '').split(';'):
+        gpkg_path = os.path.join(clone_dir, 'out.gpkg')
+        perspective_set: set[str] = set()
+        if os.path.exists(gpkg_path):
+            for layer_name in ('country-areas', 'validation-points'):
+                try:
+                    gdf = geopandas.read_file(gpkg_path, layer=layer_name)
+                    for perspectives_val in gdf['perspectives']:
+                        for code in str(perspectives_val).split(';'):
                             code = code.strip()
                             if code:
                                 perspective_set.add(code)
+                except Exception:
+                    pass
+            try:
+                gdf_boundaries = geopandas.read_file(gpkg_path, layer='country-boundaries')
+                for col in ('stable', 'disputed', 'nonexistent'):
+                    for val in gdf_boundaries[col]:
+                        for code in str(val).split(';'):
+                            code = code.strip()
+                            if code:
+                                perspective_set.add(code)
+            except Exception:
+                pass
         all_perspectives = sorted(perspective_set)
         perspectives_json = json.dumps(all_perspectives)
 
@@ -597,7 +472,7 @@ const map = new maplibregl.Map({
         "id": "areas", "type": "fill",
         "source": "protomaps", "source-layer": "areas",
         "paint": {
-          "fill-color": ["match", ["%", ["get", "index"], 24],
+          "fill-color": ["match", ["%", ["get", "color_index"], 24],
             // https://phillips.shef.ac.uk/pub/cpt-city/cb/qual/set2_08
             0, "#7DC0A6",
             1, "#ED936B",
@@ -807,20 +682,16 @@ def main() -> int:
     if err1:
         return 1
 
-    err2 = convert_csvs_to_geojson(clone_dir, on_failure)
+    err2 = generate_tiles(s3_client, destination, clone_dir, on_failure)
     if err2:
         return 1
 
-    err3 = generate_tiles(s3_client, destination, clone_dir, on_failure)
+    err3 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
     if err3:
         return 1
 
-    err4 = generate_preview_html(s3_client, destination, clone_dir, on_failure)
+    err4 = update_status_html(s3_client, destination, clone_dir, on_failure)
     if err4:
-        return 1
-
-    err5 = update_status_html(s3_client, destination, clone_dir, on_failure)
-    if err5:
         return 1
 
     return 0
