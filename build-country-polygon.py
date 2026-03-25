@@ -525,6 +525,11 @@ def write_country_boundaries(dirname, configs):
             if not polygon1.relate_pattern(polygon2, 'F*2*1*2*2'):
                 # No overlap, including touching at a point
                 continue
+            with open("forthcoming-boundary.csv", "w") as file:
+                rows2 = csv.DictWriter(file, ("claimants", "geometry"))
+                rows2.writeheader()
+                rows2.writerow({"claimants": row1.claimants, "geometry": dump_wkt(polygon1)})
+                rows2.writerow({"claimants": row2.claimants, "geometry": dump_wkt(polygon2)})
             boundary = Boundary(
                 [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
                 [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row2.claimants)],
