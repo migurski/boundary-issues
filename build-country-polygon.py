@@ -520,13 +520,15 @@ def write_country_boundaries(dirname, configs):
         rows.writeheader()
         for i1, i2 in sorted(index_pairings):
             row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
-            if not row1.geometry.relate_pattern(row2.geometry, 'F*2*1*2*2'):
+            polygon1 = clean_polygon(row1.geometry)
+            polygon2 = clean_polygon(row2.geometry)
+            if not polygon1.relate_pattern(polygon2, 'F*2*1*2*2'):
                 # No overlap, including touching at a point
                 continue
             boundary = Boundary(
                 [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row1.claimants)],
                 [(a, set(b.split(D2))) for a, b in re.findall(rf"\b(\w\w\w(?:{D0}\w\w\w)*){D1}(\w\w\w(?:{D2}\w\w\w)*)\b", row2.claimants)],
-                clean_linestring(row1.geometry.intersection(row2.geometry)),
+                clean_linestring(polygon1.intersection(polygon2)),
             )
             stable_believers, disputed_believers, non_believers = set(), set(), set()
             if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
@@ -601,8 +603,8 @@ def write_country_claims(dirname, configs) -> str:
                     with open(os.path.join(dirname, "bad-relationship.csv"), "w") as file:
                         rows = csv.DictWriter(file, ("claimants", "geometry"))
                         rows.writeheader()
-                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": shapely.wkt.dumps(new_polygon)})
-                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": shapely.wkt.dumps(out_polygon)})
+                        rows.writerow({"claimants": repr(new_claim.claimants), "geometry": dump_wkt(new_polygon)})
+                        rows.writerow({"claimants": repr(out_claim.claimants), "geometry": dump_wkt(out_polygon)})
                     raise
                 if relationship is Relationship.NO_OVERLAP:
                     # new_claim does not overlap out_claim
@@ -661,7 +663,7 @@ def write_country_claims(dirname, configs) -> str:
                 tokens.append(f"{owner}{D1}{observers}")
             row = dict(claimants=" ".join(tokens))
             print("Writing claim polygon", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": shapely.wkt.dumps(claim.geometry)})
+            rows.writerow({**row, "geometry": dump_wkt(claim.geometry)})
 
         return file.name
 
