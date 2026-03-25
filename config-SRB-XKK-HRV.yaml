@@ -2,11 +2,14 @@ SRB:
   base:
     - [plus, relation, 1741311] # Serbia
     - [minus, relation, 2088990] # Kosovo
-    - [minus, relation, 214885] # Croatia (Danube river pockets)
   perspectives:
     SRB:
       - [plus, relation, 2088990] # Kosovo
       - [plus, relation, 1741311] # Serbia (Danube river pockets)
+    HRV:
+      - [plus, relation, 2088990] # Kosovo
+      - [minus, relation, 214885] # Croatia (Danube river pockets)
+      - [plus, relation, 19735507] # 2nd Pocket (Siga) - unclaimed by Serbia
   interior-points:
     base:
       - [20.456, 44.817] # Belgrade
@@ -29,9 +32,9 @@ XKK:
 # https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3#User-assigned_code_elements
 ZZY:
   base:
-    - [plus, relation, 19735506] # Pocket 1
-    - [plus, relation, 19735507] # Pocket 2
-    # Pocket 3 missing in OSM
-    # Pocket 4 missing in OSM
-    - [plus, relation, 19735505] # Pocket 5
-    - [plus, relation, 19735504] # Pocket 6
+    - [plus, relation, 19735506] # 1st Pocket
+    - [plus, relation, 19735507] # 2nd Pocket (Siga)
+    - [plus, relation, 20371987] # 3rd Pocket
+    - [plus, relation, 20371988] # 4th Pocket
+    - [plus, relation, 19735505] # 5th Pocket
+    - [plus, relation, 19735504] # 6th Pocket
