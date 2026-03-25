@@ -150,7 +150,7 @@ class TestCase (unittest.TestCase):
             stable_set = set(row['stable'].split(D2)) if row['stable'] else set()
             disputed_set = set(row['disputed'].split(D2)) if row['disputed'] else set()
             nonexistent_set = set(row['nonexistent'].split(D2)) if row['nonexistent'] else set()
-            geom = osgeo.ogr.CreateGeometryFromWkb(shapely.to_wkb(row.geometry))
+            geom = shapely_geom_to_ogr(row.geometry)
             borders.append((stable_set, disputed_set, nonexistent_set, geom))
         return borders
 
@@ -275,7 +275,7 @@ class TestCase (unittest.TestCase):
 def validate_claims(configs, gpkg_path):
     gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
     claims = [
-        (row['claimants'], osgeo.ogr.CreateGeometryFromWkb(shapely.to_wkb(row.geometry)))
+        (row['claimants'], shapely_geom_to_ogr(row.geometry))
         for _, row in gdf.iterrows()
     ]
 
@@ -316,7 +316,7 @@ def validate_claims(configs, gpkg_path):
 def validate_areas(configs, gpkg_path):
     gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
     areas = {
-        (row['iso3'], row['perspectives']): osgeo.ogr.CreateGeometryFromWkb(shapely.to_wkb(row.geometry))
+        (row['iso3'], row['perspectives']): shapely_geom_to_ogr(row.geometry)
         for _, row in gdf.iterrows()
     }
 
@@ -476,6 +476,12 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str
 
 def dump_wkt(shape: shapely.geometry.base.BaseGeometry) -> str:
     return shapely.wkt.dumps(shape, rounding_precision=7)
+
+def shapely_geom_to_ogr(shape: shapely.geometry.base.BaseGeometry) -> osgeo.ogr.Geometry:
+    return osgeo.ogr.CreateGeometryFromWkb(shapely.to_wkb(shape))
+
+def ogr_geom_to_shapely(geom: osgeo.ogr.Geometry) -> shapely.geometry.base.BaseGeometry:
+    return shapely.from_wkb(bytes(geom.ExportToWkb()))
 
 def write_validation_points(gpkg_path, configs):
     all_povs = set(configs.keys())
@@ -685,7 +691,7 @@ def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_ur
         neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
         row1 = dict(iso3=iso3a, perspectives=D2.join(sorted(neutral_pov)))
         print("Writing base polygon", row1, file=sys.stderr)
-        data_rows.append({**row1, "geometry": shapely.from_wkb(bytes(geom1.ExportToWkb()))})
+        data_rows.append({**row1, "geometry": ogr_geom_to_shapely(geom1)})
 
         # Generate perspectives
         for (iso3b, shapes) in config.get("perspectives", {}).items():
@@ -693,7 +699,7 @@ def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_ur
 
             row2 = dict(iso3=iso3a, perspectives=iso3b)
             print("Writing perspective polygon", row2, file=sys.stderr)
-            data_rows.append({**row2, "geometry": shapely.from_wkb(bytes(geom2.ExportToWkb()))})
+            data_rows.append({**row2, "geometry": ogr_geom_to_shapely(geom2)})
 
     gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
     iso3_index = sorted({r['iso3'] for r in data_rows})
