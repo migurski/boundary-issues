@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import dataclasses
 import enum
@@ -149,7 +150,7 @@ class TestCase (unittest.TestCase):
                 stable_set = set(row[0].split(D2)) if row[0] else set()
                 disputed_set = set(row[1].split(D2)) if row[1] else set()
                 nonexistent_set = set(row[2].split(D2)) if row[2] else set()
-                geom = osgeo.ogr.CreateGeometryFromWkt(row[3])
+                geom = osgeo.ogr.CreateGeometryFromWkb(base64.b64decode(row[3]))
                 borders.append((stable_set, disputed_set, nonexistent_set, geom))
         return borders
 
@@ -317,7 +318,7 @@ def validate_areas(configs, areas_path):
     with open(areas_path, "r") as file:
         file.readline()
         areas = {
-            tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkt(row[-1])
+            tuple(row[:-1]): osgeo.ogr.CreateGeometryFromWkb(base64.b64decode(row[-1]))
             for row in csv.reader(file)
         }
 
@@ -500,12 +501,13 @@ def write_validation_points(dirname, configs):
             relation = "interior" if is_in else "exterior"
             row = dict(iso3=test_iso3a, perspectives=test_iso3b, relation=relation)
             print("Writing validation point", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": f"POINT({x:.7f} {y:.7f})"})
+            point = shapely.geometry.Point(x, y)
+            rows.writerow({**row, "geometry": base64.b64encode(shapely.to_wkb(point)).decode('ascii')})
 
 def write_country_boundaries(dirname, configs):
     df = geopandas.read_file(os.path.join(dirname, CLAIMS_NAME))
 
-    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
+    geometry = geopandas.GeoSeries.from_wkb(df.geometry.apply(base64.b64decode))
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
 
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
@@ -563,12 +565,12 @@ def write_country_boundaries(dirname, configs):
                             disputed_believers |= common_observers
             row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
             print("Writing border", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": dump_wkt(boundary.geometry)})
+            rows.writerow({**row, "geometry": base64.b64encode(shapely.to_wkb(boundary.geometry)).decode('ascii')})
 
 def write_country_claims(dirname, configs) -> str:
     df = geopandas.read_file(os.path.join(dirname, AREAS_NAME))
 
-    geometry = geopandas.GeoSeries.from_wkt(df.geometry)
+    geometry = geopandas.GeoSeries.from_wkb(df.geometry.apply(base64.b64decode))
     gdf = geopandas.GeoDataFrame(data=df, geometry=geometry)
 
     # Need to separately include partial overlaps and complete containments
@@ -668,7 +670,7 @@ def write_country_claims(dirname, configs) -> str:
                 tokens.append(f"{owner}{D1}{observers}")
             row = dict(claimants=" ".join(tokens))
             print("Writing claim polygon", row, file=sys.stderr)
-            rows.writerow({**row, "geometry": dump_wkt(claim.geometry)})
+            rows.writerow({**row, "geometry": base64.b64encode(shapely.to_wkb(claim.geometry)).decode('ascii')})
 
         return file.name
 
@@ -683,7 +685,7 @@ def write_country_areas(dirname, configs, check_fresh_osm: bool, cache_base_url:
             neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
             row1 = dict(iso3=iso3a, perspectives=D2.join(sorted(neutral_pov)))
             print("Writing base polygon", row1, file=sys.stderr)
-            rows.writerow({**row1, "geometry": geom1.ExportToWkt()})
+            rows.writerow({**row1, "geometry": base64.b64encode(geom1.ExportToWkb()).decode('ascii')})
 
             # Generate perspectives
             for (iso3b, shapes) in config.get("perspectives", {}).items():
@@ -691,7 +693,7 @@ def write_country_areas(dirname, configs, check_fresh_osm: bool, cache_base_url:
 
                 row2 = dict(iso3=iso3a, perspectives=iso3b)
                 print("Writing perspective polygon", row2, file=sys.stderr)
-                rows.writerow({**row2, "geometry": geom2.ExportToWkt()})
+                rows.writerow({**row2, "geometry": base64.b64encode(geom2.ExportToWkb()).decode('ascii')})
 
         return file.name
 
