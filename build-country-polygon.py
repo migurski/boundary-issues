@@ -755,7 +755,7 @@ if __name__ == "__main__":
     parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 
-    config_paths = args.configs if args.configs else glob.glob('config*.yaml')
+    config_paths = args.configs if args.configs else sorted(glob.glob('config*.yaml'))
     iso3s = set(args.iso3s.split(",")) if args.iso3s and re.match(r"^\w\w\w(,\w\w\w)*$", args.iso3s) else None
     config = load_configs(config_paths, iso3s)
 
