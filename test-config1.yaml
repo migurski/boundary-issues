@@ -6,6 +6,8 @@ CHN:
     IND:
     - [minus, relation, "fake-Aksai-Chin"]
     - [minus, relation, "fake-Trans-Karakoram-Tract"]
+    PAK:
+    - [plus, relation, "fake-Trans-Karakoram-Tract"]
   interior-points:
     CHN:
       - [3.3, 2.5] # fake-Aksai-Chin
