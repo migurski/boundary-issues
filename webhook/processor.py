@@ -12,6 +12,7 @@ import os
 import tempfile
 import typing
 import urllib.parse
+import yaml
 
 # Configure logging
 logging.basicConfig(format='%(levelname)s: %(message)s')
@@ -103,8 +104,13 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
 
         logging.info(f"check Fresh OSM files: {check_fresh_osm}")
 
+        # Derive ISO3s from changed configs and pass those instead of --configs
+        derived_iso3s = extract_iso3s_from_configs(changed_configs, clone_dir)
+        iso3s_arg = ','.join(derived_iso3s) if derived_iso3s else iso3s
+        logging.info(f"ISO3s derived from changed configs: {derived_iso3s}")
+
         # Run the script
-        err6 = run_build_script(changed_configs, check_fresh_osm, clone_dir, on_failure, iso3s)
+        err6 = run_build_script(None, check_fresh_osm, clone_dir, on_failure, iso3s_arg)
         if err6:
             return err6
 
@@ -129,7 +135,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
         'pr_number': pr_number,
         'sha': pr_sha,
         'message': f'Successfully processed PR #{pr_number} at {pr_sha}',
-        'changedConfigs': changed_configs
+        'iso3s': iso3s_arg
     }
 
     if task_token and sfn_client:
@@ -275,16 +281,42 @@ def find_changed_configs(pull_request: dict[str, typing.Any], clone_dir: str, on
         return make_error(str(e)), None
 
 
-def run_build_script(changed_configs: list[str], check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable, iso3s: typing.Optional[str] = None) -> dict[str, typing.Any]|None:
+def extract_iso3s_from_configs(changed_configs: list[str], clone_dir: str) -> list[str]:
+    """Extract all ISO3 codes referenced in the given config files."""
+    iso3_set: set[str] = set()
+    for config_path in changed_configs:
+        full_path = os.path.join(clone_dir, config_path)
+        try:
+            with open(full_path) as f:
+                data = yaml.safe_load(f)
+            if not isinstance(data, dict):
+                continue
+            for iso3, country_data in data.items():
+                if iso3 != 'base':
+                    iso3_set.add(iso3)
+                if not isinstance(country_data, dict):
+                    continue
+                for section in ('perspectives', 'interior-points', 'exterior-points'):
+                    sub = country_data.get(section)
+                    if isinstance(sub, dict):
+                        for key in sub:
+                            if key != 'base':
+                                iso3_set.add(key)
+        except Exception:
+            logging.warning(f"Could not parse config {config_path} for ISO3 extraction")
+    return sorted(iso3_set)
+
+
+def run_build_script(changed_configs: list[str] | None, check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable, iso3s: typing.Optional[str] = None) -> dict[str, typing.Any]|None:
     """ Run build-country-polygon.py with appropriate arguments """
     cache_base_url = os.environ.get('CACHE_BASE_URL')
     try:
-        if not changed_configs:
-            logging.info("No config files changed, skipping build-country-polygon.py")
-            # Successfully skip processing - nothing to do
-            pass
+        if changed_configs is None and not iso3s:
+            logging.info("No configs or ISO3s to process, skipping build-country-polygon.py")
         else:
-            cmd = ['./build-country-polygon.py', '--configs'] + changed_configs
+            cmd = ['./build-country-polygon.py']
+            if changed_configs is not None:
+                cmd += ['--configs'] + changed_configs
             if check_fresh_osm:
                 cmd += ['--check-fresh-osm']
             if cache_base_url:
