@@ -567,6 +567,21 @@ def write_validation_points(gpkg_path, configs):
 def write_country_boundaries(gpkg_path, configs):
     gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
 
+    # Pre-compute endorsed territories: for all-additive non-self perspectives,
+    # the endorsed area is just the union of the added geometries (from empty base).
+    # Used to split boundary segments so endorsers get nonexistent only where
+    # they explicitly endorsed territory, and disputed elsewhere.
+    endorsed_geoms: dict[tuple[str, str], shapely.geometry.base.BaseGeometry] = {}
+    for iso3a, config in configs.items():
+        for iso3b, shapes in config.get("perspectives", {}).items():
+            if iso3a != iso3b and all(s[0] == "plus" for s in shapes):
+                geom = functools.reduce(
+                    lambda g, s: combine_pair(g, s, False),
+                    shapes,
+                    osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'),
+                )
+                endorsed_geoms[(iso3a, iso3b)] = ogr_geom_to_shapely(geom)
+
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
 
     index_pairings = {
@@ -593,6 +608,9 @@ def write_country_boundaries(gpkg_path, configs):
             clean_linestring(polygon1.intersection(polygon2)),
         )
         stable_believers, disputed_believers, non_believers = set(), set(), set()
+        # endorser_split: observers whose nonexistent/disputed classification depends on
+        # which part of the boundary geometry they endorsed; maps observer -> endorsed geom
+        endorser_split: dict[str, shapely.geometry.base.BaseGeometry] = {}
         if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
             stable_believers = boundary.claims1[0][1] & boundary.claims2[0][1]
         else:
@@ -607,8 +625,15 @@ def write_country_boundaries(gpkg_path, configs):
                         if iso3a in common_observers:
                             common_observers.remove(iso3a)
                         non_believers.add(iso3a)
-                        if common_observers:
-                            disputed_believers |= common_observers
+                        for obs in list(common_observers):
+                            endorsed = endorsed_geoms.get((iso3a, obs))
+                            if endorsed is not None and not endorsed.is_empty:
+                                # This observer explicitly endorsed specific territory;
+                                # split the boundary so they're nonexistent only where
+                                # their endorsement applies, disputed elsewhere.
+                                endorser_split[obs] = endorsed
+                            else:
+                                disputed_believers.add(obs)
                 else:
                     if iso3a in common_observers:
                         common_observers.remove(iso3a)
@@ -618,9 +643,26 @@ def write_country_boundaries(gpkg_path, configs):
                         stable_believers.add(iso3b)
                     if common_observers:
                         disputed_believers |= common_observers
-        row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
-        print("Writing border", row, file=sys.stderr)
-        data_rows.append({**row, "geometry": boundary.geometry})
+        if not endorser_split:
+            row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
+            print("Writing border", row, file=sys.stderr)
+            data_rows.append({**row, "geometry": boundary.geometry})
+        else:
+            # Split boundary geometry by each endorser's territory.
+            # Collect all endorsed geometries to partition the boundary line.
+            all_endorsed = functools.reduce(lambda a, b: a.union(b), endorser_split.values())
+            inside_geom = clean_linestring(boundary.geometry.intersection(all_endorsed))
+            outside_geom = clean_linestring(boundary.geometry.difference(all_endorsed))
+            # Observers that endorse the inside portion are nonexistent there
+            inside_non = non_believers | set(endorser_split.keys())
+            inside_disputed = disputed_believers
+            outside_non = non_believers
+            outside_disputed = disputed_believers | set(endorser_split.keys())
+            for geom, s_non, s_disputed in [(inside_geom, inside_non, inside_disputed), (outside_geom, outside_non, outside_disputed)]:
+                if not geom.is_empty:
+                    row = dict(stable=D2.join(stable_believers), disputed=D2.join(s_disputed), nonexistent=D2.join(s_non))
+                    print("Writing border", row, file=sys.stderr)
+                    data_rows.append({**row, "geometry": geom})
 
     boundaries_gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
     boundaries_gdf['color_index'] = range(len(boundaries_gdf))
