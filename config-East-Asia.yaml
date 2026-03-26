@@ -56,12 +56,6 @@ LAO:
   interior-points:
     base:
       - [102.613, 17.964] # Vientiane
-TWN:
-  base:
-    - [plus, relation, 449220] # Taiwan
-  interior-points:
-    base:
-      - [121.563, 25.037] # Taipei
 KOR:
   base:
     - [plus, relation, 307756] # South Korea
