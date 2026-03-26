@@ -96,7 +96,7 @@ class TestCase (unittest.TestCase):
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
-        cls.config = load_configs(["test-config1.yaml", "test-config2.yaml", "test-config3.yaml"], None)
+        cls.config = load_configs(sorted(glob.glob('test*.yaml')), None)
         gpkg_path = os.path.join(cls.tempdir, GPKG_NAME)
         write_country_areas(gpkg_path, cls.config, check_fresh_osm=False)
         write_country_claims(gpkg_path, cls.config)
