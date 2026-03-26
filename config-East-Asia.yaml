@@ -80,3 +80,9 @@ MNG:
   interior-points:
     base:
       - [106.917, 47.918] # Ulaanbaatar
+LKA:
+  base:
+    - [plus, relation, 536807] # Sri Lanka
+  interior-points:
+    base:
+      - [79.8542, 6.9388] # Colombo
