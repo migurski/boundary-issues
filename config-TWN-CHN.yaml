@@ -1,6 +1,6 @@
 CHN:
   base:
-    - [plus, relation, 270056] # China
+    - [minus, relation, 449220] # Taiwan
   perspectives:
     CHN:
       - [plus, relation, 449220] # Taiwan
@@ -10,11 +10,17 @@ CHN:
     CHN:
       - [121.563, 25.037] # Taipei
   exterior-points:
-    TWN:
+    base:
       - [121.563, 25.037] # Taipei
 TWN:
   base:
     - [plus, relation, 449220] # Taiwan
+  perspectives:
+    CHN:
+      - [minus, relation, 449220] # Taiwan
   interior-points:
     base:
+      - [121.563, 25.037] # Taipei
+  exterior-points:
+    CHN:
       - [121.563, 25.037] # Taipei
