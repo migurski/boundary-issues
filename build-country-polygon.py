@@ -195,6 +195,13 @@ class TestCase (unittest.TestCase):
         geoms = [g for _, disputed_set, _, g in borders if country in disputed_set]
         return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
 
+    @staticmethod
+    def nonexistent_for(country):
+        """ Union of all border segments where country is in the nonexistent set """
+        borders = TestCase._load_borders()
+        geoms = [g for _, _, nonexistent_set, g in borders if country in nonexistent_set]
+        return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
+
     def test_boundaries_ind_chn_pak_npl(self):
         # A point along the border of fake Jammu/Kashmir and fake Himanchal Pradesh
         # PAK sees this border as stable (it's the border of Azad Kashmir as PAK claims it)
@@ -257,6 +264,22 @@ class TestCase (unittest.TestCase):
         self.assertTrue(self.disputed_for("RUS").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
         self.assertTrue(self.disputed_for("UKR").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
         self.assertTrue(self.disputed_for("NPL").Contains(make_point(3, 3.7)), "Counterintuitive because NPL doesn't see India up here")
+
+        # A point on the eastern edge of fake Aksai Chin (lon=4, lat=2.7)
+        # PAK has no perspective on Aksai Chin (only on Trans-Karakoram): PAK should NOT see it as nonexistent
+        # CHN sees no border here (Aksai Chin is CHN territory): nonexistent for CHN
+        self.assertTrue(self.disputed_for("PAK").Contains(make_point(4.0, 2.7)))
+        self.assertTrue(self.nonexistent_for("CHN").Contains(make_point(4.0, 2.7)))
+
+        # A point on the eastern edge of fake Trans-Karakoram Tract (lon=4, lat=3.7)
+        # IND claims Trans-Karakoram and sees a border between its claimed Trans-Karakoram and CHN proper: stable for IND
+        # NPL has no special perspective on Trans-Karakoram: disputed for NPL
+        # CHN sees no border here (Trans-Karakoram is CHN territory): nonexistent for CHN
+        # PAK endorses CHN's claim on Trans-Karakoram, so PAK also sees no border here: nonexistent for PAK
+        self.assertTrue(self.stable_for("IND").Contains(make_point(4.0, 3.7)))
+        self.assertTrue(self.disputed_for("NPL").Contains(make_point(4.0, 3.7)))
+        self.assertTrue(self.nonexistent_for("CHN").Contains(make_point(4.0, 3.7)))
+        self.assertTrue(self.nonexistent_for("PAK").Contains(make_point(4.0, 3.7)))
 
     def test_boundaries_ukr_rus(self):
         # A point along the border of fake Crimea and fake Russia
