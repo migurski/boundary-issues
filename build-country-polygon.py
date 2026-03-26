@@ -96,7 +96,7 @@ class TestCase (unittest.TestCase):
     def setUpClass(cls):
         cls.tempdir = tempfile.mkdtemp(dir=".", prefix="tests-")
         os.makedirs(cls.tempdir, exist_ok=True)
-        cls.config = load_configs(["test-config1.yaml", "test-config2.yaml"], None)
+        cls.config = load_configs(sorted(glob.glob('test*.yaml')), None)
         gpkg_path = os.path.join(cls.tempdir, GPKG_NAME)
         write_country_areas(gpkg_path, cls.config, check_fresh_osm=False)
         write_country_claims(gpkg_path, cls.config)
@@ -131,15 +131,42 @@ class TestCase (unittest.TestCase):
         # exterior-points from addition added
         self.assertEqual(merged["exterior-points"], addition["exterior-points"])
 
-        # duplicate "base" sub-key in interior-points must raise an error
+        # duplicate perspectives sub-key (CHN) should be concatenated in order
+        base_with_dup_perspective = {
+            "perspectives": {"CHN": [["-", "relation", "fake-Aksai-Chin"]]},
+        }
+        addition_with_dup_perspective = {
+            "perspectives": {"CHN": [["-", "relation", "fake-Trans-Karakoram-Tract"]]},
+        }
+        merged_dup = merge_country_config(base_with_dup_perspective, addition_with_dup_perspective)
+        self.assertEqual(merged_dup["perspectives"]["CHN"], [
+            ["-", "relation", "fake-Aksai-Chin"],
+            ["-", "relation", "fake-Trans-Karakoram-Tract"],
+        ])
+
+        # duplicate top-level "base" should be concatenated in order
+        base_with_base = {"base": [["a"]]}
+        addition_with_base = {"base": [["b"]]}
+        merged_base = merge_country_config(base_with_base, addition_with_base)
+        self.assertEqual(merged_base["base"], [["a"], ["b"]])
+
+        # duplicate "base" sub-key in interior-points should be concatenated
         base_with_conflict = {
             "interior-points": {"base": [[1.0, 2.0]]},
         }
         addition_with_conflict = {
             "interior-points": {"base": [[9.9, 9.9]]},
         }
-        with self.assertRaises(ValueError):
-            merge_country_config(base_with_conflict, addition_with_conflict)
+        merged_conflict = merge_country_config(base_with_conflict, addition_with_conflict)
+        self.assertEqual(merged_conflict["interior-points"]["base"], [[1.0, 2.0], [9.9, 9.9]])
+
+    def test_config3_concatenation(self) -> None:
+        # test-config3.yaml introduces TWN country
+        self.assertIn("TWN", self.config)
+        # CHN claims TWN from CHN perspective (perspectives.CHN merged from test-config3)
+        self.assertIn("CHN", self.config["CHN"]["perspectives"])
+        # test-config3 adds one op to CHN.perspectives.CHN, merged list has 1 entry
+        self.assertEqual(len(self.config["CHN"]["perspectives"]["CHN"]), 1)
 
     @staticmethod
     def _load_borders():
@@ -354,14 +381,17 @@ def validate_areas(configs, gpkg_path):
 
 def merge_country_config(base: dict[str, typing.Any], addition: dict[str, typing.Any]) -> dict[str, typing.Any]:
     merged = dict(base)
+    if "base" in addition:
+        merged["base"] = merged.get("base", []) + addition["base"]
     for key in ("perspectives", "interior-points", "exterior-points"):
         if key in addition:
-            duplicates = set(merged.get(key, {}).keys()) & set(addition[key].keys())
-            if duplicates:
-                raise ValueError(f"Duplicate keys in {key}: {duplicates}")
-            merged[key] = {**merged.get(key, {}), **addition[key]}
-    if "base" in addition and "base" not in merged:
-        merged["base"] = addition["base"]
+            merged_key: dict[str, typing.Any] = dict(merged.get(key, {}))
+            for sub_key, ops in addition[key].items():
+                if sub_key in merged_key:
+                    merged_key[sub_key] = merged_key[sub_key] + ops
+                else:
+                    merged_key[sub_key] = ops
+            merged[key] = merged_key
     return merged
 
 def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str, typing.Any]]:
@@ -725,7 +755,7 @@ if __name__ == "__main__":
     parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 
-    config_paths = args.configs if args.configs else glob.glob('config*.yaml')
+    config_paths = args.configs if args.configs else sorted(glob.glob('config*.yaml'))
     iso3s = set(args.iso3s.split(",")) if args.iso3s and re.match(r"^\w\w\w(,\w\w\w)*$", args.iso3s) else None
     config = load_configs(config_paths, iso3s)
 

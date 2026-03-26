@@ -1,0 +1,82 @@
+NPL:
+  base:
+    - [plus, relation, 184633] # Nepal
+  interior-points:
+    base:
+      - [85.321, 27.708] # Kathmandu
+BTN:
+  base:
+    - [plus, relation, 184629] # Bhutan
+  interior-points:
+    base:
+      - [89.633, 27.471] # Thimphu
+BGD:
+  base:
+    - [plus, relation, 184640] # Bangladesh
+  interior-points:
+    base:
+      - [90.389, 23.764] # Dhaka
+MMR:
+  base:
+    - [plus, relation, 50371] # Myanmar
+    - [minus, relation, 2067731] # Thailand (Andaman Sea islands)
+  perspectives:
+    MMR:
+      - [plus, relation, 50371] # Myanmar (Andaman Sea islands)
+  interior-points:
+    base:
+      - [96.103, 19.775] # Nay Pyi Taw
+    MMR:
+      - [98.4835, 9.9310] # island
+THA:
+  base:
+    - [plus, relation, 2067731] # Thailand
+  perspectives:
+    MMR:
+      - [minus, relation, 50371] # Myanmar (Andaman Sea islands)
+  interior-points:
+    base:
+      - [100.493, 13.752] # Bangkok
+      - [98.4835, 9.9310] # island
+KHM:
+  base:
+    - [plus, relation, 49898] # Cambodia
+  interior-points:
+    base:
+      - [104.922, 11.568] # Phnom Penh
+VNM:
+  base:
+    - [plus, relation, 49915] # Vietnam
+  interior-points:
+    base:
+      - [105.854, 21.028] # Hanoi
+LAO:
+  base:
+    - [plus, relation, 49903] # Laos
+  interior-points:
+    base:
+      - [102.613, 17.964] # Vientiane
+KOR:
+  base:
+    - [plus, relation, 307756] # South Korea
+  interior-points:
+    base:
+      - [126.978, 37.566] # Seoul
+PRK:
+  base:
+    - [plus, relation, 192734] # North Korea
+  interior-points:
+    base:
+      - [125.747, 39.016] # Pyongyang
+JPN:
+  base:
+    - [plus, relation, 382313] # Japan
+  interior-points:
+    base:
+      - [139.763, 35.676] # Tokyo
+MNG:
+  base:
+    - [plus, relation, 161033] # Mongolia
+  interior-points:
+    base:
+      - [106.917, 47.918] # Ulaanbaatar
