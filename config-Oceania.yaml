@@ -12,16 +12,16 @@ PHL:
     base:
       - [120.9803, 14.5904] # Manila
       - [115.8200, 10.8167] # Flat Island (Patag)
-      #- [115.2317, 10.7983] # Lankiam Cay (Panata) (needs PHL perspective)
+      #- [115.2317, 10.7983] # Lankiam Cay (Panata) -- missing OSM boundary
       - [114.4050, 10.7033] # Loaita Cay
       - [114.4283, 10.6683] # Loaita Island (Kota)
       - [115.8050, 10.7317] # Nanshan Island (Lawak)
       - [114.3567, 11.4533] # Northeast Cay (Parola)
       - [114.2833, 11.0533] # Thitu Island (Pagasa)
       - [115.0233, 11.0833] # West York Island (Likas)
-      #- [115.2300, 8.3617] # Commodore Reef (Rizal) (needs PHL perspective)
-      #- [114.9233, 10.9033] # Irving Reef (Balagtas) (needs PHL perspective)
-      #- [115.8667, 9.7500] # Second Thomas Shoal (needs PHL perspective)
+      #- [115.2300, 8.3617] # Commodore Reef (Rizal) -- missing OSM boundary
+      #- [114.9233, 10.9033] # Irving Reef (Balagtas) -- missing OSM boundary
+      #- [115.8667, 9.7500] # Second Thomas Shoal -- missing OSM boundary
 BRN:
   base:
     - [plus, relation, 2103120] # Brunei
@@ -35,7 +35,7 @@ BRN:
   interior-points:
     base:
       - [114.9417, 4.8895] # Bandar Seri Begawan
-      #- [113.2350, 6.3267] # Louisa Reef (needs BRN perspective)
+      #- [113.2350, 6.3267] # Louisa Reef -- missing OSM boundary
 MYS:
   base:
     - [plus, relation, 2108121] # Malaysia

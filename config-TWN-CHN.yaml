@@ -25,7 +25,7 @@ CHN:
       - [114.3614, 10.3758] # Itu Aba (Taiping Island)
       - [114.3978, 10.3850] # Ban Than Reef (Zhongzhou)
       - [115.8200, 10.8167] # Flat Island (Patag)
-      #- [115.2317, 10.7983] # Lankiam Cay (Panata)
+      #- [115.2317, 10.7983] # Lankiam Cay (Panata) -- missing OSM boundary
       - [114.4050, 10.7033] # Loaita Cay
       - [114.4283, 10.6683] # Loaita Island (Kota)
       - [115.8050, 10.7317] # Nanshan Island (Lawak)
@@ -33,8 +33,8 @@ CHN:
       - [114.2833, 11.0533] # Thitu Island (Pagasa)
       - [115.0233, 11.0833] # West York Island (Likas)
       - [115.2300, 8.3617] # Commodore Reef (Rizal)
-      #- [114.9233, 10.9033] # Irving Reef (Balagtas)
-      #- [115.8667, 9.7500] # Second Thomas Shoal
+      #- [114.9233, 10.9033] # Irving Reef (Balagtas) -- missing OSM boundary
+      #- [115.8667, 9.7500] # Second Thomas Shoal -- missing OSM boundary
       - [114.3317, 11.4300] # Southwest Cay (Song Tu Tay)
       - [114.4817, 10.3750] # Sand Cay (Son Ca)
       - [114.3633, 10.1783] # Namyit Island (Nam Yet)
@@ -52,25 +52,25 @@ CHN:
       - [112.5583, 8.8250] # East London Reef (Dong)
       - [113.9817, 8.8133] # Alison Reef (Toc Tan)
       - [114.1767, 8.7200] # Cornwallis South Reef
-      #- [113.6133, 8.6383] # Petley Reef (Nui Thi)
+      #- [113.6133, 8.6383] # Petley Reef (Nui Thi) -- missing OSM boundary
       - [114.0800, 8.6267] # South Reef (Nam)
       - [114.2517, 9.7617] # Collins Reef (Co Lin)
       - [114.3650, 9.7783] # Lansdowne Reef (Len Dao)
-      #- [116.0117, 9.2600] # Bombay Castle (Ba Ke)
+      #- [116.0117, 9.2600] # Bombay Castle (Ba Ke) -- missing OSM boundary
       - [111.6650, 8.5550] # Prince of Wales Bank
-      #- [109.6167, 7.4833] # Vanguard Bank
-      #- [109.9500, 7.8667] # Prince Consort Bank
-      #- [110.5333, 8.1000] # Grainger Bank
-      #- [110.5000, 8.3333] # Alexandra Bank
-      #- [110.2833, 7.6167] # Orleana Shoal
-      #- [110.3333, 7.9333] # Kingston Shoal
+      #- [109.6167, 7.4833] # Vanguard Bank -- missing OSM boundary
+      #- [109.9500, 7.8667] # Prince Consort Bank -- missing OSM boundary
+      #- [110.5333, 8.1000] # Grainger Bank -- missing OSM boundary
+      #- [110.5000, 8.3333] # Alexandra Bank -- missing OSM boundary
+      #- [110.2833, 7.6167] # Orleana Shoal -- missing OSM boundary
+      #- [110.3333, 7.9333] # Kingston Shoal -- missing OSM boundary
       - [113.8400, 7.3717] # Swallow Reef (Layang Layang)
       - [113.9333, 7.6167] # Ardasier Reef
       - [113.7833, 7.6333] # Dallas Reef
       - [114.0833, 8.1017] # Erica Reef
       - [114.5767, 8.1217] # Investigator Shoal
       - [113.9667, 7.9833] # Mariveles Reef
-      #- [113.2350, 6.3267] # Louisa Reef
+      #- [113.2350, 6.3267] # Louisa Reef -- missing OSM boundary
       - [112.8350, 8.8633] # Cuarteron Reef
       - [112.8883, 9.5467] # Fiery Cross Reef
       - [114.2250, 10.2083] # Gaven Reefs
@@ -100,7 +100,7 @@ TWN:
     TWN:
       # Spratly Islands
       - [115.8200, 10.8167] # Flat Island (Patag)
-      #- [115.2317, 10.7983] # Lankiam Cay (Panata)
+      #- [115.2317, 10.7983] # Lankiam Cay (Panata) -- missing OSM boundary
       - [114.4050, 10.7033] # Loaita Cay
       - [114.4283, 10.6683] # Loaita Island (Kota)
       - [115.8050, 10.7317] # Nanshan Island (Lawak)
@@ -108,8 +108,8 @@ TWN:
       - [114.2833, 11.0533] # Thitu Island (Pagasa)
       - [115.0233, 11.0833] # West York Island (Likas)
       - [115.2300, 8.3617] # Commodore Reef (Rizal)
-      #- [114.9233, 10.9033] # Irving Reef (Balagtas)
-      #- [115.8667, 9.7500] # Second Thomas Shoal
+      #- [114.9233, 10.9033] # Irving Reef (Balagtas) -- missing OSM boundary
+      #- [115.8667, 9.7500] # Second Thomas Shoal -- missing OSM boundary
       - [114.3317, 11.4300] # Southwest Cay (Song Tu Tay)
       - [114.4817, 10.3750] # Sand Cay (Son Ca)
       - [114.3633, 10.1783] # Namyit Island (Nam Yet)
@@ -127,25 +127,25 @@ TWN:
       - [112.5583, 8.8250] # East London Reef (Dong)
       - [113.9817, 8.8133] # Alison Reef (Toc Tan)
       - [114.1767, 8.7200] # Cornwallis South Reef
-      #- [113.6133, 8.6383] # Petley Reef (Nui Thi)
+      #- [113.6133, 8.6383] # Petley Reef (Nui Thi) -- missing OSM boundary
       - [114.0800, 8.6267] # South Reef (Nam)
       - [114.2517, 9.7617] # Collins Reef (Co Lin)
       - [114.3650, 9.7783] # Lansdowne Reef (Len Dao)
-      #- [116.0117, 9.2600] # Bombay Castle (Ba Ke)
+      #- [116.0117, 9.2600] # Bombay Castle (Ba Ke) -- missing OSM boundary
       - [111.6650, 8.5550] # Prince of Wales Bank
-      #- [109.6167, 7.4833] # Vanguard Bank
-      #- [109.9500, 7.8667] # Prince Consort Bank
-      #- [110.5333, 8.1000] # Grainger Bank
-      #- [110.5000, 8.3333] # Alexandra Bank
-      #- [110.2833, 7.6167] # Orleana Shoal
-      #- [110.3333, 7.9333] # Kingston Shoal
+      #- [109.6167, 7.4833] # Vanguard Bank -- missing OSM boundary
+      #- [109.9500, 7.8667] # Prince Consort Bank -- missing OSM boundary
+      #- [110.5333, 8.1000] # Grainger Bank -- missing OSM boundary
+      #- [110.5000, 8.3333] # Alexandra Bank -- missing OSM boundary
+      #- [110.2833, 7.6167] # Orleana Shoal -- missing OSM boundary
+      #- [110.3333, 7.9333] # Kingston Shoal -- missing OSM boundary
       - [113.8400, 7.3717] # Swallow Reef (Layang Layang)
       - [113.9333, 7.6167] # Ardasier Reef
       - [113.7833, 7.6333] # Dallas Reef
       - [114.0833, 8.1017] # Erica Reef
       - [114.5767, 8.1217] # Investigator Shoal
       - [113.9667, 7.9833] # Mariveles Reef
-      #- [113.2350, 6.3267] # Louisa Reef
+      #- [113.2350, 6.3267] # Louisa Reef -- missing OSM boundary
       - [112.8350, 8.8633] # Cuarteron Reef
       - [112.8883, 9.5467] # Fiery Cross Reef
       - [114.2250, 10.2083] # Gaven Reefs
