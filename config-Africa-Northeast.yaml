@@ -1,0 +1,48 @@
+KEN:
+  base:
+    - [plus, relation, 192798] # Kenya
+  interior-points:
+    base:
+      - [36.817, -1.289] # Nairobi
+SSD:
+  base:
+    - [plus, relation, 1656678] # South Sudan
+  interior-points:
+    base:
+      - [31.595, 4.845] # Juba
+SDN:
+  base:
+    - [plus, relation, 192789] # Sudan
+  interior-points:
+    base:
+      - [32.534, 15.563] # Khartoum
+ERI:
+  base:
+    - [plus, relation, 296961] # Eritrea
+  interior-points:
+    base:
+      - [38.932, 15.338] # Asmara
+DJI:
+  base:
+    - [plus, relation, 192801] # Djibouti
+  interior-points:
+    base:
+      - [43.147, 11.593] # Djibouti
+ETH:
+  base:
+    - [plus, relation, 192800] # Ethiopia
+  interior-points:
+    base:
+      - [38.752, 9.035] # Addis Ababa
+SOM:
+  base:
+    - [plus, relation, 192799] # Somalia
+  interior-points:
+    base:
+      - [45.341, 2.034] # Mogadishu
+EGY:
+  base:
+    - [plus, relation, 1473947] # Egypt
+  interior-points:
+    base:
+      - [31.235, 30.044] # Cairo
