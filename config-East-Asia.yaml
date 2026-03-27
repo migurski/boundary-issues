@@ -47,6 +47,13 @@ KHM:
 VNM:
   base:
     - [plus, relation, 49915] # Vietnam
+  perspectives:
+    VNM:
+      - [plus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    CHN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    TWN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
   interior-points:
     base:
       - [105.854, 21.028] # Hanoi
@@ -63,15 +70,45 @@ VNM:
       - [112.2133, 8.8550] # West London Reef (Tay)
       - [111.6700, 8.6633] # Ladd Reef (Lat)
       - [113.8417, 10.0517] # Discovery Great Reef
-      # - [114.5617, 10.9050] # Pigeon Reef (needs VNM perspective)
+      #- [114.5617, 10.9050] # Pigeon Reef (needs VNM perspective)
       - [112.5583, 8.8250] # East London Reef (Dong)
       - [113.9817, 8.8133] # Alison Reef (Toc Tan)
       - [114.1767, 8.7200] # Cornwallis South Reef
-      # - [113.6133, 8.6383] # Petley Reef (Nui Thi)
+      #- [113.6133, 8.6383] # Petley Reef (Nui Thi)
       - [114.0800, 8.6267] # South Reef (Nam)
       - [114.2517, 9.7617] # Collins Reef (Co Lin)
       - [114.3650, 9.7783] # Lansdowne Reef (Len Dao)
-      # - [116.0117, 9.2600] # Bombay Castle (Ba Ke) (needs VNM perspective)
+      #- [116.0117, 9.2600] # Bombay Castle (Ba Ke) (needs VNM perspective)
+    VNM:
+      # Spratly Islands
+      #- [114.3614, 10.3758] # Itu Aba (Taiping Island)
+      - [114.3978, 10.3850] # Ban Than Reef (Zhongzhou)
+      - [115.8200, 10.8167] # Flat Island (Patag)
+      #- [115.2317, 10.7983] # Lankiam Cay (Panata)
+      - [114.4050, 10.7033] # Loaita Cay
+      - [114.4283, 10.6683] # Loaita Island (Kota)
+      - [115.8050, 10.7317] # Nanshan Island (Lawak)
+      - [114.3567, 11.4533] # Northeast Cay (Parola)
+      - [114.2833, 11.0533] # Thitu Island (Pagasa)
+      - [115.0233, 11.0833] # West York Island (Likas)
+      - [115.2300, 8.3617] # Commodore Reef (Rizal)
+      #- [114.9233, 10.9033] # Irving Reef (Balagtas)
+      #- [115.8667, 9.7500] # Second Thomas Shoal
+      - [113.8400, 7.3717] # Swallow Reef (Layang Layang)
+      - [113.9333, 7.6167] # Ardasier Reef
+      - [113.7833, 7.6333] # Dallas Reef
+      - [114.0833, 8.1017] # Erica Reef
+      - [114.5767, 8.1217] # Investigator Shoal
+      - [113.9667, 7.9833] # Mariveles Reef
+      #- [113.2350, 6.3267] # Louisa Reef
+      - [112.8350, 8.8633] # Cuarteron Reef
+      - [112.8883, 9.5467] # Fiery Cross Reef
+      - [114.2250, 10.2083] # Gaven Reefs
+      - [114.4950, 9.9267] # Hughes Reef
+      - [114.2833, 9.7183] # Johnson South Reef
+      - [115.5317, 9.9017] # Mischief Reef
+      - [114.0833, 10.9233] # Subi Reef
+
 LAO:
   base:
     - [plus, relation, 49903] # Laos
