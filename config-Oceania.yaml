@@ -2,6 +2,8 @@ PHL:
   base:
     - [plus, relation, 443174] # Philippines
   perspectives:
+    PHL:
+      - [plus, way, 1274527881] # Scarborough Shoal
     VNM:
       - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
     CHN:
@@ -10,6 +12,7 @@ PHL:
       - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
   interior-points:
     base:
+      # Spratly Islands
       - [120.9803, 14.5904] # Manila
       - [115.8200, 10.8167] # Flat Island (Patag)
       #- [115.2317, 10.7983] # Lankiam Cay (Panata) -- missing OSM boundary
@@ -22,6 +25,8 @@ PHL:
       #- [115.2300, 8.3617] # Commodore Reef (Rizal) -- missing OSM boundary
       #- [114.9233, 10.9033] # Irving Reef (Balagtas) -- missing OSM boundary
       #- [115.8667, 9.7500] # Second Thomas Shoal -- missing OSM boundary
+    PHL:
+      - [117.78586, 15.17322] # Scarborough Shoal
 BRN:
   base:
     - [plus, relation, 2103120] # Brunei

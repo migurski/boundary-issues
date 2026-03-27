@@ -9,6 +9,9 @@ CHN:
       - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
     TWN:
       - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+      - [minus, way, 1274527881] # Scarborough Shoal
+    PHL:
+      - [minus, way, 1274527881] # Scarborough Shoal
   interior-points:
     base:
       - [116.391, 39.906] # Beijing
@@ -19,6 +22,7 @@ CHN:
       - [114.2833, 9.7183] # Johnson South Reef
       - [115.5317, 9.9017] # Mischief Reef
       - [114.0833, 10.9233] # Subi Reef
+      - [117.78586, 15.17322] # Scarborough Shoal
     CHN:
       - [121.563, 25.037] # Taipei
       # Spratly Islands
@@ -86,6 +90,7 @@ TWN:
     - [plus, relation, 449220] # Taiwan
   perspectives:
     TWN:
+      - [plus, way, 1274527881] # Scarborough Shoal
       - [plus, relation, 17296618] # VN/CN disputes in Spratly Islands
     CHN:
       - [minus, relation, 449220] # Taiwan
@@ -98,6 +103,7 @@ TWN:
       - [114.3614, 10.3758] # Itu Aba (Taiping Island)
       - [114.3978, 10.3850] # Ban Than Reef (Zhongzhou)
     TWN:
+      - [117.78586, 15.17322] # Scarborough Shoal
       # Spratly Islands
       - [115.8200, 10.8167] # Flat Island (Patag)
       #- [115.2317, 10.7983] # Lankiam Cay (Panata) -- missing OSM boundary
