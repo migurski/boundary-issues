@@ -211,7 +211,8 @@ Resources:
       Role: !GetAtt ProcessorFunctionRole.Arn
       Timeout: 300
       MemorySize: 4096
-      EphemeralStorage: 1024
+      EphemeralStorage:
+        Size: 1024
       Architectures:
         - arm64
       Environment:
