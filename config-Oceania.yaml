@@ -1,0 +1,177 @@
+PHL:
+  base:
+    - [plus, relation, 443174] # Philippines
+  perspectives:
+    PHL:
+      - [plus, way, 1274527881] # Scarborough Shoal
+    VNM:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    CHN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    TWN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+  interior-points:
+    base:
+      # Spratly Islands
+      - [120.9803, 14.5904] # Manila
+      - [115.8200, 10.8167] # Flat Island (Patag)
+      #- [115.2317, 10.7983] # Lankiam Cay (Panata) -- missing OSM boundary
+      - [114.4050, 10.7033] # Loaita Cay
+      - [114.4283, 10.6683] # Loaita Island (Kota)
+      - [115.8050, 10.7317] # Nanshan Island (Lawak)
+      - [114.3567, 11.4533] # Northeast Cay (Parola)
+      - [114.2833, 11.0533] # Thitu Island (Pagasa)
+      - [115.0233, 11.0833] # West York Island (Likas)
+      #- [115.2300, 8.3617] # Commodore Reef (Rizal) -- missing OSM boundary
+      #- [114.9233, 10.9033] # Irving Reef (Balagtas) -- missing OSM boundary
+      #- [115.8667, 9.7500] # Second Thomas Shoal -- missing OSM boundary
+    PHL:
+      - [117.78586, 15.17322] # Scarborough Shoal
+BRN:
+  base:
+    - [plus, relation, 2103120] # Brunei
+  perspectives:
+    VNM:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    CHN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    TWN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+  interior-points:
+    base:
+      - [114.9417, 4.8895] # Bandar Seri Begawan
+      #- [113.2350, 6.3267] # Louisa Reef -- missing OSM boundary
+MYS:
+  base:
+    - [plus, relation, 2108121] # Malaysia
+  perspectives:
+    VNM:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    CHN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+    TWN:
+      - [minus, relation, 17296618] # VN/CN disputes in Spratly Islands
+  interior-points:
+    base:
+      - [101.6942, 3.1516] # Kuala Lumpur
+      - [113.8400, 7.3717] # Swallow Reef (Layang Layang)
+      - [113.9333, 7.6167] # Ardasier Reef
+      - [113.7833, 7.6333] # Dallas Reef
+      - [114.0833, 8.1017] # Erica Reef
+      - [114.5767, 8.1217] # Investigator Shoal
+      - [113.9667, 7.9833] # Mariveles Reef
+SGP:
+  base:
+    - [plus, relation, 536780] # Singapore
+  interior-points:
+    base:
+      - [103.8519, 1.2899] # Singapore
+IDN:
+  base:
+    - [plus, relation, 304751] # Indonesia
+  interior-points:
+    base:
+      - [106.8271, -6.1754] # Jakarta
+TLS:
+  base:
+    - [plus, relation, 305142] # East Timor
+  interior-points:
+    base:
+      - [125.5784, -8.5536] # Dili
+PNG:
+  base:
+    - [plus, relation, 307866] # Papua New Guinea
+  interior-points:
+    base:
+      - [147.1599, -9.4743] # Port Moresby
+AUS:
+  base:
+    - [plus, relation, 80500] # Australia
+  interior-points:
+    base:
+      - [149.1012, -35.2975] # Canberra
+NZL:
+  base:
+    - [plus, relation, 556706] # New Zealand
+  interior-points:
+    base:
+      - [174.7772, -41.2887] # Wellington
+
+FJI:
+  base:
+    - [plus, relation, 571747] # Fiji
+  interior-points:
+    base:
+      - [178.4421, -18.1415] # Suva
+KIR:
+  base:
+    - [plus, relation, 571178] # Kiribati
+  interior-points:
+    base:
+      - [173.0386, 1.3490] # South Tarawa
+MHL:
+  base:
+    - [plus, relation, 571771] # Marshall Islands
+  interior-points:
+    base:
+      - [171.3816, 7.0909] # Majuro
+FSM:
+  base:
+    - [plus, relation, 571802] # Federated States of Micronesia
+  interior-points:
+    base:
+      - [158.1627, 6.9207] # Palikir
+NRU:
+  base:
+    - [plus, relation, 571804] # Nauru
+  interior-points:
+    base:
+      - [166.9163, -0.5471] # Yaren
+PLW:
+  base:
+    - [plus, relation, 571805] # Palau
+  interior-points:
+    base:
+      - [134.6242, 7.5006] # Ngerulmud
+WSM:
+  base:
+    - [plus, relation, 1872673] # Samoa
+  interior-points:
+    base:
+      - [-171.7630, -13.8345] # Apia
+SLB:
+  base:
+    - [plus, relation, 1857436] # Solomon Islands
+  interior-points:
+    base:
+      - [159.9552, -9.4310] # Honiara
+TON:
+  base:
+    - [plus, relation, 2186665] # Tonga
+  interior-points:
+    base:
+      - [-175.2018, -21.1343] # Nuku'alofa
+TUV:
+  base:
+    - [plus, relation, 2177266] # Tuvalu
+  interior-points:
+    base:
+      - [179.1982, -8.5199] # Funafuti
+VUT:
+  base:
+    - [plus, relation, 2177246] # Vanuatu
+  interior-points:
+    base:
+      - [168.3150, -17.7414] # Port Vila
+COK:
+  base:
+    - [plus, relation, 2184233] # Cook Islands
+  interior-points:
+    base:
+      - [-159.7708, -21.2074] # Avarua
+NIU:
+  base:
+    - [plus, relation, 1558556] # Niue
+  interior-points:
+    base:
+      - [-169.9191, -19.0534] # Alofi
