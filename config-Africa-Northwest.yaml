@@ -1,0 +1,54 @@
+GMB:
+  base:
+    - [plus, relation, 192774] # The Gambia
+  interior-points:
+    base:
+      - [-16.575, 13.455] # Banjul
+SEN:
+  base:
+    - [plus, relation, 192775] # Senegal
+  interior-points:
+    base:
+      - [-17.447, 14.693] # Dakar
+MRT:
+  base:
+    - [plus, relation, 192763] # Mauritania
+  interior-points:
+    base:
+      - [-15.978, 18.079] # Nouakchott
+DZA:
+  base:
+    - [plus, relation, 192756] # Algeria
+  interior-points:
+    base:
+      - [3.058, 36.772] # Algiers
+TUN:
+  base:
+    - [plus, relation, 192757] # Tunisia
+  interior-points:
+    base:
+      - [10.185, 36.800] # Tunis
+LBY:
+  base:
+    - [plus, relation, 192758] # Libya
+  interior-points:
+    base:
+      - [13.177, 32.896] # Tripoli
+TCD:
+  base:
+    - [plus, relation, 2361304] # Chad
+  interior-points:
+    base:
+      - [15.050, 12.119] # N'Djamena
+NER:
+  base:
+    - [plus, relation, 192786] # Niger
+  interior-points:
+    base:
+      - [2.109, 13.524] # Niamey
+MLI:
+  base:
+    - [plus, relation, 192785] # Mali
+  interior-points:
+    base:
+      - [-8.000, 12.649] # Bamako
