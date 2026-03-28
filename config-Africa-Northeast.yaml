@@ -1,0 +1,86 @@
+KEN:
+  base:
+    - [plus, relation, 192798] # Kenya
+    - [plus, relation, 192797] # Ilemi Triangle
+  perspectives:
+    SSD:
+      - [minus, relation, 192797] # Ilemi Triangle
+  interior-points:
+    base:
+      - [36.817, -1.289] # Nairobi
+      - [35.16, 4.77] # Ilemi Triangle
+SSD:
+  base:
+    - [plus, relation, 1656678] # South Sudan
+    - [minus, relation, 13500718] # Kafia Kingi
+  perspectives:
+    SSD:
+      - [plus, relation, 192797] # Ilemi Triangle
+      - [plus, relation, 13500718] # Kafia Kingi
+    SDN:
+      - [minus, relation, 13428763] # Abyei
+  interior-points:
+    base:
+      - [31.595, 4.845] # Juba
+    SSD:
+      - [24.417, 9.273] # Kafia Kingi
+      - [28.440, 9.596] # Abyei
+      - [35.16, 4.77] # Ilemi Triangle
+SDN:
+  base:
+    - [plus, relation, 192789] # Sudan
+    - [minus, relation, 13428763] # Abyei
+  perspectives:
+    SDN:
+      - [plus, relation, 4081614] # Halaib Triangle
+      - [plus, relation, 13428763] # Abyei
+    SSD:
+      - [minus, relation, 13500718] # Kafia Kingi
+  interior-points:
+    base:
+      - [32.534, 15.563] # Khartoum
+      - [24.417, 9.273] # Kafia Kingi
+    SDN:
+      - [36.409, 22.399] # Abu Ramad
+      - [28.440, 9.596] # Abyei
+ERI:
+  base:
+    - [plus, relation, 296961] # Eritrea
+  interior-points:
+    base:
+      - [38.932, 15.338] # Asmara
+DJI:
+  base:
+    - [plus, relation, 192801] # Djibouti
+  interior-points:
+    base:
+      - [43.147, 11.593] # Djibouti
+ETH:
+  base:
+    - [plus, relation, 192800] # Ethiopia
+  interior-points:
+    base:
+      - [38.752, 9.035] # Addis Ababa
+SOM:
+  base:
+    - [plus, relation, 192799] # Somalia
+  interior-points:
+    base:
+      - [45.341, 2.034] # Mogadishu
+EGY:
+  base:
+    - [plus, relation, 1473947] # Egypt
+  perspectives:
+    SDN:
+      - [minus, relation, 4081614] # Halaib Triangle
+  interior-points:
+    base:
+      - [31.235, 30.044] # Cairo
+    EGY:
+      - [36.409, 22.399] # Abu Ramad
+ZZX:
+  base:
+    - [plus, relation, 3335661] # Bir Tawil
+  interior-points:
+    base:
+      - [33.71, 21.90]

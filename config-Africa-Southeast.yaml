@@ -1,0 +1,72 @@
+UGA:
+  base:
+    - [plus, relation, 192796] # Uganda
+  interior-points:
+    base:
+      - [32.581, 0.317] # Kampala
+RWA:
+  base:
+    - [plus, relation, 171496] # Rwanda
+  interior-points:
+    base:
+      - [30.114, -1.953] # Kigali
+BDI:
+  base:
+    - [plus, relation, 195269] # Burundi
+  interior-points:
+    base:
+      - [29.924, -3.428] # Gitega
+TZA:
+  base:
+    - [plus, relation, 195270] # Tanzania
+  interior-points:
+    base:
+      - [35.746, -6.179] # Dodoma
+MWI:
+  base:
+    - [plus, relation, 195290] # Malawi
+  interior-points:
+    base:
+      - [33.768, -13.987] # Lilongwe
+MOZ:
+  base:
+    - [plus, relation, 195273] # Mozambique
+  interior-points:
+    base:
+      - [32.567, -25.966] # Maputo
+ZWE:
+  base:
+    - [plus, relation, 195272] # Zimbabwe
+  interior-points:
+    base:
+      - [31.045, -17.831] # Harare
+ZAF:
+  base:
+    - [plus, relation, 87565] # South Africa
+  interior-points:
+    base:
+      - [28.187, -25.745] # Pretoria
+SWZ:
+  base:
+    - [plus, relation, 88210] # Eswatini
+  interior-points:
+    base:
+      - [31.144, -26.325] # Mbabane
+LSO:
+  base:
+    - [plus, relation, 2093234] # Lesotho
+  interior-points:
+    base:
+      - [27.478, -29.310] # Maseru
+MDG:
+  base:
+    - [plus, relation, 447325] # Madagascar
+  interior-points:
+    base:
+      - [47.525, -18.910] # Antananarivo
+COM:
+  base:
+    - [plus, relation, 535790] # Comoros
+  interior-points:
+    base:
+      - [43.251, -11.704] # Moroni
