@@ -1,0 +1,42 @@
+PAN:
+  base:
+    - [plus, relation, 287668] # Panama
+  interior-points:
+    base:
+      - [-79.534, 8.971] # Panama City
+NIC:
+  base:
+    - [plus, relation, 287666] # Nicaragua
+  interior-points:
+    base:
+      - [-86.273, 12.154] # Managua
+HND:
+  base:
+    - [plus, relation, 287670] # Honduras
+  interior-points:
+    base:
+      - [-87.204, 14.105] # Tegucigalpa
+SLV:
+  base:
+    - [plus, relation, 1520612] # El Salvador
+  interior-points:
+    base:
+      - [-89.191, 13.697] # San Salvador
+GTM:
+  base:
+    - [plus, relation, 1521463] # Guatemala
+  interior-points:
+    base:
+      - [-90.513, 14.641] # Guatemala City
+BLZ:
+  base:
+    - [plus, relation, 287827] # Belize
+  interior-points:
+    base:
+      - [-88.770, 17.250] # Belmopan
+CRI:
+  base:
+    - [plus, relation, 287667] # Costa Rica
+  interior-points:
+    base:
+      - [-84.079, 9.932] # San José
