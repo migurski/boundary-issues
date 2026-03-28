@@ -209,7 +209,7 @@ Resources:
         EntryPoint: ["python3", "-m", "awslambdaric"]
         Command: ["processor.lambda_handler"]
       Role: !GetAtt ProcessorFunctionRole.Arn
-      Timeout: 300
+      Timeout: 900
       MemorySize: 4096
       EphemeralStorage:
         Size: 2048
