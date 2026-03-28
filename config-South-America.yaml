@@ -1,0 +1,82 @@
+CHL:
+  base:
+    - [plus, relation, 167454] # Chile
+  perspectives:
+    ARG:
+      - [minus, relation, 286393] # Argentina
+  interior-points:
+    base:
+      - [-70.651, -33.437] # Santiago
+      - [-73.28, -49.47] # Patagonian Ice Field
+ARG:
+  base:
+    - [plus, relation, 286393] # Argentina
+    - [minus, relation, 167454] # Chile includes Patagonian Ice Field
+  perspectives:
+    ARG:
+      - [plus, relation, 286393] # Argentina
+  interior-points:
+    base:
+      - [-58.388, -34.609] # Buenos Aires
+    ARG:
+      - [-73.28, -49.47] # Patagonian Ice Field
+URY:
+  base:
+    - [plus, relation, 287072] # Uruguay
+  interior-points:
+    base:
+      - [-56.191, -34.905] # Montevideo
+BRA:
+  base:
+    - [plus, relation, 59470] # Brazil
+  interior-points:
+    base:
+      - [-47.882, -15.793] # Brasília
+PRY:
+  base:
+    - [plus, relation, 287077] # Paraguay
+  interior-points:
+    base:
+      - [-57.634, -25.280] # Asuncion
+BOL:
+  base:
+    - [plus, relation, 252645] # Bolivia
+  interior-points:
+    base:
+      - [-68.133, -16.495] # La Paz
+PER:
+  base:
+    - [plus, relation, 288247] # Peru
+  interior-points:
+    base:
+      - [-77.030, -12.045] # Lima
+ECU:
+  base:
+    - [plus, relation, 108089] # Ecuador
+  interior-points:
+    base:
+      - [-78.512, -0.220] # Quito
+COL:
+  base:
+    - [plus, relation, 120027] # Colombia
+  interior-points:
+    base:
+      - [-74.083, 4.653] # Bogota
+VEN:
+  base:
+    - [plus, relation, 272644] # Venezuela
+  interior-points:
+    base:
+      - [-66.914, 10.506] # Caracas
+GUY:
+  base:
+    - [plus, relation, 287083] # Guyana
+  interior-points:
+    base:
+      - [-58.145, 6.803] # Georgetown
+SUR:
+  base:
+    - [plus, relation, 287082] # Suriname
+  interior-points:
+    base:
+      - [-55.170, 5.824] # Paramaribo
