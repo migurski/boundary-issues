@@ -64,3 +64,9 @@ MDG:
   interior-points:
     base:
       - [47.525, -18.910] # Antananarivo
+COM:
+  base:
+    - [plus, relation, 535790] # Comoros
+  interior-points:
+    base:
+      - [43.251, -11.704] # Moroni
