@@ -1,0 +1,38 @@
+USA:
+  base:
+    - [plus, relation, 148838] # United States
+    - [minus, relation, 12947494] # Machias Seal Island
+    - [minus, relation, 17605711] # Dixon Entrance
+    - [minus, relation, 17605718] # Beaufort Sea
+  perspectives:
+    USA:
+      - [plus, relation, 12947494] # Machias Seal Island
+      - [plus, relation, 17605711] # Dixon Entrance
+      - [plus, relation, 17605718] # Beaufort Sea
+  interior-points:
+    base:
+      - [-77.036, 38.895] # Washington
+    USA:
+      - [-67.102, 44.502] # Machias Seal Island
+      - [-132.10, 54.58] # Dixon Entrance
+      - [-140.91, 69.80] # Beaufort Sea
+CAN:
+  base:
+    - [plus, relation, 1428125] # Canada
+  perspectives:
+    USA:
+      - [minus, relation, 12947494] # Machias Seal Island
+      - [minus, relation, 17605711] # Dixon Entrance
+      - [minus, relation, 17605718] # Beaufort Sea
+  interior-points:
+    base:
+      - [-75.690, 45.420] # Ottawa
+      - [-67.102, 44.502] # Machias Seal Island
+      - [-132.10, 54.58] # Dixon Entrance
+      - [-140.91, 69.80] # Beaufort Sea
+MEX:
+  base:
+    - [plus, relation, 114686] # Mexico
+  interior-points:
+    base:
+      - [-99.133, 19.432] # Mexico City
