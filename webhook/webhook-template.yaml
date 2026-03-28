@@ -212,7 +212,7 @@ Resources:
       Timeout: 300
       MemorySize: 4096
       EphemeralStorage:
-        Size: 1024
+        Size: 2048
       Architectures:
         - arm64
       Environment:
