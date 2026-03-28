@@ -1,15 +1,23 @@
 KEN:
   base:
     - [plus, relation, 192798] # Kenya
+    - [plus, relation, 192797] # Ilemi Triangle
+  perspectives:
+    SSD:
+      - [minus, relation, 192797] # Ilemi Triangle
   interior-points:
     base:
       - [36.817, -1.289] # Nairobi
+      - [35.16, 4.77] # Ilemi Triangle
 SSD:
   base:
     - [plus, relation, 1656678] # South Sudan
+    - [minus, relation, 13500718] # Kafia Kingi
   perspectives:
+    SSD:
+      - [plus, relation, 192797] # Ilemi Triangle
+      - [plus, relation, 13500718] # Kafia Kingi
     SDN:
-      - [minus, relation, 13500718] # Kafia Kingi
       - [minus, relation, 13428763] # Abyei
   interior-points:
     base:
@@ -17,15 +25,17 @@ SSD:
     SSD:
       - [24.417, 9.273] # Kafia Kingi
       - [28.440, 9.596] # Abyei
+      - [35.16, 4.77] # Ilemi Triangle
 SDN:
   base:
     - [plus, relation, 192789] # Sudan
+    - [minus, relation, 13428763] # Abyei
   perspectives:
     SDN:
       - [plus, relation, 4081614] # Halaib Triangle
+      - [plus, relation, 13428763] # Abyei
     SSD:
       - [minus, relation, 13500718] # Kafia Kingi
-      - [minus, relation, 13428763] # Abyei
   interior-points:
     base:
       - [32.534, 15.563] # Khartoum
