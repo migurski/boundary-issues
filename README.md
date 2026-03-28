@@ -1,10 +1,10 @@
 About this repo: https://medium.com/@michalmigurski/weeknotes-2026w04-boundary-issues-f037407a7f45
 
-## Current Release: [v0.3](https://github.com/migurski/boundary-issues/releases/tag/v0.3)
+## Current Release: [v0.4](https://github.com/migurski/boundary-issues/releases/tag/v0.4)
 
-Preview: https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.3/preview.html#2/13.12/90.45
+Preview: https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.4/preview.html#1.92/22.85/79.71
 
-<img width="1392" height="771" alt="Screenshot 2026-03-27 at 9 14 20 AM" src="https://github.com/user-attachments/assets/90a3b836-53b2-4883-83c1-332f6e941327" />
+<img width="1402" height="780" alt="Screenshot 2026-03-28 at 9 48 06 AM" src="https://github.com/user-attachments/assets/07c457e2-a4fc-4f24-ba2c-b8b5b4ca0cfb" />
 
 ## Output Format
 
