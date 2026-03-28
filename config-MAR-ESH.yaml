@@ -1,0 +1,28 @@
+MAR:
+  base:
+    - [plus, relation, 3630439] # Morocco
+  perspectives:
+    MAR:
+      - [plus, relation, 2559126] # Western Sahara
+    ESH:
+      - [minus, relation, 2559126] # Western Sahara
+  interior-points:
+    base:
+      - [-6.840, 34.021] # Rabat
+      - [-13.203, 27.198] # Laayoune
+    MAR:
+      - [-13.11, 23.61]
+ESH:
+  base:
+    - [plus, relation, 2559126] # Western Sahara
+    - [minus, relation, 3630439] # Morocco
+  perspectives:
+    MAR:
+      - [minus, relation, 2559126] # Western Sahara
+    ESH:
+      - [plus, relation, 2559126] # Western Sahara
+  interior-points:
+    base:
+      - [-13.11, 23.61]
+    ESH:
+      - [-13.203, 27.198] # Laayoune
