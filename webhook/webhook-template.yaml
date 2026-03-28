@@ -349,8 +349,16 @@ Resources:
               "Type": "Choice",
               "Choices": [
                 {
-                  "Variable": "$.taskResult.changedConfigs[0]",
-                  "IsPresent": true,
+                  "Or": [
+                    {
+                      "Variable": "$.taskResult.iso3s",
+                      "IsPresent": true
+                    },
+                    {
+                      "Variable": "$.taskResult.iso3s",
+                      "StringMatches": "?*"
+                    }
+                  ],
                   "Next": "WaitSomeTime"
                 }
               ],
