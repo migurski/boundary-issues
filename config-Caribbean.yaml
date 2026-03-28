@@ -1,0 +1,78 @@
+ATG:
+  base:
+    - [plus, relation, 536900] # Antigua and Barbuda
+  interior-points:
+    base:
+      - [-61.844, 17.118] # St. John's
+BHS:
+  base:
+    - [plus, relation, 547469] # Bahamas
+  interior-points:
+    base:
+      - [-77.338, 25.078] # Nassau
+BRB:
+  base:
+    - [plus, relation, 547511] # Barbados
+  interior-points:
+    base:
+      - [-59.618, 13.097] # Bridgetown
+CUB:
+  base:
+    - [plus, relation, 307833] # Cuba
+  interior-points:
+    base:
+      - [-82.358, 23.135] # Havana
+DMA:
+  base:
+    - [plus, relation, 307823] # Dominica
+  interior-points:
+    base:
+      - [-61.387, 15.299] # Roseau
+DOM:
+  base:
+    - [plus, relation, 307828] # Dominican Republic
+  interior-points:
+    base:
+      - [-69.891, 18.471] # Santo Domingo
+GRD:
+  base:
+    - [plus, relation, 550727] # Grenada
+  interior-points:
+    base:
+      - [-61.751, 12.053] # St. George's
+HTI:
+  base:
+    - [plus, relation, 307829] # Haiti
+  interior-points:
+    base:
+      - [-72.339, 18.547] # Port-au-Prince
+JAM:
+  base:
+    - [plus, relation, 555017] # Jamaica
+  interior-points:
+    base:
+      - [-76.792, 17.971] # Kingston
+KNA:
+  base:
+    - [plus, relation, 536899] # Saint Kitts and Nevis
+  interior-points:
+    base:
+      - [-62.722, 17.296] # Basseterre
+LCA:
+  base:
+    - [plus, relation, 550728] # Saint Lucia
+  interior-points:
+    base:
+      - [-60.990, 14.009] # Castries
+VCT:
+  base:
+    - [plus, relation, 550725] # Saint Vincent and the Grenadines
+  interior-points:
+    base:
+      - [-61.227, 13.156] # Kingstown
+TTO:
+  base:
+    - [plus, relation, 555717] # Trinidad and Tobago
+  interior-points:
+    base:
+      - [-61.518, 10.657] # Port of Spain
