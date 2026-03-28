@@ -1,0 +1,120 @@
+BWA:
+  base:
+    - [plus, relation, 1889339] # Botswana
+  interior-points:
+    base:
+      - [25.908, -24.658] # Gaborone
+NAM:
+  base:
+    - [plus, relation, 195266] # Namibia
+  interior-points:
+    base:
+      - [17.077, -22.577] # Windhoek
+AGO:
+  base:
+    - [plus, relation, 195267] # Angola
+  interior-points:
+    base:
+      - [13.243, -8.827] # Luanda
+ZMB:
+  base:
+    - [plus, relation, 195271] # Zambia
+  interior-points:
+    base:
+      - [28.281, -15.416] # Lusaka
+COD:
+  base:
+    - [plus, relation, 192795] # Democratic Republic of the Congo
+  interior-points:
+    base:
+      - [15.312, -4.321] # Kinshasa
+COG:
+  base:
+    - [plus, relation, 192794] # Congo-Brazzaville
+  interior-points:
+    base:
+      - [15.271, -4.269] # Brazzaville
+GAB:
+  base:
+    - [plus, relation, 192793] # Gabon
+  interior-points:
+    base:
+      - [9.441, 0.408] # Libreville
+GNQ:
+  base:
+    - [plus, relation, 192791] # Equatorial Guinea
+  interior-points:
+    base:
+      - [10.826, 1.599] # Ciudad de la Paz
+CMR:
+  base:
+    - [plus, relation, 192830] # Cameroon
+  interior-points:
+    base:
+      - [11.521, 3.868] # Yaoundé
+CAF:
+  base:
+    - [plus, relation, 192790] # Central African Republic
+  interior-points:
+    base:
+      - [18.583, 4.363] # Bangui
+NGA:
+  base:
+    - [plus, relation, 192787] # Nigeria
+  interior-points:
+    base:
+      - [7.489, 9.064] # Abuja
+BEN:
+  base:
+    - [plus, relation, 192784] # Benin
+  interior-points:
+    base:
+      - [2.625, 6.499] # Porto-Novo
+TGO:
+  base:
+    - [plus, relation, 192782] # Togo
+  interior-points:
+    base:
+      - [1.215, 6.130] # Lomé
+GHA:
+  base:
+    - [plus, relation, 192781] # Ghana
+  interior-points:
+    base:
+      - [-0.201, 5.557] # Accra
+BFA:
+  base:
+    - [plus, relation, 192783] # Burkina Faso
+  interior-points:
+    base:
+      - [-1.527, 12.368] # Ouagadougou
+CIV:
+  base:
+    - [plus, relation, 192779] # Côte d'Ivoire
+  interior-points:
+    base:
+      - [-5.277, 6.820] # Yamoussoukro
+LBR:
+  base:
+    - [plus, relation, 192780] # Liberia
+  interior-points:
+    base:
+      - [-10.806, 6.320] # Monrovia
+SLE:
+  base:
+    - [plus, relation, 192777] # Sierra Leone
+  interior-points:
+    base:
+      - [-13.267, 8.479] # Freetown
+GNB:
+  base:
+    - [plus, relation, 192776] # Guinea-Bissau
+  interior-points:
+    base:
+      - [-15.583, 11.861] # Bissau
+GIN:
+  base:
+    - [plus, relation, 192778] # Guinea
+  interior-points:
+    base:
+      - [-13.699, 9.517] # Conakry
