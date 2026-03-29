@@ -126,6 +126,9 @@ LAO:
 KOR:
   base:
     - [plus, relation, 307756] # South Korea
+  perspectives:
+    JPN:
+      - [minus, relation, 9520293] # Liancourt Rocks
   interior-points:
     base:
       - [126.978, 37.566] # Seoul
@@ -138,6 +141,9 @@ PRK:
 JPN:
   base:
     - [plus, relation, 382313] # Japan
+  perspectives:
+    JPN:
+      - [plus, relation, 9520293] # Liancourt Rocks
   interior-points:
     base:
       - [139.763, 35.676] # Tokyo
