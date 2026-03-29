@@ -1,0 +1,11 @@
+GEO:
+  perspectives:
+    RUS:
+      - [minus, relation, 1152717] # South Ossetia
+ZZW:
+  base:
+  perspectives:
+    RUS:
+      - [plus, relation, 1152717] # South Ossetia
+    ZZW:
+      - [plus, relation, 1152717] # South Ossetia
