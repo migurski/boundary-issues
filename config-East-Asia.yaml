@@ -10,6 +10,11 @@ NPL:
 BTN:
   base:
     - [plus, relation, 184629] # Bhutan
+  perspectives:
+    BTN:
+      - [plus, relation, 12931402] # CHN dispute
+    CHN:
+      - [minus, relation, 12931402] # CHN dispute
   interior-points:
     base:
       - [89.633, 27.471] # Thimphu
