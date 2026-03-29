@@ -63,6 +63,8 @@ IND:
       - [minus, relation, 2713676] # Nilang-Jadhang
       - [minus, relation, 2713484] # Wu-Je (Barahoti)
       - [minus, relation, 3202329] # South Tibet (Arunachal Pradesh)
+    NPL:
+      - [minus, relation, 13559363] # Kalapani Territory
   interior-points:
     base:
       # Points recognized to be administered by India

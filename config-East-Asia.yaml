@@ -1,6 +1,9 @@
 NPL:
   base:
     - [plus, relation, 184633] # Nepal
+  perspectives:
+    NPL:
+      - [plus, relation, 13559363] # Kalapani Territory
   interior-points:
     base:
       - [85.321, 27.708] # Kathmandu
