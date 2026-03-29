@@ -1,0 +1,36 @@
+MDG:
+  base:
+    - [plus, relation, 447325] # Madagascar
+  interior-points:
+    base:
+      - [47.525, -18.910] # Antananarivo
+SYC:
+  base:
+    - [plus, relation, 536765] # Seychelles
+  interior-points:
+    base:
+      - [55.452, -4.623] # Victoria
+MUS:
+  base:
+    - [plus, relation, 535828] # Mauritius
+  interior-points:
+    base:
+      - [57.502, -20.162] # Port Louis
+MDV:
+  base:
+    - [plus, relation, 536773] # Maldives
+  interior-points:
+    base:
+      - [73.510, 4.177] # Malé
+STP:
+  base:
+    - [plus, relation, 535880] # São Tomé and Príncipe
+  interior-points:
+    base:
+      - [6.731, 0.338] # São Tomé
+CPV:
+  base:
+    - [plus, relation, 535774] # Cape Verde
+  interior-points:
+    base:
+      - [-23.509, 14.916] # Praia
