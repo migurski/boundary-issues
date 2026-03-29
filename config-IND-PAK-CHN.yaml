@@ -3,6 +3,7 @@ CHN:
     - [plus, relation, 270056] # China
   perspectives:
     CHN:
+      - [plus, relation, 12931402] # BTN dispute
       # China's additional claims in the Sino-Indian border dispute
       - [plus, relation, 7935380] # Trans-Karakoram Tract
       - [plus, relation, 2713466] # Demchok sector
@@ -19,6 +20,8 @@ CHN:
     PAK:
       # Pakistan disclaims the Demchok sector, which is claimed by China
       - [plus, relation, 2713466] # Demchok sector
+    BTN:
+      - [minus, relation, 12931402] # BTN dispute
   interior-points:
     base:
       # Points recognized to be administered by China
