@@ -58,12 +58,6 @@ LSO:
   interior-points:
     base:
       - [27.478, -29.310] # Maseru
-MDG:
-  base:
-    - [plus, relation, 447325] # Madagascar
-  interior-points:
-    base:
-      - [47.525, -18.910] # Antananarivo
 COM:
   base:
     - [plus, relation, 535790] # Comoros
