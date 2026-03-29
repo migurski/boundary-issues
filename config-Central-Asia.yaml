@@ -1,6 +1,9 @@
 IRN:
   base:
     - [plus, relation, 304938] # Iran
+  perspectives:
+    ARE:
+      - [minus, relation, 14365330] # Abu Musa, Greater Tunb, and Lesser Tunb islands
   interior-points:
     base:
       - [51.389, 35.689] # Tehran

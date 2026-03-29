@@ -45,6 +45,9 @@ OMN:
 ARE:
   base:
     - [plus, relation, 307763] # United Arab Emirates
+  perspectives:
+    ARE:
+      - [plus, relation, 14365330] # Abu Musa, Greater Tunb, and Lesser Tunb islands
   interior-points:
     base:
       - [54.377, 24.453] # Abu Dhabi
