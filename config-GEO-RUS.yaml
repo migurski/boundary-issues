@@ -1,0 +1,37 @@
+GEO:
+  perspectives:
+    RUS:
+      - [minus, relation, 1152720] # Abkhazia
+      - [minus, relation, 1152717] # South Ossetia
+    ZZV:
+      - [minus, relation, 1152720] # Abkhazia
+    ZZW:
+      - [minus, relation, 1152717] # South Ossetia
+  interior-points:
+    base:
+      - [41.020, 43.003] # Sukhum
+      - [43.970, 42.226] # Tskhinvali
+ZZV:
+  base:
+  perspectives:
+    ZZV:
+      - [plus, relation, 1152720] # Abkhazia
+    RUS:
+      - [plus, relation, 1152720] # Abkhazia
+  interior-points:
+    ZZV:
+      - [41.020, 43.003] # Sukhum
+    RUS:
+      - [41.020, 43.003] # Sukhum
+ZZW:
+  base:
+  perspectives:
+    ZZW:
+      - [plus, relation, 1152717] # South Ossetia
+    RUS:
+      - [plus, relation, 1152717] # South Ossetia
+  interior-points:
+    ZZW:
+      - [43.970, 42.226] # Tskhinvali
+    RUS:
+      - [43.970, 42.226] # Tskhinvali
