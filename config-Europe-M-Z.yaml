@@ -49,9 +49,14 @@ TUR:
 GBR:
   base:
     - [plus, relation, 62149] # United Kingdom
+    - [plus, relation, 3969434] # British Overseas Territories
+  perspectives:
+    ARG:
+      - [minus, relation, 2185374] # Falkland Islands (Las Malvinas)
   interior-points:
     base:
       - [-0.127, 51.507] # London
+      - [-57.857, -51.693] # Stanley
 VAT:
   base:
     - [plus, relation, 36989] # Vatican City

@@ -15,11 +15,13 @@ ARG:
   perspectives:
     ARG:
       - [plus, relation, 286393] # Argentina
+      - [plus, relation, 2185374] # Falkland Islands (Las Malvinas)
   interior-points:
     base:
       - [-58.388, -34.609] # Buenos Aires
     ARG:
       - [-73.28, -49.47] # Patagonian Ice Field
+      - [-57.857, -51.693] # Stanley
 URY:
   base:
     - [plus, relation, 287072] # Uruguay
