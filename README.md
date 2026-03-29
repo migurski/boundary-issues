@@ -1,10 +1,12 @@
 About this repo: https://medium.com/@michalmigurski/weeknotes-2026w04-boundary-issues-f037407a7f45
 
-## Current Release: [v0.5](https://github.com/migurski/boundary-issues/releases/tag/v0.5)
+## Current Release: [v0.6](https://github.com/migurski/boundary-issues/releases/tag/v0.6)
 
-Preview: https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.5/preview.html#1.61/-10.5/14.3
+v0.6 release includes countries of Europe, Asia, Africa, Oceania, and the Americas.
 
-<img width="1408" height="694" alt="Screenshot 2026-03-28 at 3 49 37 PM" src="https://github.com/user-attachments/assets/d97326ec-eff8-43bc-9ce2-caac4a358240" />
+Preview: https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.6/preview.html#1.61/-10.5/14.3
+
+<img width="1407" height="695" alt="Screenshot 2026-03-29 at 12 17 14 PM" src="https://github.com/user-attachments/assets/424378c8-bed0-416a-a7a6-969f135e159b" />
 
 ## Output Format
 
