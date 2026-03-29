@@ -1,7 +1,15 @@
 GEO:
   perspectives:
     RUS:
+      - [minus, relation, 1152720] # Abkhazia
       - [minus, relation, 1152717] # South Ossetia
+ZZV:
+  base:
+  perspectives:
+    RUS:
+      - [plus, relation, 1152720] # Abkhazia
+    ZZW:
+      - [plus, relation, 1152720] # Abkhazia
 ZZW:
   base:
   perspectives:
