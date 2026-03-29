@@ -1,0 +1,8 @@
+JPN:
+  perspectives:
+    JPN:
+      - [plus, relation, 20388793] # Kuril Islands
+RUS:
+  perspectives:
+    JPN:
+      - [minus, relation, 20388793] # Kuril Islands
