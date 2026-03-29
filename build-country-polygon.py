@@ -488,7 +488,7 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_
             return functools.reduce(lambda g1, g2: g1.Union(g2), geometries)
 
 def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
-    assert shapes[0][0] == "plus"
+    assert len(shapes) == 0 or shapes[0][0] == "plus"
     return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
 def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
@@ -715,7 +715,7 @@ def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_ur
 
     data_rows = []
     for (iso3a, config) in configs.items():
-        geom1 = combine_shapes(config[BASE], check_fresh_osm, cache_base_url)
+        geom1 = combine_shapes(config[BASE] or [], check_fresh_osm, cache_base_url)
 
         # "Neutral" point of view = anyone without a defined perspective
         neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
