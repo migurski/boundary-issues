@@ -45,6 +45,13 @@ status as stable, disputed, or non-existent.
 - `nonexistent`: semicolon-delimited list of countries who believe this boundary is nonexistent
 - `geometry`: LineString or MultiLineString in WGS84 coordinates
 
+### `unique-perspectives`
+
+Pre-computed grouping of country perspectives used to drive the map UI.
+
+- `perspective_id`: integer group ID; countries sharing an ID have identical boundary viewpoints and are shown as a single "Others" button
+- `iso3`: ISO 3166-1 alpha-3 country code
+
 ## Configuration Format
 
 Complete worked example from [`sample-EU.yaml`](sample-EU.yaml).

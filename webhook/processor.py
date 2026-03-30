@@ -415,46 +415,21 @@ def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_di
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
         gpkg_path = os.path.join(clone_dir, 'out.gpkg')
-        perspective_set: set[str] = set()
-        if os.path.exists(gpkg_path):
-            for layer_name in ('country-areas', 'validation-points'):
-                try:
-                    gdf = geopandas.read_file(gpkg_path, layer=layer_name)
-                    for perspectives_val in gdf['perspectives']:
-                        for code in str(perspectives_val).split(';'):
-                            code = code.strip()
-                            if code:
-                                perspective_set.add(code)
-                except Exception:
-                    pass
-        iso3s: dict[str, list[str]] = {}
+        unique_perspectives: list[str] = []
+        others_perspectives: list[str] = []
         if os.path.exists(gpkg_path):
             try:
-                gdf_boundaries = geopandas.read_file(gpkg_path, layer='country-boundaries')
-                for _, row in gdf_boundaries.iterrows():
-                    for col in ('stable', 'disputed', 'nonexistent'):
-                        for code in str(row[col]).split(';'):
-                            code = code.strip()
-                            if code:
-                                perspective_set.add(code)
-                                if code not in iso3s:
-                                    iso3s[code] = []
-                                iso3s[code].append(col)
+                df = geopandas.read_file(gpkg_path, layer='unique-perspectives')
+                groups = df.groupby('perspective_id')['iso3'].apply(list)
+                for iso3_list in groups:
+                    if len(iso3_list) == 1:
+                        unique_perspectives.extend(iso3_list)
+                    else:
+                        others_perspectives.extend(iso3_list)
+                unique_perspectives = sorted(unique_perspectives)
+                others_perspectives = sorted(others_perspectives)
             except Exception:
                 pass
-
-        # Group codes by their pattern fingerprint; singleton groups get individual buttons
-        patterns: dict[tuple[str, ...], list[str]] = {}
-        for code, appearances in iso3s.items():
-            key = tuple(appearances)
-            if key not in patterns:
-                patterns[key] = []
-            patterns[key].append(code)
-
-        unique_perspectives = sorted(code for codes in patterns.values() if len(codes) == 1 for code in codes)
-        others_perspectives = sorted(
-            (code for codes in patterns.values() if len(codes) > 1 for code in codes),
-        ) + sorted(set(perspective_set) - set(iso3s.keys()))
         unique_perspectives_json = json.dumps(unique_perspectives)
         others_perspectives_json = json.dumps(others_perspectives)
 
