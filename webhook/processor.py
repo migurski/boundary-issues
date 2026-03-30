@@ -475,9 +475,6 @@ body { margin: 0; }
 #controls { width: 75px }
 @media (min-width: 1000px) { #controls { width: 110px } }
 @media (min-width: 1100px) { #controls { width: 160px } }
-@media (min-width: 1200px) { #controls { width: 210px } }
-@media (min-width: 1300px) { #controls { width: 260px } }
-@media (min-width: 1400px) { #controls { width: 310px } }
 </style>
 </head>
 <body>
