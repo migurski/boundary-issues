@@ -427,18 +427,36 @@ def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_di
                                 perspective_set.add(code)
                 except Exception:
                     pass
+        iso3s: dict[str, list[str]] = {}
+        if os.path.exists(gpkg_path):
             try:
                 gdf_boundaries = geopandas.read_file(gpkg_path, layer='country-boundaries')
-                for col in ('stable', 'disputed', 'nonexistent'):
-                    for val in gdf_boundaries[col]:
-                        for code in str(val).split(';'):
+                for _, row in gdf_boundaries.iterrows():
+                    for col in ('stable', 'disputed', 'nonexistent'):
+                        for code in str(row[col]).split(';'):
                             code = code.strip()
                             if code:
                                 perspective_set.add(code)
+                                if code not in iso3s:
+                                    iso3s[code] = []
+                                iso3s[code].append(col)
             except Exception:
                 pass
-        all_perspectives = sorted(perspective_set)
-        perspectives_json = json.dumps(all_perspectives)
+
+        # Group codes by their pattern fingerprint; singleton groups get individual buttons
+        patterns: dict[tuple[str, ...], list[str]] = {}
+        for code, appearances in iso3s.items():
+            key = tuple(appearances)
+            if key not in patterns:
+                patterns[key] = []
+            patterns[key].append(code)
+
+        unique_perspectives = sorted(code for codes in patterns.values() if len(codes) == 1 for code in codes)
+        others_perspectives = sorted(
+            (code for codes in patterns.values() if len(codes) > 1 for code in codes),
+        ) + sorted(set(perspective_set) - set(iso3s.keys()))
+        unique_perspectives_json = json.dumps(unique_perspectives)
+        others_perspectives_json = json.dumps(others_perspectives)
 
         html = """<!DOCTYPE html>
 <html>
@@ -604,7 +622,8 @@ const map = new maplibregl.Map({
 });
 map.addControl(new maplibregl.NavigationControl());
 
-const perspectives = $PERSPECTIVES_JSON$;
+const unique_perspectives = $UNIQUE_PERSPECTIVES_JSON$;
+const others_perspectives = $OTHERS_PERSPECTIVES_JSON$;
 
 function apply_perspective(perspective) {
   map.setFilter('areas', ["in", perspective, ["get", "perspectives"]]);
@@ -621,13 +640,18 @@ function apply_perspective(perspective) {
 }
 
 const radios_div = document.getElementById('perspective-radios');
-perspectives.forEach(function(p, i) {
+var first_value = null;
+
+unique_perspectives.forEach(function(p, i) {
   const label = document.createElement('label');
   const input = document.createElement('input');
   input.type = 'radio';
   input.name = 'perspective';
   input.value = p;
-  if (i === 0) { input.checked = true; }
+  if (i === 0) {
+    input.checked = true;
+    first_value = p;
+  }
   input.addEventListener('change', function() {
     if (this.checked) { apply_perspective(this.value); }
   });
@@ -636,14 +660,33 @@ perspectives.forEach(function(p, i) {
   radios_div.appendChild(label);
 });
 
+if (others_perspectives.length > 0) {
+  const label = document.createElement('label');
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'perspective';
+  input.value = others_perspectives[0];
+  if (unique_perspectives.length === 0) {
+    input.checked = true;
+    first_value = others_perspectives[0];
+  }
+  input.addEventListener('change', function() {
+    if (this.checked) { apply_perspective(this.value); }
+  });
+  label.appendChild(input);
+  label.appendChild(document.createTextNode(' Others'));
+  radios_div.appendChild(label);
+  if (first_value === null) { first_value = others_perspectives[0]; }
+}
+
 map.on('load', function() {
-  if (perspectives.length > 0) {
-    apply_perspective(perspectives[0]);
+  if (first_value !== null) {
+    apply_perspective(first_value);
   }
 });
 </script>
 </body>
-</html>""".replace('$PERSPECTIVES_JSON$', perspectives_json)
+</html>""".replace('$UNIQUE_PERSPECTIVES_JSON$', unique_perspectives_json).replace('$OTHERS_PERSPECTIVES_JSON$', others_perspectives_json)
 
         with open(os.path.join(clone_dir, 'preview.html'), "w") as file:
             file.write(html)
