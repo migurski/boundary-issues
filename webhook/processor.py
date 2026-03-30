@@ -453,7 +453,7 @@ def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_di
 body { margin: 0; }
 #map { width: 100vw; height: 100vh; }
 #controls { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: 4px; font-family: sans-serif; font-size: 13px; z-index: 1; }
-#controls label { font-size: 12px; width: 50px; height: 1.2em; display: inline-block; margin: 3px 0; cursor: pointer; }
+#controls label { font-size: 12px; width: 50px; height: 1.2em; display: inline-block; margin: 3px 0; cursor: pointer; white-space: nowrap }
 #controls { width: 75px }
 @media (min-width: 1000px) { #controls { width: 110px } }
 @media (min-width: 1100px) { #controls { width: 160px } }
