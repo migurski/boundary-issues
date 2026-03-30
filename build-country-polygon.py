@@ -36,6 +36,7 @@ VALIDATION_POINTS_NAME = "validation-points"
 BOUNDARIES_NAME = "country-boundaries"
 CLAIMS_NAME = "country-claims"
 AREAS_NAME = "country-areas"
+UNIQUE_PERSPECTIVES_NAME = "unique-perspectives"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
 
@@ -102,6 +103,7 @@ class TestCase (unittest.TestCase):
         write_country_claims(gpkg_path, cls.config)
         write_validation_points(gpkg_path, cls.config)
         write_country_boundaries(gpkg_path, cls.config)
+        write_unique_perspectives(gpkg_path, cls.config)
 
     @classmethod
     def tearDownClass(cls):
@@ -284,6 +286,36 @@ class TestCase (unittest.TestCase):
         self.assertFalse(self.disputed_for("ESP").Contains(make_point(-2.5, 5)))
         self.assertFalse(self.disputed_for("FRA").Contains(make_point(-2.5, 5)))
         self.assertFalse(self.disputed_for("CHN").Contains(make_point(-2.5, 5)))
+
+    def test_unique_perspectives_table_structure(self):
+        gpkg_path = os.path.join(TestCase.tempdir, GPKG_NAME)
+        df = geopandas.read_file(gpkg_path, layer=UNIQUE_PERSPECTIVES_NAME)
+        self.assertIn('perspective_id', df.columns)
+        self.assertIn('iso3', df.columns)
+        config_iso3s = set(self.config.keys())
+        for iso3 in df['iso3']:
+            self.assertIn(iso3, config_iso3s)
+        for pid in df['perspective_id']:
+            self.assertGreaterEqual(int(pid), 1)
+
+    def test_unique_perspectives_grouping(self):
+        gpkg_path = os.path.join(TestCase.tempdir, GPKG_NAME)
+        df = geopandas.read_file(gpkg_path, layer=UNIQUE_PERSPECTIVES_NAME)
+        groups = df.groupby('perspective_id')['iso3'].apply(list)
+        iso3_to_group_size = {}
+        for pid, iso3_list in groups.items():
+            for iso3 in iso3_list:
+                iso3_to_group_size[iso3] = len(iso3_list)
+        # Countries with unique perspectives each have their own perspective_id
+        for iso3 in ('IND', 'PAK', 'CHN', 'RUS', 'UKR'):
+            if iso3 in iso3_to_group_size:
+                self.assertEqual(iso3_to_group_size[iso3], 1, f"{iso3} should have a unique perspective_id")
+        # Countries with no defined perspectives share a perspective_id
+        neutral_iso3s = [iso3 for iso3 in ('NPL', 'ESP', 'FRA') if iso3 in iso3_to_group_size]
+        if neutral_iso3s:
+            self.assertGreater(iso3_to_group_size[neutral_iso3s[0]], 1, f"{neutral_iso3s[0]} should share a perspective_id with others")
+        # Union of all ISO3s in the table equals the full set of config keys
+        self.assertEqual(set(df['iso3']), set(self.config.keys()))
 
     def test_claims_esp_fra(self):
         gpkg_path = os.path.join(TestCase.tempdir, GPKG_NAME)
@@ -604,6 +636,56 @@ def write_country_boundaries(gpkg_path, configs):
     boundaries_gdf.to_file(gpkg_path, layer=BOUNDARIES_NAME, driver='GPKG')
     return gpkg_path
 
+def write_unique_perspectives(gpkg_path, configs):
+    gdf = geopandas.read_file(gpkg_path, layer=BOUNDARIES_NAME)
+
+    # For each ISO3 code, collect which columns it appears in (fingerprint)
+    iso3s: dict[str, list[str]] = {}
+    for _, row in gdf.iterrows():
+        for col in ('stable', 'disputed', 'nonexistent'):
+            for code in str(row[col]).split(D2):
+                code = code.strip()
+                if code:
+                    iso3s.setdefault(code, []).append(col)
+
+    # Group codes by their pattern fingerprint
+    patterns: dict[tuple[str, ...], list[str]] = {}
+    for code, appearances in iso3s.items():
+        key = tuple(appearances)
+        patterns.setdefault(key, []).append(code)
+
+    # Countries with no defined perspectives (not in any boundary column) share a neutral fingerprint
+    all_iso3s = set(configs.keys())
+    boundary_iso3s = set(iso3s.keys())
+    neutral_iso3s = sorted(all_iso3s - boundary_iso3s)
+    if neutral_iso3s:
+        neutral_key = ()
+        patterns.setdefault(neutral_key, []).extend(neutral_iso3s)
+
+    # Assign perspective_id sorted for determinism; sort groups by their sorted codes
+    rows = []
+    for perspective_id, (_, codes) in enumerate(sorted(patterns.items(), key=lambda kv: sorted(kv[1])), start=1):
+        for iso3 in sorted(codes):
+            rows.append({'perspective_id': perspective_id, 'iso3': iso3})
+
+    ds = osgeo.ogr.Open(gpkg_path, 1)
+    # Remove existing layer if present
+    for i in range(ds.GetLayerCount()):
+        if ds.GetLayer(i).GetName() == UNIQUE_PERSPECTIVES_NAME:
+            ds.DeleteLayer(i)
+            break
+    layer = ds.CreateLayer(UNIQUE_PERSPECTIVES_NAME, geom_type=osgeo.ogr.wkbNone)
+    layer.CreateField(osgeo.ogr.FieldDefn('perspective_id', osgeo.ogr.OFTInteger))
+    layer.CreateField(osgeo.ogr.FieldDefn('iso3', osgeo.ogr.OFTString))
+    for row in rows:
+        feat = osgeo.ogr.Feature(layer.GetLayerDefn())
+        feat.SetField('perspective_id', row['perspective_id'])
+        feat.SetField('iso3', row['iso3'])
+        layer.CreateFeature(feat)
+    ds = None
+    return gpkg_path
+
+
 def write_country_claims(gpkg_path, configs) -> str:
     gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
 
@@ -746,6 +828,7 @@ def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = Non
     validate_claims(configs, gpkg_path)
     write_validation_points(gpkg_path, configs)
     write_country_boundaries(gpkg_path, configs)
+    write_unique_perspectives(gpkg_path, configs)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')

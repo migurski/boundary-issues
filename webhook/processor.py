@@ -415,30 +415,23 @@ def generate_preview_html(s3_client: typing.Any, destination: str|None, clone_di
     """ Generate preview.html and upload to S3 alongside preview.pmtiles """
     try:
         gpkg_path = os.path.join(clone_dir, 'out.gpkg')
-        perspective_set: set[str] = set()
+        unique_perspectives: list[str] = []
+        others_perspectives: list[str] = []
         if os.path.exists(gpkg_path):
-            for layer_name in ('country-areas', 'validation-points'):
-                try:
-                    gdf = geopandas.read_file(gpkg_path, layer=layer_name)
-                    for perspectives_val in gdf['perspectives']:
-                        for code in str(perspectives_val).split(';'):
-                            code = code.strip()
-                            if code:
-                                perspective_set.add(code)
-                except Exception:
-                    pass
             try:
-                gdf_boundaries = geopandas.read_file(gpkg_path, layer='country-boundaries')
-                for col in ('stable', 'disputed', 'nonexistent'):
-                    for val in gdf_boundaries[col]:
-                        for code in str(val).split(';'):
-                            code = code.strip()
-                            if code:
-                                perspective_set.add(code)
+                df = geopandas.read_file(gpkg_path, layer='unique-perspectives')
+                groups = df.groupby('perspective_id')['iso3'].apply(list)
+                for iso3_list in groups:
+                    if len(iso3_list) == 1:
+                        unique_perspectives.extend(iso3_list)
+                    else:
+                        others_perspectives.extend(iso3_list)
+                unique_perspectives = sorted(unique_perspectives)
+                others_perspectives = sorted(others_perspectives)
             except Exception:
                 pass
-        all_perspectives = sorted(perspective_set)
-        perspectives_json = json.dumps(all_perspectives)
+        unique_perspectives_json = json.dumps(unique_perspectives)
+        others_perspectives_json = json.dumps(others_perspectives)
 
         html = """<!DOCTYPE html>
 <html>
@@ -457,9 +450,6 @@ body { margin: 0; }
 #controls { width: 75px }
 @media (min-width: 1000px) { #controls { width: 110px } }
 @media (min-width: 1100px) { #controls { width: 160px } }
-@media (min-width: 1200px) { #controls { width: 210px } }
-@media (min-width: 1300px) { #controls { width: 260px } }
-@media (min-width: 1400px) { #controls { width: 310px } }
 </style>
 </head>
 <body>
@@ -604,7 +594,8 @@ const map = new maplibregl.Map({
 });
 map.addControl(new maplibregl.NavigationControl());
 
-const perspectives = $PERSPECTIVES_JSON$;
+const unique_perspectives = $UNIQUE_PERSPECTIVES_JSON$;
+const others_perspectives = $OTHERS_PERSPECTIVES_JSON$;
 
 function apply_perspective(perspective) {
   map.setFilter('areas', ["in", perspective, ["get", "perspectives"]]);
@@ -621,13 +612,18 @@ function apply_perspective(perspective) {
 }
 
 const radios_div = document.getElementById('perspective-radios');
-perspectives.forEach(function(p, i) {
+var first_value = null;
+
+unique_perspectives.forEach(function(p, i) {
   const label = document.createElement('label');
   const input = document.createElement('input');
   input.type = 'radio';
   input.name = 'perspective';
   input.value = p;
-  if (i === 0) { input.checked = true; }
+  if (i === 0) {
+    input.checked = true;
+    first_value = p;
+  }
   input.addEventListener('change', function() {
     if (this.checked) { apply_perspective(this.value); }
   });
@@ -636,14 +632,33 @@ perspectives.forEach(function(p, i) {
   radios_div.appendChild(label);
 });
 
+if (others_perspectives.length > 0) {
+  const label = document.createElement('label');
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'perspective';
+  input.value = others_perspectives[0];
+  if (unique_perspectives.length === 0) {
+    input.checked = true;
+    first_value = others_perspectives[0];
+  }
+  input.addEventListener('change', function() {
+    if (this.checked) { apply_perspective(this.value); }
+  });
+  label.appendChild(input);
+  label.appendChild(document.createTextNode(' Others'));
+  radios_div.appendChild(label);
+  if (first_value === null) { first_value = others_perspectives[0]; }
+}
+
 map.on('load', function() {
-  if (perspectives.length > 0) {
-    apply_perspective(perspectives[0]);
+  if (first_value !== null) {
+    apply_perspective(first_value);
   }
 });
 </script>
 </body>
-</html>""".replace('$PERSPECTIVES_JSON$', perspectives_json)
+</html>""".replace('$UNIQUE_PERSPECTIVES_JSON$', unique_perspectives_json).replace('$OTHERS_PERSPECTIVES_JSON$', others_perspectives_json)
 
         with open(os.path.join(clone_dir, 'preview.html'), "w") as file:
             file.write(html)
