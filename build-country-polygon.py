@@ -573,33 +573,38 @@ def write_validation_points(gpkg_path, configs):
     gdf.to_file(gpkg_path, layer=VALIDATION_POINTS_NAME, driver='GPKG')
     return gpkg_path
 
-def write_country_boundaries(gpkg_path, configs):
-    gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
-    gdf['rep_point'] = gdf.geometry.representative_point()
+def calculate_endorsements(gpkg_path: str, configs: dict) -> dict[tuple[str, str], shapely.geometry.base.BaseGeometry]:
+    """Return a mapping from (country, observer) to the territory that observer
+    considers settled (not in dispute) with respect to that country.
 
-    # Pre-compute endorsed territories: for non-self perspectives, find the
-    # territory those ops explicitly reference so we can split boundary segments.
-    # For additive/mixed ops: apply to empty geometry — result is territory added.
-    # For pure-minus ops (disendorsement): apply to owner's base and take the
-    # difference — result is the territory the observer says the owner should lose.
-    # Both cases yield the disputed sub-region the observer has an opinion on.
+    For additive/mixed perspectives: apply ops to an empty geometry to extract
+    the territory explicitly referenced. For pure-minus perspectives (disendorsements):
+    apply ops to the owner's neutral base and take the difference, recovering the
+    territory the observer says the country should not have.
+    """
     gdf_areas = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
     endorsed_geoms: dict[tuple[str, str], shapely.geometry.base.BaseGeometry] = {}
     for iso3a, config in configs.items():
         for iso3b, shapes in config.get("perspectives", {}).items():
             if iso3a == iso3b:
+                # A country's perspective on itself is its own base territory, not an endorsement
                 continue
+            # Additive/mixed perspective: apply ops to an empty geometry to extract
+            # only the territory explicitly referenced by this observer's ops.
             geom = ogr_geom_to_shapely(functools.reduce(
                 lambda g, s: combine_pair(g, s, False),
                 shapes,
                 osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'),
             ))
             if geom.is_empty:
-                # Pure-minus perspective: recover the subtracted area by applying
-                # ops to the owner's base and diffing.
+                # Pure-minus perspective (disendorsement): applying ops to empty yields
+                # nothing, so instead apply to the owner's neutral base and diff to
+                # recover the territory the observer says the country should not have.
                 perspective_keys = set(config.get("perspectives", {}).keys())
                 base_rows = gdf_areas[(gdf_areas.iso3 == iso3a) & ~gdf_areas.perspectives.isin(perspective_keys)]
                 if not base_rows.empty:
+                    # Only proceed if the owner has a neutral base territory to diff against;
+                    # if every row is perspective-specific, there's no settled base to work from.
                     base_geom = shapely_geom_to_ogr(base_rows.iloc[0].geometry)
                     result = ogr_geom_to_shapely(functools.reduce(
                         lambda g, s: combine_pair(g, s, False),
@@ -608,6 +613,12 @@ def write_country_boundaries(gpkg_path, configs):
                     ))
                     geom = base_rows.iloc[0].geometry.difference(result)
             endorsed_geoms[(iso3a, iso3b)] = geom
+    return endorsed_geoms
+
+def write_country_boundaries(gpkg_path: str, configs: dict) -> str:
+    gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
+    gdf['rep_point'] = gdf.geometry.representative_point()
+    endorsed_geoms = calculate_endorsements(gpkg_path, configs)
 
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
 
