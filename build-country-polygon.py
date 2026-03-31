@@ -167,8 +167,8 @@ class TestCase (unittest.TestCase):
         self.assertIn("TWN", self.config)
         # CHN claims TWN from CHN perspective (perspectives.CHN merged from test-config3)
         self.assertIn("CHN", self.config["CHN"]["perspectives"])
-        # test-config3 adds one op to CHN.perspectives.CHN, merged list has 1 entry
-        self.assertEqual(len(self.config["CHN"]["perspectives"]["CHN"]), 1)
+        # test-config3 adds one op to CHN.perspectives.CHN; test-config1 adds one more; merged list has 2 entries
+        self.assertEqual(len(self.config["CHN"]["perspectives"]["CHN"]), 2)
 
     @staticmethod
     def _load_borders():
@@ -195,6 +195,13 @@ class TestCase (unittest.TestCase):
         """ Union of all border segments where country is in the disputed set """
         borders = TestCase._load_borders()
         geoms = [g for _, disputed_set, _, g in borders if country in disputed_set]
+        return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
+
+    @staticmethod
+    def nonexistent_for(country):
+        """ Union of all border segments where country is in the nonexistent set """
+        borders = TestCase._load_borders()
+        geoms = [g for _, _, nonexistent_set, g in borders if country in nonexistent_set]
         return functools.reduce(lambda g1, g2: g1.Union(g2), geoms, osgeo.ogr.CreateGeometryFromWkt(EMPTY_LINE_WKT))
 
     def test_boundaries_ind_chn_pak_npl(self):
@@ -259,6 +266,31 @@ class TestCase (unittest.TestCase):
         self.assertTrue(self.disputed_for("RUS").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
         self.assertTrue(self.disputed_for("UKR").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
         self.assertTrue(self.disputed_for("NPL").Contains(make_point(3, 3.7)), "Counterintuitive because NPL doesn't see India up here")
+
+        # A point on the eastern edge of fake Aksai Chin (lon=4, lat=2.7)
+        # PAK has no perspective on Aksai Chin (only on Trans-Karakoram): PAK should NOT see it as nonexistent
+        # CHN sees no border here (Aksai Chin is CHN territory): nonexistent for CHN
+        self.assertTrue(self.disputed_for("PAK").Contains(make_point(4.0, 2.7)))
+        self.assertTrue(self.nonexistent_for("CHN").Contains(make_point(4.0, 2.7)))
+
+        # A point on the eastern edge of fake Trans-Karakoram Tract (lon=4, lat=3.7)
+        # IND claims Trans-Karakoram and sees a border between its claimed Trans-Karakoram and CHN proper: stable for IND
+        # NPL has no special perspective on Trans-Karakoram: disputed for NPL
+        # CHN sees no border here (Trans-Karakoram is CHN territory): nonexistent for CHN
+        # PAK endorses CHN's claim on Trans-Karakoram, so PAK also sees no border here: nonexistent for PAK
+        self.assertTrue(self.stable_for("IND").Contains(make_point(4.0, 3.7)))
+        self.assertTrue(self.disputed_for("NPL").Contains(make_point(4.0, 3.7)))
+        self.assertTrue(self.nonexistent_for("CHN").Contains(make_point(4.0, 3.7)))
+        self.assertTrue(self.nonexistent_for("PAK").Contains(make_point(4.0, 3.7)))
+
+        # A point on the IND/CHN boundary at the northern edge of fake Arunachal Pradesh (lon=3.0, lat=1.5)
+        # PAK endorses CHN's claim on Arunachal Pradesh, so PAK sees the boundary of CHN's endorsed
+        # block as stable (PAK has taken a side; this is the edge of what PAK considers CHN territory)
+        self.assertTrue(self.stable_for("PAK").Contains(make_point(3.0, 1.5)))
+
+        # A point on the CHN/NPL boundary at the eastern edge of fake Arunachal Pradesh (lon=4.0, lat=1.0)
+        # Same reasoning: PAK endorsed CHN's Arunachal claim, so the outer borders of that block are stable for PAK
+        self.assertTrue(self.stable_for("PAK").Contains(make_point(4.0, 1.0)))
 
     def test_boundaries_ukr_rus(self):
         # A point along the border of fake Crimea and fake Russia
@@ -573,8 +605,52 @@ def write_validation_points(gpkg_path, configs):
     gdf.to_file(gpkg_path, layer=VALIDATION_POINTS_NAME, driver='GPKG')
     return gpkg_path
 
-def write_country_boundaries(gpkg_path, configs):
+def calculate_endorsements(gpkg_path: str, configs: dict) -> dict[tuple[str, str], shapely.geometry.base.BaseGeometry]:
+    """Return a mapping from (country, observer) to the territory that observer
+    considers settled (not in dispute) with respect to that country.
+
+    For additive/mixed perspectives: apply ops to an empty geometry to extract
+    the territory explicitly referenced. For pure-minus perspectives (disendorsements):
+    apply ops to the owner's neutral base and take the difference, recovering the
+    territory the observer says the country should not have.
+    """
+    gdf_areas = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
+    endorsed_geoms: dict[tuple[str, str], shapely.geometry.base.BaseGeometry] = {}
+    for iso3a, config in configs.items():
+        for iso3b, shapes in config.get("perspectives", {}).items():
+            if iso3a == iso3b:
+                # A country's perspective on itself is its own base territory, not an endorsement
+                continue
+            # Additive/mixed perspective: apply ops to an empty geometry to extract
+            # only the territory explicitly referenced by this observer's ops.
+            geom = ogr_geom_to_shapely(functools.reduce(
+                lambda g, s: combine_pair(g, s, False),
+                shapes,
+                osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'),
+            ))
+            if geom.is_empty:
+                # Pure-minus perspective (disendorsement): applying ops to empty yields
+                # nothing, so instead apply to the owner's neutral base and diff to
+                # recover the territory the observer says the country should not have.
+                perspective_keys = set(config.get("perspectives", {}).keys())
+                base_rows = gdf_areas[(gdf_areas.iso3 == iso3a) & ~gdf_areas.perspectives.isin(perspective_keys)]
+                if not base_rows.empty:
+                    # Only proceed if the owner has a neutral base territory to diff against;
+                    # if every row is perspective-specific, there's no settled base to work from.
+                    base_geom = shapely_geom_to_ogr(base_rows.iloc[0].geometry)
+                    result = ogr_geom_to_shapely(functools.reduce(
+                        lambda g, s: combine_pair(g, s, False),
+                        shapes,
+                        base_geom,
+                    ))
+                    geom = base_rows.iloc[0].geometry.difference(result)
+            endorsed_geoms[(iso3a, iso3b)] = geom
+    return endorsed_geoms
+
+def write_country_boundaries(gpkg_path: str, configs: dict) -> str:
     gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
+    gdf['rep_point'] = gdf.geometry.representative_point()
+    endorsed_geoms = calculate_endorsements(gpkg_path, configs)
 
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
 
@@ -586,6 +662,7 @@ def write_country_boundaries(gpkg_path, configs):
     data_rows = []
     for i1, i2 in sorted(index_pairings):
         row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
+        rep_point1, rep_point2 = row1.rep_point, row2.rep_point
         polygon1 = clean_polygon(row1.geometry)
         polygon2 = clean_polygon(row2.geometry)
         if not polygon1.relate_pattern(polygon2, 'F*2*1*2*2'):
@@ -602,6 +679,9 @@ def write_country_boundaries(gpkg_path, configs):
             clean_linestring(polygon1.intersection(polygon2)),
         )
         stable_believers, disputed_believers, non_believers = set(), set(), set()
+        # endorser_split: observers whose nonexistent/disputed classification depends on
+        # which part of the boundary geometry they endorsed; maps observer -> endorsed geom
+        endorser_split: dict[str, shapely.geometry.base.BaseGeometry] = {}
         if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
             stable_believers = boundary.claims1[0][1] & boundary.claims2[0][1]
         else:
@@ -616,20 +696,89 @@ def write_country_boundaries(gpkg_path, configs):
                         if iso3a in common_observers:
                             common_observers.remove(iso3a)
                         non_believers.add(iso3a)
-                        if common_observers:
-                            disputed_believers |= common_observers
+                        for obs in list(common_observers):
+                            endorsed = endorsed_geoms.get((iso3a, obs))
+                            if endorsed is not None and not endorsed.is_empty:
+                                # This observer explicitly endorsed specific territory;
+                                # split the boundary so they're nonexistent only where
+                                # their endorsement applies, disputed elsewhere.
+                                endorser_split[obs] = endorsed
+                            else:
+                                disputed_believers.add(obs)
                 else:
+                    # Different owners on each side: each owner sees its own border as stable.
                     if iso3a in common_observers:
                         common_observers.remove(iso3a)
                         stable_believers.add(iso3a)
                     if iso3b in common_observers:
                         common_observers.remove(iso3b)
                         stable_believers.add(iso3b)
-                    if common_observers:
-                        disputed_believers |= common_observers
-        row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
-        print("Writing border", row, file=sys.stderr)
-        data_rows.append({**row, "geometry": boundary.geometry})
+                    for obs in list(common_observers):
+                        # Check whether obs endorsed either owner's territory. If so,
+                        # the boundary is nonexistent for obs inside the endorsed area
+                        # (obs agrees with that owner's claim) and disputed outside it.
+                        parts = [
+                            g for key in [(iso3a, obs), (iso3b, obs)]
+                            if (g := endorsed_geoms.get(key)) is not None and not g.is_empty
+                        ]
+                        if parts:
+                            endorser_split[obs] = functools.reduce(lambda a, b: a.union(b), parts)
+                        else:
+                            disputed_believers.add(obs)
+        # Use representative interior points to refine observer classifications.
+        # For observers in endorser_split: check whether both sides of the boundary
+        # are inside the endorsed geometry, or just one. If both sides are inside,
+        # the observer sees no boundary here (nonexistent stays). If only one side
+        # is inside, this boundary is the edge of endorsed territory → stable for
+        # the observer. Move them from endorser_split to stable_believers.
+        endorser_split_stable: set[str] = set()
+        for obs, endorsed in list(endorser_split.items()):
+            side1_in = endorsed.contains(rep_point1)
+            side2_in = endorsed.contains(rep_point2)
+            if side1_in != side2_in:
+                # One side is endorsed territory, the other is not: this is a real
+                # border from the observer's perspective.
+                endorser_split_stable.add(obs)
+                del endorser_split[obs]
+                stable_believers.add(obs)
+
+        # One-sided observer promotion: observers with endorsed geometries who never
+        # appeared in common_observers may still have an opinion on this boundary.
+        # Use the same rep-point test for observers not yet classified at all.
+        all_classified = stable_believers | disputed_believers | non_believers | set(endorser_split.keys())
+        for (iso3_endorsed, obs), endorsed in endorsed_geoms.items():
+            if obs in all_classified or endorsed.is_empty:
+                continue
+            side1_in = endorsed.contains(rep_point1)
+            side2_in = endorsed.contains(rep_point2)
+            if side1_in != side2_in:
+                # Exactly one side is inside the endorsed territory: this is the
+                # boundary of what the observer considers settled territory.
+                stable_believers.add(obs)
+
+        def emit_border(stable, disputed, non, geom):
+            overlap = stable & disputed | stable & non | disputed & non
+            assert not overlap, f"Observer(s) {overlap} appear in multiple boundary categories: stable={stable} disputed={disputed} nonexistent={non}"
+            row = dict(stable=D2.join(stable), disputed=D2.join(disputed), nonexistent=D2.join(non))
+            print("Writing border", row, file=sys.stderr)
+            data_rows.append({**row, "geometry": geom})
+
+        if not endorser_split:
+            emit_border(stable_believers, disputed_believers, non_believers, boundary.geometry)
+        else:
+            # Split boundary geometry by each endorser's territory.
+            # Collect all endorsed geometries to partition the boundary line.
+            all_endorsed = functools.reduce(lambda a, b: a.union(b), endorser_split.values())
+            inside_geom = clean_linestring(boundary.geometry.intersection(all_endorsed))
+            outside_geom = clean_linestring(boundary.geometry.difference(all_endorsed))
+            # Observers that endorse the inside portion are nonexistent there
+            inside_non = non_believers | set(endorser_split.keys())
+            inside_disputed = disputed_believers
+            outside_non = non_believers
+            outside_disputed = disputed_believers | set(endorser_split.keys())
+            for geom, s_non, s_disputed in [(inside_geom, inside_non, inside_disputed), (outside_geom, outside_non, outside_disputed)]:
+                if not geom.is_empty:
+                    emit_border(stable_believers, s_disputed, s_non, geom)
 
     boundaries_gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
     boundaries_gdf['color_index'] = range(len(boundaries_gdf))
