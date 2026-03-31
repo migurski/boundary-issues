@@ -671,10 +671,15 @@ def write_country_boundaries(gpkg_path, configs):
                             endorser_split[obs] = functools.reduce(lambda a, b: a.union(b), parts)
                         else:
                             disputed_believers.add(obs)
-        if not endorser_split:
-            row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
+        def emit_border(stable, disputed, non, geom):
+            overlap = stable & disputed | stable & non | disputed & non
+            assert not overlap, f"Observer(s) {overlap} appear in multiple boundary categories: stable={stable} disputed={disputed} nonexistent={non}"
+            row = dict(stable=D2.join(stable), disputed=D2.join(disputed), nonexistent=D2.join(non))
             print("Writing border", row, file=sys.stderr)
-            data_rows.append({**row, "geometry": boundary.geometry})
+            data_rows.append({**row, "geometry": geom})
+
+        if not endorser_split:
+            emit_border(stable_believers, disputed_believers, non_believers, boundary.geometry)
         else:
             # Split boundary geometry by each endorser's territory.
             # Collect all endorsed geometries to partition the boundary line.
@@ -688,9 +693,7 @@ def write_country_boundaries(gpkg_path, configs):
             outside_disputed = disputed_believers | set(endorser_split.keys())
             for geom, s_non, s_disputed in [(inside_geom, inside_non, inside_disputed), (outside_geom, outside_non, outside_disputed)]:
                 if not geom.is_empty:
-                    row = dict(stable=D2.join(stable_believers), disputed=D2.join(s_disputed), nonexistent=D2.join(s_non))
-                    print("Writing border", row, file=sys.stderr)
-                    data_rows.append({**row, "geometry": geom})
+                    emit_border(stable_believers, s_disputed, s_non, geom)
 
     boundaries_gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
     boundaries_gdf['color_index'] = range(len(boundaries_gdf))
