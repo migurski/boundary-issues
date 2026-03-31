@@ -1,14 +1,17 @@
 CHN:
   base:
   - [plus, relation, "fake-CHN"]
+  - [minus, relation, "fake-Arunchal-Pradesh"]
+  - [plus, relation, "fake-Trans-Karakoram-Tract"]
   perspectives:
     CHN:
-    - [plus, relation, "fake-Trans-Karakoram-Tract"]
+    - [plus, relation, "fake-Arunchal-Pradesh"]
     IND:
     - [minus, relation, "fake-Aksai-Chin"]
     - [minus, relation, "fake-Trans-Karakoram-Tract"]
     PAK:
     - [plus, relation, "fake-Trans-Karakoram-Tract"]
+    - [plus, relation, "fake-Arunchal-Pradesh"]
   interior-points:
     CHN:
       - [3.3, 2.5] # fake-Aksai-Chin
@@ -17,18 +20,21 @@ CHN:
 IND:
   base:
   - [plus, relation, "fake-IND"]
+  - [plus, relation, "fake-Arunchal-Pradesh"]
   - [minus, relation, "fake-Aksai-Chin"]
   - [minus, relation, "fake-Trans-Karakoram-Tract"]
   perspectives:
     CHN:
     - [minus, relation, "fake-Aksai-Chin"]
     - [minus, relation, "fake-Trans-Karakoram-Tract"]
+    - [minus, relation, "fake-Arunchal-Pradesh"]
     IND:
     - [plus, relation, "fake-PAK-Kashmir"]
     - [plus, relation, "fake-Aksai-Chin"]
     - [plus, relation, "fake-Trans-Karakoram-Tract"]
     PAK:
     - [minus, relation, "fake-Trans-Karakoram-Tract"]
+    - [minus, relation, "fake-Arunchal-Pradesh"]
   interior-points:
     base:
       - [2.7, 2.3] # fake-IND-Kashmir
