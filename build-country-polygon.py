@@ -165,8 +165,8 @@ class TestCase (unittest.TestCase):
         self.assertIn("TWN", self.config)
         # CHN claims TWN from CHN perspective (perspectives.CHN merged from test-config3)
         self.assertIn("CHN", self.config["CHN"]["perspectives"])
-        # test-config3 adds one op to CHN.perspectives.CHN, merged list has 1 entry
-        self.assertEqual(len(self.config["CHN"]["perspectives"]["CHN"]), 1)
+        # test-config3 adds one op to CHN.perspectives.CHN; test-config1 adds one more; merged list has 2 entries
+        self.assertEqual(len(self.config["CHN"]["perspectives"]["CHN"]), 2)
 
     @staticmethod
     def _load_borders():
@@ -567,20 +567,22 @@ def write_validation_points(gpkg_path, configs):
 def write_country_boundaries(gpkg_path, configs):
     gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
 
-    # Pre-compute endorsed territories: for all-additive non-self perspectives,
-    # the endorsed area is just the union of the added geometries (from empty base).
-    # Used to split boundary segments so endorsers get nonexistent only where
-    # they explicitly endorsed territory, and disputed elsewhere.
+    # Pre-compute endorsed territories: for non-self perspectives, apply the
+    # observer's ops starting from an empty geometry to get only the territory
+    # those ops explicitly reference. This scopes PAK's endorsement of CHN to
+    # Trans-Karakoram specifically, regardless of whether those ops are additive,
+    # subtractive, or mixed.
     endorsed_geoms: dict[tuple[str, str], shapely.geometry.base.BaseGeometry] = {}
     for iso3a, config in configs.items():
         for iso3b, shapes in config.get("perspectives", {}).items():
-            if iso3a != iso3b and all(s[0] == "plus" for s in shapes):
-                geom = functools.reduce(
-                    lambda g, s: combine_pair(g, s, False),
-                    shapes,
-                    osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'),
-                )
-                endorsed_geoms[(iso3a, iso3b)] = ogr_geom_to_shapely(geom)
+            if iso3a == iso3b:
+                continue
+            geom = functools.reduce(
+                lambda g, s: combine_pair(g, s, False),
+                shapes,
+                osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'),
+            )
+            endorsed_geoms[(iso3a, iso3b)] = ogr_geom_to_shapely(geom)
 
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
 
@@ -635,14 +637,25 @@ def write_country_boundaries(gpkg_path, configs):
                             else:
                                 disputed_believers.add(obs)
                 else:
+                    # Different owners on each side: each owner sees its own border as stable.
                     if iso3a in common_observers:
                         common_observers.remove(iso3a)
                         stable_believers.add(iso3a)
                     if iso3b in common_observers:
                         common_observers.remove(iso3b)
                         stable_believers.add(iso3b)
-                    if common_observers:
-                        disputed_believers |= common_observers
+                    for obs in list(common_observers):
+                        # Check whether obs endorsed either owner's territory. If so,
+                        # the boundary is nonexistent for obs inside the endorsed area
+                        # (obs agrees with that owner's claim) and disputed outside it.
+                        parts = [
+                            g for key in [(iso3a, obs), (iso3b, obs)]
+                            if (g := endorsed_geoms.get(key)) is not None and not g.is_empty
+                        ]
+                        if parts:
+                            endorser_split[obs] = functools.reduce(lambda a, b: a.union(b), parts)
+                        else:
+                            disputed_believers.add(obs)
         if not endorser_split:
             row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
             print("Writing border", row, file=sys.stderr)

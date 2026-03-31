@@ -1,8 +1,9 @@
 CHN:
   base:
   - [plus, relation, "fake-CHN"]
-  - [plus, relation, "fake-Trans-Karakoram-Tract"]
   perspectives:
+    CHN:
+    - [plus, relation, "fake-Trans-Karakoram-Tract"]
     IND:
     - [minus, relation, "fake-Aksai-Chin"]
     - [minus, relation, "fake-Trans-Karakoram-Tract"]
