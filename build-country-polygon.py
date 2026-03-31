@@ -36,6 +36,7 @@ VALIDATION_POINTS_NAME = "validation-points"
 BOUNDARIES_NAME = "country-boundaries"
 CLAIMS_NAME = "country-claims"
 AREAS_NAME = "country-areas"
+AREAS_PROVENANCE_NAME = "country-areas-provenance"
 EMPTY_LINE_WKT = "LINESTRING EMPTY"
 BASE = "base"
 
@@ -56,6 +57,7 @@ class Relationship (enum.Enum):
 class Claim:
     claimants: list[CLAIMANT]
     geometry: shapely.geometry.base.BaseGeometry | None
+    provenances: set[str] = dataclasses.field(default_factory=set)
 
     def relationship(self, other:Claim) -> Relationship:
         """ Return description of DE-9IM relationship between geometries """
@@ -756,6 +758,14 @@ def write_country_boundaries(gpkg_path: str, configs: dict) -> str:
 def write_country_claims(gpkg_path, configs) -> str:
     gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
 
+    # Build a lookup from (iso3, perspectives) -> set of provenance tokens
+    # using the per-op contribution rows from the provenance layer.
+    gdf_prov = geopandas.read_file(gpkg_path, layer=AREAS_PROVENANCE_NAME)
+    provenance_lookup: dict[tuple[str, str], set[str]] = {}
+    for _, row in gdf_prov.iterrows():
+        key = (row.iso3, row.perspectives)
+        provenance_lookup.setdefault(key, set()).add(row.provenance)
+
     # Need to separately include partial overlaps and complete containments
     gdf_disputants1 = geopandas.sjoin(gdf, gdf, predicate="overlaps")
     gdf_disputants2 = geopandas.sjoin(gdf, gdf, predicate="contains")
@@ -776,7 +786,8 @@ def write_country_claims(gpkg_path, configs) -> str:
         out_claims = []
         for _, new_row in gdf_sub.iterrows():
             new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(D2)))
-            new_claim = Claim([new_claimant], new_row.geometry)
+            new_claim = Claim([new_claimant], new_row.geometry,
+                              provenances=provenance_lookup.get((new_row.iso3, new_row.perspectives), set()))
             add_claims = [new_claim]
             for out_claim in out_claims:
                 new_polygon = clean_polygon(new_claim.geometry)
@@ -801,34 +812,46 @@ def write_country_claims(gpkg_path, configs) -> str:
                     continue
                 elif relationship is Relationship.IDENTICAL:
                     # new_claim is identical to out_claim
+                    # Provenance: union — both area rows cover this exact geometry
                     out_claim.claimants.extend(new_claim.claimants)
+                    out_claim.provenances |= new_claim.provenances
                     add_claims.remove(new_claim)
                     # All of new_claim's area has been found and accounted for
                     break
                 elif relationship is Relationship.IS_INSIDE:
                     # new_claim is inside out_claim
+                    # Provenance: shared piece gets union; out remainder keeps only out's provenance
                     shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
                     untouched_geom = out_polygon.difference(new_polygon)
                     out_claim.geometry = untouched_geom
+                    # out_claim retains its own provenances (untouched piece)
                     new_claim.claimants.extend(out_claim.claimants)
+                    new_claim.provenances |= out_claim.provenances
                     new_claim.geometry = shared_geom
                     # All of new_claim's area has been found and accounted for
                     break
                 elif relationship is Relationship.ENCLOSES:
                     # new_claim encloses out_claim
+                    # Provenance: out piece gets union; new remainder keeps only new's provenance
                     remaining_geom = new_polygon.difference(out_polygon)
                     out_claim.claimants.extend(new_claim.claimants)
+                    out_claim.provenances |= new_claim.provenances
                     new_claim.geometry = remaining_geom
+                    # new_claim retains its own provenances (remainder piece)
                     # Some of new_claim's area remains to check against other out_claims
                     continue
                 elif relationship is Relationship.CONTENDS:
                     # new_claim contends with out_claim
+                    # Provenance: shared piece gets union; remainders keep their own
                     shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
                     untouched_geom = out_polygon.difference(new_polygon)
                     remaining_geom = new_polygon.difference(out_polygon)
-                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom))
+                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom,
+                                           provenances=out_claim.provenances | new_claim.provenances))
                     out_claim.geometry = untouched_geom
+                    # out_claim retains its own provenances (untouched piece)
                     new_claim.geometry = remaining_geom
+                    # new_claim retains its own provenances (remainder piece)
                     # Some of new_claim's area remains to check against other out_claims
                     continue
             for add_claim in add_claims:
@@ -849,7 +872,7 @@ def write_country_claims(gpkg_path, configs) -> str:
             owner = D0.join(sorted(iso3s))
             observers = D2.join(sorted(key))
             tokens.append(f"{owner}{D1}{observers}")
-        row = dict(claimants=" ".join(tokens))
+        row = dict(claimants=" ".join(tokens), provenances=" ".join(sorted(claim.provenances)))
         print("Writing claim polygon", row, file=sys.stderr)
         data_rows.append({**row, "geometry": claim.geometry})
 
@@ -863,27 +886,49 @@ def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_ur
         os.remove(gpkg_path)
 
     data_rows = []
+    provenance_rows = []
     for (iso3a, config) in configs.items():
         geom1 = combine_shapes(config[BASE] or [], check_fresh_osm, cache_base_url)
 
         # "Neutral" point of view = anyone without a defined perspective
         neutral_pov = set(configs.keys()) - set(config.get("perspectives", {}).keys())
-        row1 = dict(iso3=iso3a, perspectives=D2.join(sorted(neutral_pov)))
+        base_shapely = ogr_geom_to_shapely(geom1)
+        row1 = dict(iso3=iso3a, perspectives=D2.join(sorted(neutral_pov)), provenance=f"{iso3a}:base")
         print("Writing base polygon", row1, file=sys.stderr)
-        data_rows.append({**row1, "geometry": ogr_geom_to_shapely(geom1)})
+        data_rows.append({**row1, "geometry": base_shapely})
+        if not base_shapely.is_empty:
+            provenance_rows.append({**row1, "geometry": base_shapely})
 
         # Generate perspectives
         for (iso3b, shapes) in config.get("perspectives", {}).items():
-            geom2 = functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, geom1)
-
-            row2 = dict(iso3=iso3a, perspectives=iso3b)
+            geom = geom1
+            geom_final = functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, geom1)
+            row2 = dict(iso3=iso3a, perspectives=iso3b, provenance=f"{iso3a}:{iso3b}")
             print("Writing perspective polygon", row2, file=sys.stderr)
-            data_rows.append({**row2, "geometry": ogr_geom_to_shapely(geom2)})
+            data_rows.append({**row2, "geometry": ogr_geom_to_shapely(geom_final)})
+
+            # Also emit one provenance row per op, with the contribution geometry
+            for shape in shapes:
+                geom_before = geom
+                geom = combine_pair(geom, shape, check_fresh_osm, cache_base_url)
+                direction, el_type, osm_id = shape
+                sign = "+" if direction == "plus" else "-"
+                if direction == "plus":
+                    contribution = ogr_geom_to_shapely(geom.Difference(geom_before))
+                else:
+                    contribution = ogr_geom_to_shapely(geom_before.Difference(geom))
+                if contribution.is_empty:
+                    continue
+                token = f"{iso3a}:{iso3b}:{sign}{el_type}={osm_id}"
+                provenance_rows.append(dict(iso3=iso3a, perspectives=iso3b, provenance=token, geometry=contribution))
 
     gdf = geopandas.GeoDataFrame(data_rows, geometry="geometry", crs="EPSG:4326")
     iso3_index = sorted({r['iso3'] for r in data_rows})
     gdf['color_index'] = gdf['iso3'].apply(iso3_index.index)
     gdf.to_file(gpkg_path, layer=AREAS_NAME, driver='GPKG')
+
+    prov_gdf = geopandas.GeoDataFrame(provenance_rows, geometry="geometry", crs="EPSG:4326")
+    prov_gdf.to_file(gpkg_path, layer=AREAS_PROVENANCE_NAME, driver='GPKG')
     return gpkg_path
 
 def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = None):

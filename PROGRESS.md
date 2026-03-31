@@ -117,47 +117,55 @@ This correctly classifies PAK as `stable` at the borders of CHN's endorsed
 Arunachal Pradesh block, while preserving `nonexistent` for PAK at the internal
 eastern edge of TKT where both sides are CHN territory.
 
-## Current Bug: Cross-Combo Observer Conflicts (real data, `-i CHN,PAK,AFG,IND`)
+## Current Direction: Provenance Tokens Through Areas → Claims
 
-The fake test cases all pass, but running with real countries exposes a new
-failure: `Observer(s) {'CHN'} appear in multiple boundary categories`.
+The cross-combo conflict bug in `write_country_boundaries` is fundamentally caused by
+observer classification accumulating across multiple `itertools.product` combos with no
+single enforcement point. Rather than patching the accumulation logic, we are replacing
+it with a direct logical approach based on provenance tokens.
 
-### Root cause
+### Key insight
 
-The `itertools.product` loop processes all pairings of `claims1 × claims2`.
-Across different combos for the same boundary pair, an observer like CHN can
-be classified into *conflicting* sets:
+`write_country_areas` already produces rows like `(iso3=CHN, perspectives=PAK, geometry=...)`,
+which is exactly the territory PAK considers settled with respect to CHN — the same thing
+`calculate_endorsements` re-derives by replaying config ops. If each claim polygon carries
+provenance tokens recording *which specific OSM relations* each observer has endorsed or
+disendorsed, then boundary classification becomes pure set arithmetic on those tokens with
+no spatial guessing and no accumulation conflicts.
 
-- In one combo where `iso3a == iso3b == "CHN"` (CHN's own internal boundary),
-  CHN goes into `non_believers`.
-- In a different combo for the same boundary pair where CHN is a recognized
-  party on one side, CHN goes into `stable_believers`.
+### Provenance token format
 
-These accumulate additively across combos, so CHN ends up in both sets before
-`emit_border()` fires the mutual-exclusion assertion. The same conflict can
-also land CHN in both `stable_believers` and `endorser_split`, which then
-puts CHN into `outside_disputed` in the split-boundary emit path.
+Tokens are of the form `iso3:observer:±type=id`, e.g.:
+- `CHN:PAK:+relation=7935380` — PAK endorses CHN's claim on TKT (relation 7935380)
+- `IND:PAK:-relation=1943188` — PAK disendorses IND's claim on J&K (relation 1943188)
+- `CHN:base` — neutral base territory for CHN
 
-### What we've tried
+### Implementation (Phase 1, current work)
 
-1. **`non_believers.discard(obs)` in the `endorser_split` refinement pass.**
-   Removes CHN from `non_believers` when the rep-point test promotes it to
-   `stable`. Didn't fully fix it — CHN can still arrive in `stable_believers`
-   via the different-owner branch independently of the rep-point pass.
+**New `country-areas-provenance` layer** (`AREAS_PROVENANCE_NAME`): written alongside the
+existing `country-areas` layer by `write_country_areas`. Instead of one row per
+`(iso3, perspective)`, this layer has one row per *op*, where each row's geometry is the
+contribution of that single op (territory added or removed by that step in the chain):
 
-2. **Post-loop conflict resolution: `non_believers -= stable_believers` and
-   `disputed_believers -= stable_believers`.** Helps with the direct set
-   conflicts, but CHN can also be in `endorser_split` when it's already in
-   `stable_believers`, and the split emit path re-introduces CHN into
-   `outside_disputed` via `disputed_believers | set(endorser_split.keys())`.
+- For a `+` op: contribution = `geom_after - geom_before`
+- For a `-` op: contribution = `geom_before - geom_after`
+- Empty contributions are skipped
 
-### Open question
+This ensures each token is only present on claim pieces whose geometry actually overlaps
+that op's territory — no cross-region bleed.
 
-The core tension: `stable_believers`, `non_believers`, `disputed_believers`,
-and `endorser_split` all accumulate across combos independently, and there's no
-single point that enforces MECE before `emit_border`. Options:
+**`Claim.provenances: set[str]`** field added to the `Claim` dataclass. Initialized from
+the provenance layer lookup in `write_country_claims`, and propagated through each
+`Relationship` case using union algebra: overlapping pieces get the union of both
+provenances; untouched pieces keep their own. Persisted as a space-delimited `provenances`
+column in the `country-claims` layer.
 
-- After all combos, apply a priority ordering (stable > disputed > nonexistent)
-  to strip conflicts from the lower-priority sets *including* `endorser_split`.
-- Rethink the accumulation model so each observer's classification is resolved
-  per-combo rather than union-ed across combos.
+**`write_country_claims`** reads a `provenance_lookup: dict[(iso3, perspectives), set[str]]`
+from the provenance layer and uses it to initialize each claim's provenance set. The MECE
+geometry algorithm is otherwise unchanged.
+
+### Next step (Phase 2)
+
+Use the provenance tokens in `write_country_boundaries` to replace `calculate_endorsements`,
+`endorsed_geoms`, `endorser_split`, and the rep-point spatial tests with pure set operations
+on provenance tokens. This eliminates the cross-combo accumulation bug entirely.
