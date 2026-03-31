@@ -567,22 +567,37 @@ def write_validation_points(gpkg_path, configs):
 def write_country_boundaries(gpkg_path, configs):
     gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
 
-    # Pre-compute endorsed territories: for non-self perspectives, apply the
-    # observer's ops starting from an empty geometry to get only the territory
-    # those ops explicitly reference. This scopes PAK's endorsement of CHN to
-    # Trans-Karakoram specifically, regardless of whether those ops are additive,
-    # subtractive, or mixed.
+    # Pre-compute endorsed territories: for non-self perspectives, find the
+    # territory those ops explicitly reference so we can split boundary segments.
+    # For additive/mixed ops: apply to empty geometry — result is territory added.
+    # For pure-minus ops (disendorsement): apply to owner's base and take the
+    # difference — result is the territory the observer says the owner should lose.
+    # Both cases yield the disputed sub-region the observer has an opinion on.
+    gdf_areas = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
     endorsed_geoms: dict[tuple[str, str], shapely.geometry.base.BaseGeometry] = {}
     for iso3a, config in configs.items():
         for iso3b, shapes in config.get("perspectives", {}).items():
             if iso3a == iso3b:
                 continue
-            geom = functools.reduce(
+            geom = ogr_geom_to_shapely(functools.reduce(
                 lambda g, s: combine_pair(g, s, False),
                 shapes,
                 osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'),
-            )
-            endorsed_geoms[(iso3a, iso3b)] = ogr_geom_to_shapely(geom)
+            ))
+            if geom.is_empty:
+                # Pure-minus perspective: recover the subtracted area by applying
+                # ops to the owner's base and diffing.
+                perspective_keys = set(config.get("perspectives", {}).keys())
+                base_rows = gdf_areas[(gdf_areas.iso3 == iso3a) & ~gdf_areas.perspectives.isin(perspective_keys)]
+                if not base_rows.empty:
+                    base_geom = shapely_geom_to_ogr(base_rows.iloc[0].geometry)
+                    result = ogr_geom_to_shapely(functools.reduce(
+                        lambda g, s: combine_pair(g, s, False),
+                        shapes,
+                        base_geom,
+                    ))
+                    geom = base_rows.iloc[0].geometry.difference(result)
+            endorsed_geoms[(iso3a, iso3b)] = geom
 
     gdf_neighbors = geopandas.sjoin(gdf, gdf, predicate="touches")
 
