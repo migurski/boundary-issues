@@ -281,6 +281,15 @@ class TestCase (unittest.TestCase):
         self.assertTrue(self.nonexistent_for("CHN").Contains(make_point(4.0, 3.7)))
         self.assertTrue(self.nonexistent_for("PAK").Contains(make_point(4.0, 3.7)))
 
+        # A point on the IND/CHN boundary at the northern edge of fake Arunachal Pradesh (lon=3.0, lat=1.5)
+        # PAK endorses CHN's claim on Arunachal Pradesh, so PAK sees the boundary of CHN's endorsed
+        # block as stable (PAK has taken a side; this is the edge of what PAK considers CHN territory)
+        self.assertTrue(self.stable_for("PAK").Contains(make_point(3.0, 1.5)))
+
+        # A point on the CHN/NPL boundary at the eastern edge of fake Arunachal Pradesh (lon=4.0, lat=1.0)
+        # Same reasoning: PAK endorsed CHN's Arunachal claim, so the outer borders of that block are stable for PAK
+        self.assertTrue(self.stable_for("PAK").Contains(make_point(4.0, 1.0)))
+
     def test_boundaries_ukr_rus(self):
         # A point along the border of fake Crimea and fake Russia
         # UKR sees this as stable (it's the border of Crimea as UKR claims it)
@@ -566,6 +575,7 @@ def write_validation_points(gpkg_path, configs):
 
 def write_country_boundaries(gpkg_path, configs):
     gdf = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
+    gdf['rep_point'] = gdf.geometry.representative_point()
 
     # Pre-compute endorsed territories: for non-self perspectives, find the
     # territory those ops explicitly reference so we can split boundary segments.
@@ -609,6 +619,7 @@ def write_country_boundaries(gpkg_path, configs):
     data_rows = []
     for i1, i2 in sorted(index_pairings):
         row1, row2 = gdf.iloc[i1], gdf.iloc[i2]
+        rep_point1, rep_point2 = row1.rep_point, row2.rep_point
         polygon1 = clean_polygon(row1.geometry)
         polygon2 = clean_polygon(row2.geometry)
         if not polygon1.relate_pattern(polygon2, 'F*2*1*2*2'):
@@ -671,6 +682,37 @@ def write_country_boundaries(gpkg_path, configs):
                             endorser_split[obs] = functools.reduce(lambda a, b: a.union(b), parts)
                         else:
                             disputed_believers.add(obs)
+        # Use representative interior points to refine observer classifications.
+        # For observers in endorser_split: check whether both sides of the boundary
+        # are inside the endorsed geometry, or just one. If both sides are inside,
+        # the observer sees no boundary here (nonexistent stays). If only one side
+        # is inside, this boundary is the edge of endorsed territory → stable for
+        # the observer. Move them from endorser_split to stable_believers.
+        endorser_split_stable: set[str] = set()
+        for obs, endorsed in list(endorser_split.items()):
+            side1_in = endorsed.contains(rep_point1)
+            side2_in = endorsed.contains(rep_point2)
+            if side1_in != side2_in:
+                # One side is endorsed territory, the other is not: this is a real
+                # border from the observer's perspective.
+                endorser_split_stable.add(obs)
+                del endorser_split[obs]
+                stable_believers.add(obs)
+
+        # One-sided observer promotion: observers with endorsed geometries who never
+        # appeared in common_observers may still have an opinion on this boundary.
+        # Use the same rep-point test for observers not yet classified at all.
+        all_classified = stable_believers | disputed_believers | non_believers | set(endorser_split.keys())
+        for (iso3_endorsed, obs), endorsed in endorsed_geoms.items():
+            if obs in all_classified or endorsed.is_empty:
+                continue
+            side1_in = endorsed.contains(rep_point1)
+            side2_in = endorsed.contains(rep_point2)
+            if side1_in != side2_in:
+                # Exactly one side is inside the endorsed territory: this is the
+                # boundary of what the observer considers settled territory.
+                stable_believers.add(obs)
+
         def emit_border(stable, disputed, non, geom):
             overlap = stable & disputed | stable & non | disputed & non
             assert not overlap, f"Observer(s) {overlap} appear in multiple boundary categories: stable={stable} disputed={disputed} nonexistent={non}"

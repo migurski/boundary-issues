@@ -84,48 +84,35 @@ Added `emit_border()` helper that asserts `stable`, `disputed`, and `nonexistent
 sets are mutually exclusive before writing each boundary row. This immediately
 catches logic bugs where an observer ends up in two categories simultaneously.
 
-## Current Challenge: One-Sided Observers and Stable Boundaries
+## Fix: Representative Interior Points (current work)
 
-A new test case (`fake-Arunchal-Pradesh`, commit `cae40c8e`) introduces a region
-where CHN claims Arunachal Pradesh and IND does not from PAK's perspective
-(`IND.perspectives.PAK = [-Arunchal-Pradesh]`). The expected behavior:
+The `fake-Arunchal-Pradesh` test case required classifying PAK as `stable` at
+the outer borders of CHN's endorsed Arunachal Pradesh block.
 
-- (3.0, 1.5) — IND/CHN boundary at northern edge of Arunachal: **stable for PAK**
-- (4.0, 1.0) — CHN/NPL boundary at eastern edge of Arunachal: **stable for PAK**
+### Root cause
 
-PAK has taken a side (endorsing CHN's claim), so it should see the outer border
-of what it considers CHN territory as stable, not as nonexistent or disputed.
+The `endorser_split` approach split boundary lines by endorsed geometry and
+classified endorsers as `nonexistent` for the inside portion. But when the
+boundary line *is* the outer edge of the endorsed territory (e.g., the
+IND/CHN boundary at lat=1.5 which is the top of Arunachal Pradesh), the
+intersection of that line with the endorsed polygon was non-empty, causing PAK
+to be classified as `nonexistent` rather than `stable`.
 
-The problem is that PAK only appears as an observer of CHN's Arunachal claim,
-not of IND's or NPL's adjacent claim. So `common_observers` (the intersection
-of both sides' observer sets) never contains PAK for those boundary combos. PAK
-gets classified either as nonexistent (via endorser_split from another combo) or
-not at all.
+### Fix: rep_point containment test
 
-### Approach attempted: one-sided observer promotion
+After the `itertools.product` loop, use `shapely.representative_point()` on
+each claim polygon (computed once and stored as a GeoDataFrame column) to test
+which side of the boundary is "inside" the endorsed geometry:
 
-Observers present on only one side of a different-owner boundary, with an
-endorsement for that owner, should go to `stable_believers`. Rule: "they've
-taken a side and aren't neutral." This was also extended to the same-owner
-branch.
+1. **Refine `endorser_split`:** For each observer in `endorser_split`, check
+   whether exactly one side's representative point is inside the endorsed
+   geometry. If so, the boundary is the *edge* of endorsed territory → move the
+   observer from `endorser_split` to `stable_believers`.
 
-### Why it fails
+2. **One-sided observer promotion:** For observers in `endorsed_geoms` who never
+   appeared in `common_observers` at all, apply the same containment test. If
+   exactly one side is inside → `stable`.
 
-The `itertools.product` loop processes all pairings of claims1 × claims2. PAK
-can appear in `endorser_split` from one combo (CHN vs IND, inside endorsed
-geometry → nonexistent) and simultaneously be promoted to `stable_believers`
-from another combo (IND self-boundary, one-sided rule). The `emit_border()`
-assertion then fires because PAK is in both `stable` and `nonexistent`.
-
-The core difficulty: classifications accumulate across all combos and can
-conflict. A single observer may be correctly nonexistent for one sub-boundary
-segment and correctly stable for another, but the geometry splitting only happens
-for `endorser_split`, not for the stable/disputed/nonexistent sets at large.
-
-### Open question
-
-Should per-observer classification be resolved *after* all combos are processed,
-or should the geometry be split more aggressively so that stable and nonexistent
-segments are never mixed in one record? The latter would require tracking per-observer
-endorsed geometries for stable classifications the same way endorser_split does
-for nonexistent ones — potentially a much larger refactor.
+This correctly classifies PAK as `stable` at the borders of CHN's endorsed
+Arunachal Pradesh block, while preserving `nonexistent` for PAK at the internal
+eastern edge of TKT where both sides are CHN territory.
