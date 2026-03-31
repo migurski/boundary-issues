@@ -157,8 +157,9 @@ that op's territory — no cross-region bleed.
 **`Claim.provenances: set[str]`** field added to the `Claim` dataclass. Initialized from
 the provenance layer lookup in `write_country_claims`, and propagated through each
 `Relationship` case using union algebra: overlapping pieces get the union of both
-provenances; untouched pieces keep their own. Persisted as a space-delimited `provenances`
-column in the `country-claims` layer.
+provenances; untouched pieces keep their own. The `provenances` column was briefly written
+to the `country-claims` layer then removed — it is currently only held in memory during
+`write_country_claims` and discarded.
 
 **`write_country_claims`** reads a `provenance_lookup: dict[(iso3, perspectives), set[str]]`
 from the provenance layer and uses it to initialize each claim's provenance set. The MECE
@@ -166,6 +167,12 @@ geometry algorithm is otherwise unchanged.
 
 ### Next step (Phase 2)
 
-Use the provenance tokens in `write_country_boundaries` to replace `calculate_endorsements`,
+**First:** restore the `provenances` column to the `country-claims` layer output. This is
+the essential bridge between the provenance layer and `write_country_boundaries` — without
+it, the boundary classifier has no way to access the provenance tokens for each claim polygon.
+`write_country_boundaries` reads the claims layer from the GPKG; the `Claim` objects from
+`write_country_claims` are gone by then.
+
+**Then:** use the provenance tokens in `write_country_boundaries` to replace `calculate_endorsements`,
 `endorsed_geoms`, `endorser_split`, and the rep-point spatial tests with pure set operations
 on provenance tokens. This eliminates the cross-combo accumulation bug entirely.

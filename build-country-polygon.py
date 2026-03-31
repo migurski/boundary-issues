@@ -872,7 +872,7 @@ def write_country_claims(gpkg_path, configs) -> str:
             owner = D0.join(sorted(iso3s))
             observers = D2.join(sorted(key))
             tokens.append(f"{owner}{D1}{observers}")
-        row = dict(claimants=" ".join(tokens), provenances=" ".join(sorted(claim.provenances)))
+        row = dict(claimants=" ".join(tokens))
         print("Writing claim polygon", row, file=sys.stderr)
         data_rows.append({**row, "geometry": claim.geometry})
 
