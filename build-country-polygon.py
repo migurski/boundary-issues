@@ -701,14 +701,12 @@ def write_country_boundaries(gpkg_path: str, configs: dict) -> str:
         # the observer sees no boundary here (nonexistent stays). If only one side
         # is inside, this boundary is the edge of endorsed territory → stable for
         # the observer. Move them from endorser_split to stable_believers.
-        endorser_split_stable: set[str] = set()
         for obs, endorsed in list(endorser_split.items()):
             side1_in = endorsed.contains(rep_point1)
             side2_in = endorsed.contains(rep_point2)
             if side1_in != side2_in:
                 # One side is endorsed territory, the other is not: this is a real
                 # border from the observer's perspective.
-                endorser_split_stable.add(obs)
                 del endorser_split[obs]
                 stable_believers.add(obs)
 
@@ -726,7 +724,7 @@ def write_country_boundaries(gpkg_path: str, configs: dict) -> str:
                 # boundary of what the observer considers settled territory.
                 stable_believers.add(obs)
 
-        def emit_border(stable, disputed, non, geom):
+        def emit_border(stable: set[str], disputed: set[str], non: set[str], geom: shapely.geometry.base.BaseGeometry) -> None:
             overlap = stable & disputed | stable & non | disputed & non
             assert not overlap, f"Observer(s) {overlap} appear in multiple boundary categories: stable={stable} disputed={disputed} nonexistent={non}"
             row = dict(stable=D2.join(stable), disputed=D2.join(disputed), nonexistent=D2.join(non))
@@ -758,13 +756,13 @@ def write_country_boundaries(gpkg_path: str, configs: dict) -> str:
 def write_country_claims(gpkg_path, configs) -> str:
     gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
 
-    # Build a lookup from (iso3, perspectives) -> set of provenance tokens
-    # using the per-op contribution rows from the provenance layer.
+    # Load provenance rows for spatial lookup.
+    # Each row has (iso3, perspectives, provenance, geometry) where geometry is the
+    # contribution of that specific op — only the territory it actually added or removed.
+    # We do NOT build a flat (iso3, perspectives) → tokens dict here because that would
+    # assign Trans-Karakoram tokens to Aksai Chin claim pieces and vice versa (cross-region
+    # bleed). Instead, provenance tokens are assigned spatially per claim polygon below.
     gdf_prov = geopandas.read_file(gpkg_path, layer=AREAS_PROVENANCE_NAME)
-    provenance_lookup: dict[tuple[str, str], set[str]] = {}
-    for _, row in gdf_prov.iterrows():
-        key = (row.iso3, row.perspectives)
-        provenance_lookup.setdefault(key, set()).add(row.provenance)
 
     # Need to separately include partial overlaps and complete containments
     gdf_disputants1 = geopandas.sjoin(gdf, gdf, predicate="overlaps")
@@ -786,8 +784,7 @@ def write_country_claims(gpkg_path, configs) -> str:
         out_claims = []
         for _, new_row in gdf_sub.iterrows():
             new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(D2)))
-            new_claim = Claim([new_claimant], new_row.geometry,
-                              provenances=provenance_lookup.get((new_row.iso3, new_row.perspectives), set()))
+            new_claim = Claim([new_claimant], new_row.geometry)
             add_claims = [new_claim]
             for out_claim in out_claims:
                 new_polygon = clean_polygon(new_claim.geometry)
@@ -812,46 +809,34 @@ def write_country_claims(gpkg_path, configs) -> str:
                     continue
                 elif relationship is Relationship.IDENTICAL:
                     # new_claim is identical to out_claim
-                    # Provenance: union — both area rows cover this exact geometry
                     out_claim.claimants.extend(new_claim.claimants)
-                    out_claim.provenances |= new_claim.provenances
                     add_claims.remove(new_claim)
                     # All of new_claim's area has been found and accounted for
                     break
                 elif relationship is Relationship.IS_INSIDE:
                     # new_claim is inside out_claim
-                    # Provenance: shared piece gets union; out remainder keeps only out's provenance
                     shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
                     untouched_geom = out_polygon.difference(new_polygon)
                     out_claim.geometry = untouched_geom
-                    # out_claim retains its own provenances (untouched piece)
                     new_claim.claimants.extend(out_claim.claimants)
-                    new_claim.provenances |= out_claim.provenances
                     new_claim.geometry = shared_geom
                     # All of new_claim's area has been found and accounted for
                     break
                 elif relationship is Relationship.ENCLOSES:
                     # new_claim encloses out_claim
-                    # Provenance: out piece gets union; new remainder keeps only new's provenance
                     remaining_geom = new_polygon.difference(out_polygon)
                     out_claim.claimants.extend(new_claim.claimants)
-                    out_claim.provenances |= new_claim.provenances
                     new_claim.geometry = remaining_geom
-                    # new_claim retains its own provenances (remainder piece)
                     # Some of new_claim's area remains to check against other out_claims
                     continue
                 elif relationship is Relationship.CONTENDS:
                     # new_claim contends with out_claim
-                    # Provenance: shared piece gets union; remainders keep their own
                     shared_geom = clean_polygon(out_polygon.intersection(new_polygon))
                     untouched_geom = out_polygon.difference(new_polygon)
                     remaining_geom = new_polygon.difference(out_polygon)
-                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom,
-                                           provenances=out_claim.provenances | new_claim.provenances))
+                    add_claims.append(Claim(out_claim.claimants + new_claim.claimants, shared_geom))
                     out_claim.geometry = untouched_geom
-                    # out_claim retains its own provenances (untouched piece)
                     new_claim.geometry = remaining_geom
-                    # new_claim retains its own provenances (remainder piece)
                     # Some of new_claim's area remains to check against other out_claims
                     continue
             for add_claim in add_claims:
@@ -872,7 +857,17 @@ def write_country_claims(gpkg_path, configs) -> str:
             owner = D0.join(sorted(iso3s))
             observers = D2.join(sorted(key))
             tokens.append(f"{owner}{D1}{observers}")
-        row = dict(claimants=" ".join(tokens))
+        # Assign provenance tokens by spatial intersection with the final claim polygon.
+        # This avoids cross-region bleed: a +Trans-Karakoram token only appears on claim
+        # polygons whose geometry actually overlaps the Trans-Karakoram contribution area.
+        # We collect owners from all claimants in this polygon to limit the provenance lookup.
+        owner_iso3s = {iso3 for iso3, _ in coalesced.claimants}
+        overlapping_prov = gdf_prov[
+            gdf_prov.iso3.isin(owner_iso3s)
+            & gdf_prov.geometry.intersects(claim.geometry)
+        ]
+        provenances = set(overlapping_prov['provenance'])
+        row = dict(claimants=" ".join(tokens), provenances=" ".join(sorted(provenances)))
         print("Writing claim polygon", row, file=sys.stderr)
         data_rows.append({**row, "geometry": claim.geometry})
 

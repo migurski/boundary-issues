@@ -140,7 +140,7 @@ Tokens are of the form `iso3:observer:±type=id`, e.g.:
 - `IND:PAK:-relation=1943188` — PAK disendorses IND's claim on J&K (relation 1943188)
 - `CHN:base` — neutral base territory for CHN
 
-### Implementation (Phase 1, current work)
+### Implementation (Phase 1, commits 1b542ff2 and 12214b3c)
 
 **New `country-areas-provenance` layer** (`AREAS_PROVENANCE_NAME`): written alongside the
 existing `country-areas` layer by `write_country_areas`. Instead of one row per
@@ -151,28 +151,30 @@ contribution of that single op (territory added or removed by that step in the c
 - For a `-` op: contribution = `geom_before - geom_after`
 - Empty contributions are skipped
 
-This ensures each token is only present on claim pieces whose geometry actually overlaps
-that op's territory — no cross-region bleed.
+**`Claim.provenances: set[str]`** field added to the `Claim` dataclass.
 
-**`Claim.provenances: set[str]`** field added to the `Claim` dataclass. Initialized from
-the provenance layer lookup in `write_country_claims`, and propagated through each
-`Relationship` case using union algebra: overlapping pieces get the union of both
-provenances; untouched pieces keep their own. The `provenances` column was briefly written
-to the `country-claims` layer then removed — it is currently only held in memory during
-`write_country_claims` and discarded.
+### Implementation (Phase 2, current work)
 
-**`write_country_claims`** reads a `provenance_lookup: dict[(iso3, perspectives), set[str]]`
-from the provenance layer and uses it to initialize each claim's provenance set. The MECE
-geometry algorithm is otherwise unchanged.
+**`provenances` column restored to `country-claims` layer output.** The column is a
+space-separated string of provenance tokens for each claim polygon. Provenance tokens are
+assigned *spatially*: for each final claim polygon, we intersect against `gdf_prov` to find
+which contribution geometries overlap it. This avoids the cross-region bleed problem that
+arose from the earlier flat dict approach — a `+Trans-Karakoram` token must not appear on
+an Aksai Chin polygon just because the CHN:PAK area row covers both regions.
 
-### Next step (Phase 2)
+**Why pure set operations on tokens cannot fully replace the geometry split:**
+The MECE algorithm merges Aksai Chin and TKT into a single MULTIPOLYGON (idx=0, rep-point
+at (3.5, 2.5) inside Aksai Chin). Any boundary token for TKT is spatially on that polygon,
+but the boundary analysis must distinguish the TKT sub-segment from the Aksai Chin
+sub-segment of the same polygon's edge. That distinction requires the geometry split on the
+endorsed territory — it cannot be derived from per-polygon token presence alone.
+`calculate_endorsements` (which applies config ops to an empty geometry) is retained and
+unchanged because provenance contribution geometries cannot substitute for it: when TKT is
+already in CHN's base, the `+TKT` op in CHN:PAK has zero marginal contribution and emits no
+provenance row.
 
-**First:** restore the `provenances` column to the `country-claims` layer output. This is
-the essential bridge between the provenance layer and `write_country_boundaries` — without
-it, the boundary classifier has no way to access the provenance tokens for each claim polygon.
-`write_country_boundaries` reads the claims layer from the GPKG; the `Claim` objects from
-`write_country_claims` are gone by then.
+**MECE provenance propagation removed.** The `provenances |=` operations in the MECE
+`Relationship` cases are removed: since provenances are now assigned at the end via spatial
+intersection, there is no need to propagate them through splits and merges.
 
-**Then:** use the provenance tokens in `write_country_boundaries` to replace `calculate_endorsements`,
-`endorsed_geoms`, `endorser_split`, and the rep-point spatial tests with pure set operations
-on provenance tokens. This eliminates the cross-combo accumulation bug entirely.
+**`emit_border` type-annotated** with explicit parameter types.
