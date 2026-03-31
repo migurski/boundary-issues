@@ -116,3 +116,48 @@ which side of the boundary is "inside" the endorsed geometry:
 This correctly classifies PAK as `stable` at the borders of CHN's endorsed
 Arunachal Pradesh block, while preserving `nonexistent` for PAK at the internal
 eastern edge of TKT where both sides are CHN territory.
+
+## Current Bug: Cross-Combo Observer Conflicts (real data, `-i CHN,PAK,AFG,IND`)
+
+The fake test cases all pass, but running with real countries exposes a new
+failure: `Observer(s) {'CHN'} appear in multiple boundary categories`.
+
+### Root cause
+
+The `itertools.product` loop processes all pairings of `claims1 × claims2`.
+Across different combos for the same boundary pair, an observer like CHN can
+be classified into *conflicting* sets:
+
+- In one combo where `iso3a == iso3b == "CHN"` (CHN's own internal boundary),
+  CHN goes into `non_believers`.
+- In a different combo for the same boundary pair where CHN is a recognized
+  party on one side, CHN goes into `stable_believers`.
+
+These accumulate additively across combos, so CHN ends up in both sets before
+`emit_border()` fires the mutual-exclusion assertion. The same conflict can
+also land CHN in both `stable_believers` and `endorser_split`, which then
+puts CHN into `outside_disputed` in the split-boundary emit path.
+
+### What we've tried
+
+1. **`non_believers.discard(obs)` in the `endorser_split` refinement pass.**
+   Removes CHN from `non_believers` when the rep-point test promotes it to
+   `stable`. Didn't fully fix it — CHN can still arrive in `stable_believers`
+   via the different-owner branch independently of the rep-point pass.
+
+2. **Post-loop conflict resolution: `non_believers -= stable_believers` and
+   `disputed_believers -= stable_believers`.** Helps with the direct set
+   conflicts, but CHN can also be in `endorser_split` when it's already in
+   `stable_believers`, and the split emit path re-introduces CHN into
+   `outside_disputed` via `disputed_believers | set(endorser_split.keys())`.
+
+### Open question
+
+The core tension: `stable_believers`, `non_believers`, `disputed_believers`,
+and `endorser_split` all accumulate across combos independently, and there's no
+single point that enforces MECE before `emit_border`. Options:
+
+- After all combos, apply a priority ordering (stable > disputed > nonexistent)
+  to strip conflicts from the lower-priority sets *including* `endorser_split`.
+- Rethink the accumulation model so each observer's classification is resolved
+  per-combo rather than union-ed across combos.
