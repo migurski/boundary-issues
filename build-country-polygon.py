@@ -252,13 +252,13 @@ class TestCase (unittest.TestCase):
         # A point along the fake Trans-Karakoram Tract border
         # CHN and PAK agree it's their border: stable for CHN, PAK
         # IND sees the IND-PAK border here (where PAK-held territory meets IND-claimed territory): stable for IND
-        # RUS/UKR/NPL see this as disputed (counterintuitive: they don't recognize India up here)
+        # RUS/UKR/NPL don't see India up here, but they all recognize that a border exists for someone
         self.assertTrue(self.stable_for("CHN").Contains(make_point(3, 3.7)))
         self.assertTrue(self.stable_for("PAK").Contains(make_point(3, 3.7)))
         self.assertTrue(self.stable_for("IND").Contains(make_point(3, 3.7)))
-        self.assertTrue(self.disputed_for("RUS").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
-        self.assertTrue(self.disputed_for("UKR").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
-        self.assertTrue(self.disputed_for("NPL").Contains(make_point(3, 3.7)), "Counterintuitive because NPL doesn't see India up here")
+        self.assertTrue(self.stable_for("RUS").Contains(make_point(3, 3.7)))
+        self.assertTrue(self.stable_for("UKR").Contains(make_point(3, 3.7)))
+        self.assertTrue(self.stable_for("NPL").Contains(make_point(3, 3.7)))
 
     def test_boundaries_ukr_rus(self):
         # A point along the border of fake Crimea and fake Russia
