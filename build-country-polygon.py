@@ -605,6 +605,13 @@ def write_country_boundaries(gpkg_path, configs):
         if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
             stable_believers = boundary.claims1[0][1] & boundary.claims2[0][1]
         else:
+            # Detect whether any non-condominium same-owner claim exists on both sides,
+            # which indicates genuine territorial overlap/dispute rather than just
+            # different-but-agreed borders meeting at this line.
+            has_contested_overlap = any(
+                iso3a == iso3b and D0 not in iso3a
+                for (iso3a, _), (iso3b, _) in itertools.product(boundary.claims1, boundary.claims2)
+            )
             neighbor_combos = itertools.product(boundary.claims1, boundary.claims2)
             for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
                 common_observers = observers_a & observers_b
@@ -626,7 +633,14 @@ def write_country_boundaries(gpkg_path, configs):
                         common_observers.remove(iso3b)
                         stable_believers.add(iso3b)
                     if common_observers:
-                        disputed_believers |= common_observers
+                        # Neutral observers see different owners on each side, which means
+                        # they all agree a border exists. Mark as stable unless there is
+                        # also a contested overlap at this boundary (same owner on both sides),
+                        # which would indicate genuine unresolved territorial dispute.
+                        if has_contested_overlap:
+                            disputed_believers |= common_observers
+                        else:
+                            stable_believers |= common_observers
         row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
         print("Writing border", row, file=sys.stderr)
         data_rows.append({**row, "geometry": boundary.geometry})
