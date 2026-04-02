@@ -540,9 +540,13 @@ def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.
         return shapely.line_merge(g)
     return shapely.wkt.loads('LINESTRING EMPTY')
 
-def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
+def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
-    if cache_base_url and not check_fresh_osm and not os.path.exists(local_path):
+    if check_fresh_osm is False:
+        # Local data only: raise immediately if file is missing, no network access
+        if not os.path.exists(local_path):
+            raise FileNotFoundError(f"Local data file not found (--local-data-only): {local_path}")
+    elif cache_base_url and not os.path.exists(local_path):
         cache_url = urllib.parse.urljoin(cache_base_url, f"/cache/{el_type}/{osm_id}.osm.xml.gz")
         try:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -553,7 +557,7 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_
     for delay in (10, 20, None):
         newly_downloaded = False
         try:
-            if check_fresh_osm or not os.path.exists(local_path):
+            if check_fresh_osm is True or not os.path.exists(local_path):
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 with gzip.open(local_path, "wb", compresslevel=9) as file:
                     url = f"https://api.openstreetmap.org/api/0.6/{el_type}/{osm_id}/full"
@@ -565,7 +569,7 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_
             lyr = ds.GetLayer("multipolygons")
             geometries = [feat.GetGeometryRef().Clone() for feat in lyr]
         except Exception:
-            if (newly_downloaded or check_fresh_osm) and delay is not None:
+            if (newly_downloaded or check_fresh_osm is True) and delay is not None:
                 print("Must retry", url, file=sys.stderr)
                 time.sleep(delay)
             else:
@@ -574,11 +578,11 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_
         else:
             return functools.reduce(lambda g1, g2: g1.Union(g2), geometries)
 
-def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
+def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     assert len(shapes) == 0 or shapes[0][0] == "plus"
     return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
-def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
+def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     direction2, el_type2, osm_id2 = shape2
     geom2 = load_shape(el_type2, osm_id2, check_fresh_osm, cache_base_url)
     if direction2 == "plus" and geom1 is None:
@@ -859,7 +863,7 @@ def write_country_claims(gpkg_path, configs) -> str:
     claims_gdf.to_file(gpkg_path, layer=CLAIMS_NAME, driver='GPKG')
     return gpkg_path
 
-def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_url: str|None = None) -> str:
+def write_country_areas(gpkg_path, configs, check_fresh_osm: bool|None, cache_base_url: str|None = None) -> str:
     # Delete stale GPKG from previous runs before writing the first layer
     if os.path.exists(gpkg_path):
         os.remove(gpkg_path)
@@ -888,7 +892,7 @@ def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_ur
     gdf.to_file(gpkg_path, layer=AREAS_NAME, driver='GPKG')
     return gpkg_path
 
-def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = None):
+def main(dirname, configs, check_fresh_osm: bool|None, cache_base_url: str|None = None):
     gpkg_path = os.path.join(dirname, GPKG_NAME)
     write_country_areas(gpkg_path, configs, check_fresh_osm, cache_base_url)
     write_country_claims(gpkg_path, configs)
@@ -903,7 +907,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
     parser.add_argument('-c', '--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
     parser.add_argument('-i', '--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
-    parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
+    osm_group = parser.add_mutually_exclusive_group()
+    osm_group.add_argument('--check-fresh-osm', dest='check_fresh_osm', action='store_const', const=True, default=None, help='Ignore local files and download fresh OSM data')
+    osm_group.add_argument('--local-data-only', dest='check_fresh_osm', action='store_const', const=False, help='Use only local data files, error if any are missing')
     parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 

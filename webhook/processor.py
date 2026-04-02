@@ -50,7 +50,7 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
 
     # Extract event fields
     destination: str = event.get('destination', f"s3://{os.environ.get('DATA_BUCKET')}/default/")
-    check_fresh_osm: bool = event.get('checkFreshOSM', False)
+    check_fresh_osm: bool | None = True if event.get('checkFreshOSM') is True else False
     iso3s: typing.Optional[str] = event.get('iso3s')
     task_token: typing.Optional[str] = event.get('taskToken')
     sfn_client = None
@@ -116,8 +116,8 @@ def lambda_handler(event: dict[str, typing.Any], context: typing.Any) -> dict[st
 
         s3_client = boto3.client('s3')
 
-        # Generate tiles on first run (when checkFreshOSM is not set)
-        if not check_fresh_osm:
+        # Generate tiles on first run (when checkFreshOSM is not True)
+        if check_fresh_osm is not True:
             err7 = generate_tiles(s3_client, destination, clone_dir, on_failure)
             if err7:
                 return err7
@@ -307,7 +307,7 @@ def extract_iso3s_from_configs(changed_configs: list[str], clone_dir: str) -> li
     return sorted(iso3_set)
 
 
-def run_build_script(changed_configs: list[str] | None, check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable, iso3s: typing.Optional[str] = None) -> dict[str, typing.Any]|None:
+def run_build_script(changed_configs: list[str] | None, check_fresh_osm: bool | None, clone_dir: str, on_failure: FailCallable, iso3s: typing.Optional[str] = None) -> dict[str, typing.Any]|None:
     """ Run build-all-perspectives.py with appropriate arguments """
     cache_base_url = os.environ.get('CACHE_BASE_URL')
     try:
@@ -317,8 +317,10 @@ def run_build_script(changed_configs: list[str] | None, check_fresh_osm: bool, c
             cmd = ['./build-all-perspectives.py']
             if changed_configs is not None:
                 cmd += ['--configs'] + changed_configs
-            if check_fresh_osm:
+            if check_fresh_osm is True:
                 cmd += ['--check-fresh-osm']
+            elif check_fresh_osm is False:
+                cmd += ['--local-data-only']
             if cache_base_url:
                 cmd += ['--cache-base-url', cache_base_url]
             if iso3s:
@@ -732,7 +734,7 @@ def main() -> int:
 
     s3_client, destination, clone_dir = None, None, '.'
 
-    err1 = run_build_script(changed_configs, False, clone_dir, on_failure, args.iso3s)
+    err1 = run_build_script(changed_configs, None, clone_dir, on_failure, args.iso3s)
     if err1:
         return 1
 
