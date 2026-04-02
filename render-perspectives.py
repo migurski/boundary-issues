@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import typing
 
@@ -46,7 +47,7 @@ def load_perspective_groups(gpkg_path: str) -> tuple[list[str], list[list[str]]]
 def filter_areas(gpkg_path: str, perspective: str) -> geopandas.GeoDataFrame:
     gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
     mask = gdf["perspectives"].apply(lambda v: code_in_field(perspective, v))
-    result = gdf[mask][["iso3", "perspectives", "color_index", "geometry"]].copy()
+    result = gdf[mask][["iso3", "color_index", "geometry"]].copy()
     return result
 
 
@@ -78,14 +79,18 @@ def write_perspective_gpkg(input_path: str, output_path: str, perspective: str) 
     )
 
 
-def main(input_path: str, output_dir: str) -> None:
+def main(input_path: str, output_dir: str, iso3s: set[str] | None) -> None:
     unique_perspectives, others_groups = load_perspective_groups(input_path)
 
     for iso3 in unique_perspectives:
+        if iso3s is not None and iso3 not in iso3s:
+            continue
         output_path = os.path.join(output_dir, f"perspective-{iso3}.gpkg")
         write_perspective_gpkg(input_path, output_path, iso3)
 
     for group in others_groups:
+        if iso3s is not None and not any(iso3 in iso3s for iso3 in group):
+            continue
         perspective = group[0]  # first alphabetically
         output_path = os.path.join(output_dir, "perspective-Other.gpkg")
         write_perspective_gpkg(input_path, output_path, perspective)
@@ -97,5 +102,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--input", default="out.gpkg", help="Path to input GPKG (default: out.gpkg)")
     parser.add_argument("--output-dir", default=".", help="Directory for output files (default: .)")
+    parser.add_argument("-i", "--iso3s", help='Comma-delimited list of ISO3 codes to filter on (e.g. "RUS,CHN")')
     args = parser.parse_args()
-    main(args.input, args.output_dir)
+    iso3s = set(args.iso3s.split(",")) if args.iso3s and re.match(r"^\w\w\w(,\w\w\w)*$", args.iso3s) else None
+    main(args.input, args.output_dir, iso3s)
