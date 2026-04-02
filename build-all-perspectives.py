@@ -426,6 +426,57 @@ def merge_country_config(base: dict[str, typing.Any], addition: dict[str, typing
             merged[key] = merged_key
     return merged
 
+VALID_ENTRY_KEYS = {"base", "perspectives", "interior-points", "exterior-points"}
+VALID_DIRECTIONS = {"plus", "minus"}
+VALID_EL_TYPES = {"relation", "way"}
+ISO3_RE = re.compile(r"^[A-Z]{3}$")
+
+
+def validate_op(op: typing.Any, path: str) -> None:
+    if not isinstance(op, list) or len(op) != 3:
+        raise ValueError(f"{path}: operation must be a list of 3 elements, got {op!r}")
+    direction, el_type, osm_id = op
+    if direction not in VALID_DIRECTIONS:
+        raise ValueError(f"{path}: direction must be one of {VALID_DIRECTIONS}, got {direction!r}")
+    if el_type not in VALID_EL_TYPES:
+        raise ValueError(f"{path}: element type must be one of {VALID_EL_TYPES}, got {el_type!r}")
+    if not isinstance(osm_id, (int, str)):
+        raise ValueError(f"{path}: OSM id must be an integer or string, got {osm_id!r}")
+
+
+def validate_point(pt: typing.Any, path: str) -> None:
+    if not isinstance(pt, list) or len(pt) != 2 or not all(isinstance(v, (int, float)) for v in pt):
+        raise ValueError(f"{path}: point must be a list of 2 numbers, got {pt!r}")
+
+
+def validate_entry(iso3: str, entry: typing.Any, path: str) -> None:
+    if not ISO3_RE.match(iso3):
+        raise ValueError(f"{path}: country key must be a 3-letter uppercase ISO3 code, got {iso3!r}")
+    if not isinstance(entry, dict):
+        raise ValueError(f"{path}/{iso3}: entry must be a dict, got {entry!r}")
+    unknown = set(entry.keys()) - VALID_ENTRY_KEYS
+    if unknown:
+        raise ValueError(f"{path}/{iso3}: unexpected keys {unknown!r}, expected subset of {VALID_ENTRY_KEYS!r}")
+    for op in entry.get("base", []):
+        validate_op(op, f"{path}/{iso3}/base")
+    for key in ("perspectives", "interior-points", "exterior-points"):
+        if key not in entry:
+            continue
+        if not isinstance(entry[key], dict):
+            raise ValueError(f"{path}/{iso3}/{key}: must be a dict")
+        for sub_key, items in entry[key].items():
+            if sub_key != BASE and not ISO3_RE.match(sub_key):
+                raise ValueError(f"{path}/{iso3}/{key}: sub-key must be 'base' or ISO3, got {sub_key!r}")
+            if not isinstance(items, list):
+                raise ValueError(f"{path}/{iso3}/{key}/{sub_key}: must be a list")
+            if key == "perspectives":
+                for op in items:
+                    validate_op(op, f"{path}/{iso3}/{key}/{sub_key}")
+            else:
+                for pt in items:
+                    validate_point(pt, f"{path}/{iso3}/{key}/{sub_key}")
+
+
 def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str, typing.Any]]:
     config: dict[str, dict[str, typing.Any]] = {}
     for path in paths:
@@ -433,10 +484,14 @@ def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str
             continue
         with open(path, "r") as file:
             for iso3, entry in yaml.safe_load(file).items():
+                validate_entry(iso3, entry, path)
                 if iso3 in config:
                     config[iso3] = merge_country_config(config[iso3], entry)
                 else:
                     config[iso3] = entry
+    for iso3, entry in config.items():
+        if "base" not in entry:
+            raise ValueError(f"{iso3}: missing required 'base' key (not found in any config file)")
 
     if iso3s is None:
         return config
