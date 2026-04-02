@@ -1,6 +1,6 @@
 About this repo: https://medium.com/@michalmigurski/weeknotes-2026w04-boundary-issues-f037407a7f45
 
-## Current Release: [v0.6](https://github.com/migurski/boundary-issues/releases/tag/v0.6)
+## Current Release: [v0.7](https://github.com/migurski/boundary-issues/releases/tag/v0.7)
 
 v0.7 release includes countries of Europe, Asia, Africa, Oceania, and the Americas.
 
@@ -10,45 +10,45 @@ Preview: https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/previe
 
 Perspective downloads:
 
-- [perspective-Other.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-Other.gpkg.zip)
-- [perspective-ARE.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ARE.gpkg.zip)
-- [perspective-ARG.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ARG.gpkg.zip)
-- [perspective-BTN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-BTN.gpkg.zip)
-- [perspective-CAN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-CAN.gpkg.zip)
-- [perspective-CHL.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-CHL.gpkg.zip)
-- [perspective-CHN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-CHN.gpkg.zip)
-- [perspective-EGY.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-EGY.gpkg.zip)
-- [perspective-ESH.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ESH.gpkg.zip)
-- [perspective-FRA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-FRA.gpkg.zip)
-- [perspective-GEO.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-GEO.gpkg.zip)
-- [perspective-GUY.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-GUY.gpkg.zip)
-- [perspective-HRV.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-HRV.gpkg.zip)
-- [perspective-IND.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-IND.gpkg.zip)
-- [perspective-IRN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-IRN.gpkg.zip)
-- [perspective-ISR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ISR.gpkg.zip)
-- [perspective-ITA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ITA.gpkg.zip)
-- [perspective-JPN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-JPN.gpkg.zip)
-- [perspective-KEN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-KEN.gpkg.zip)
-- [perspective-MAR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-MAR.gpkg.zip)
-- [perspective-MMR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-MMR.gpkg.zip)
-- [perspective-NPL.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-NPL.gpkg.zip)
-- [perspective-PAK.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-PAK.gpkg.zip)
-- [perspective-PHL.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-PHL.gpkg.zip)
-- [perspective-PSE.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-PSE.gpkg.zip)
-- [perspective-RUS.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-RUS.gpkg.zip)
-- [perspective-SDN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SDN.gpkg.zip)
-- [perspective-SRB.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SRB.gpkg.zip)
-- [perspective-SSD.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SSD.gpkg.zip)
-- [perspective-SUR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SUR.gpkg.zip)
-- [perspective-SVN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SVN.gpkg.zip)
-- [perspective-SYR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SYR.gpkg.zip)
-- [perspective-THA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-THA.gpkg.zip)
-- [perspective-TWN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-TWN.gpkg.zip)
-- [perspective-UKR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-UKR.gpkg.zip)
-- [perspective-USA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-USA.gpkg.zip)
-- [perspective-VEN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-VEN.gpkg.zip)
-- [perspective-VNM.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-VNM.gpkg.zip)
-- [perspective-XKK.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-XKK.gpkg.zip)
+- [perspective-Other.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-Other.gpkg.zip) countries without unique points of view
+- [perspective-ARE.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ARE.gpkg.zip) United Arab Emirates
+- [perspective-ARG.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ARG.gpkg.zip) Argentina
+- [perspective-BTN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-BTN.gpkg.zip) Bhutan
+- [perspective-CAN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-CAN.gpkg.zip) Canada
+- [perspective-CHL.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-CHL.gpkg.zip) Chile
+- [perspective-CHN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-CHN.gpkg.zip) China
+- [perspective-EGY.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-EGY.gpkg.zip) Egypt
+- [perspective-ESH.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ESH.gpkg.zip) Western Sahara
+- [perspective-FRA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-FRA.gpkg.zip) France
+- [perspective-GEO.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-GEO.gpkg.zip) Georgia
+- [perspective-GUY.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-GUY.gpkg.zip) Guyana
+- [perspective-HRV.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-HRV.gpkg.zip) Croatia
+- [perspective-IND.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-IND.gpkg.zip) India
+- [perspective-IRN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-IRN.gpkg.zip) Iran
+- [perspective-ISR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ISR.gpkg.zip) Israel
+- [perspective-ITA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-ITA.gpkg.zip) Italy
+- [perspective-JPN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-JPN.gpkg.zip) Japan
+- [perspective-KEN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-KEN.gpkg.zip) Kenya
+- [perspective-MAR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-MAR.gpkg.zip) Morroco
+- [perspective-MMR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-MMR.gpkg.zip) Myanmar
+- [perspective-NPL.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-NPL.gpkg.zip) Nepal
+- [perspective-PAK.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-PAK.gpkg.zip) Pakistan
+- [perspective-PHL.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-PHL.gpkg.zip) Philippines
+- [perspective-PSE.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-PSE.gpkg.zip) Palestine
+- [perspective-RUS.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-RUS.gpkg.zip) Russia
+- [perspective-SDN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SDN.gpkg.zip) Sudan
+- [perspective-SRB.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SRB.gpkg.zip) Serbia
+- [perspective-SSD.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SSD.gpkg.zip) South Sudan
+- [perspective-SUR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SUR.gpkg.zip) Suriname
+- [perspective-SVN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SVN.gpkg.zip) Slovenia
+- [perspective-SYR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-SYR.gpkg.zip) Syria
+- [perspective-THA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-THA.gpkg.zip) Thailand
+- [perspective-TWN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-TWN.gpkg.zip) Taiwan
+- [perspective-UKR.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-UKR.gpkg.zip) Ukraine
+- [perspective-USA.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-USA.gpkg.zip) United States
+- [perspective-VEN.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-VEN.gpkg.zip) Venezuela
+- [perspective-VNM.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-VNM.gpkg.zip) Vietnam
+- [perspective-XKK.gpkg.zip](https://boundary-issues.s3.us-west-2.amazonaws.com/releases/v0.7/perspective-XKK.gpkg.zip) Kosovo
 
 ## Output Format
 
