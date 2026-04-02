@@ -60,6 +60,7 @@ class Claim:
 
     def relationship(self, other:Claim) -> Relationship:
         """ Return description of DE-9IM relationship between geometries """
+        assert self.geometry is not None and other.geometry is not None
         pattern = self.geometry.relate(other.geometry)
         if re.match(r"^F.2...2.2$", pattern):
             return Relationship.NO_OVERLAP
@@ -163,12 +164,14 @@ class TestCase (unittest.TestCase):
         self.assertEqual(merged_conflict["interior-points"]["base"], [[1.0, 2.0], [9.9, 9.9]])
 
     def test_config3_concatenation(self) -> None:
+        assert self.config is not None
         # test-config3.yaml introduces TWN country
         self.assertIn("TWN", self.config)
         # CHN claims TWN from CHN perspective (perspectives.CHN merged from test-config3)
-        self.assertIn("CHN", self.config["CHN"]["perspectives"])
+        chn_config = self.config["CHN"]
+        self.assertIn("CHN", chn_config["perspectives"])
         # test-config3 adds one op to CHN.perspectives.CHN, merged list has 1 entry
-        self.assertEqual(len(self.config["CHN"]["perspectives"]["CHN"]), 1)
+        self.assertEqual(len(chn_config["perspectives"]["CHN"]), 1)
 
     @staticmethod
     def _load_borders():
@@ -582,7 +585,7 @@ def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool
     assert len(shapes) == 0 or shapes[0][0] == "plus"
     return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
-def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
+def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str], check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     direction2, el_type2, osm_id2 = shape2
     geom2 = load_shape(el_type2, osm_id2, check_fresh_osm, cache_base_url)
     if direction2 == "plus" and geom1 is None:
@@ -596,7 +599,7 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str
     return geom3
 
 def dump_wkt(shape: shapely.geometry.base.BaseGeometry) -> str:
-    return shapely.wkt.dumps(shape, rounding_precision=7)
+    return str(shapely.wkt.dumps(shape, rounding_precision=7))
 
 def shapely_geom_to_ogr(shape: shapely.geometry.base.BaseGeometry) -> osgeo.ogr.Geometry:
     return osgeo.ogr.CreateGeometryFromWkb(shapely.to_wkb(shape))
@@ -759,7 +762,7 @@ def write_unique_perspectives(gpkg_path, configs):
     return gpkg_path
 
 
-def write_country_claims(gpkg_path, configs) -> str:
+def write_country_claims(gpkg_path: str, configs: dict) -> str:
     gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
 
     # Need to separately include partial overlaps and complete containments
@@ -779,7 +782,7 @@ def write_country_claims(gpkg_path, configs) -> str:
     for iso3s in networkx.connected_components(dispute_graph):
         print("Evaluating claims for", iso3s, 'with', len(dispute_graph.subgraph(iso3s).edges), "conflicts...", file=sys.stderr)
         gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})")) & gdf.perspectives]
-        out_claims = []
+        out_claims: list[Claim] = []
         for _, new_row in gdf_sub.iterrows():
             new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(D2)))
             new_claim = Claim([new_claimant], new_row.geometry)
@@ -863,7 +866,7 @@ def write_country_claims(gpkg_path, configs) -> str:
     claims_gdf.to_file(gpkg_path, layer=CLAIMS_NAME, driver='GPKG')
     return gpkg_path
 
-def write_country_areas(gpkg_path, configs, check_fresh_osm: bool|None, cache_base_url: str|None = None) -> str:
+def write_country_areas(gpkg_path: str, configs: dict, check_fresh_osm: bool|None, cache_base_url: str|None = None) -> str:
     # Delete stale GPKG from previous runs before writing the first layer
     if os.path.exists(gpkg_path):
         os.remove(gpkg_path)
