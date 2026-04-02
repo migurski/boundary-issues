@@ -457,7 +457,7 @@ def validate_entry(iso3: str, entry: typing.Any, path: str) -> None:
     unknown = set(entry.keys()) - VALID_ENTRY_KEYS
     if unknown:
         raise ValueError(f"{path}/{iso3}: unexpected keys {unknown!r}, expected subset of {VALID_ENTRY_KEYS!r}")
-    for op in entry.get("base", []):
+    for op in (entry.get("base") or []):
         validate_op(op, f"{path}/{iso3}/base")
     for key in ("perspectives", "interior-points", "exterior-points"):
         if key not in entry:
