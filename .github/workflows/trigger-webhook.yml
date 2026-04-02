@@ -6,7 +6,7 @@ on:
     paths:
       - '*.yaml'
       - 'data/**'
-      - 'build-country-polygon.py'
+      - 'build-all-perspectives.py'
       - 'webhook/trigger-webhook.sh'
 
 jobs:

@@ -228,8 +228,8 @@ Fetch output:
 Checkout output:
 Current HEAD: a4051323948dd82dbd7bf47b694adf191c29da55
 Successfully checked out PR #4 at a4051323948dd82dbd7bf47b694adf191c29da55
-Run build-country-polygon.py
-Successfully ran build-country-polygon.py
+Run build-all-perspectives.py
+Successfully ran build-all-perspectives.py
 ```
 
 **Key validations:**

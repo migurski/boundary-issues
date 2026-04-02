@@ -308,13 +308,13 @@ def extract_iso3s_from_configs(changed_configs: list[str], clone_dir: str) -> li
 
 
 def run_build_script(changed_configs: list[str] | None, check_fresh_osm: bool, clone_dir: str, on_failure: FailCallable, iso3s: typing.Optional[str] = None) -> dict[str, typing.Any]|None:
-    """ Run build-country-polygon.py with appropriate arguments """
+    """ Run build-all-perspectives.py with appropriate arguments """
     cache_base_url = os.environ.get('CACHE_BASE_URL')
     try:
         if changed_configs is None and not iso3s:
-            logging.info("No configs or ISO3s to process, skipping build-country-polygon.py")
+            logging.info("No configs or ISO3s to process, skipping build-all-perspectives.py")
         else:
-            cmd = ['./build-country-polygon.py']
+            cmd = ['./build-all-perspectives.py']
             if changed_configs is not None:
                 cmd += ['--configs'] + changed_configs
             if check_fresh_osm:
@@ -326,14 +326,14 @@ def run_build_script(changed_configs: list[str] | None, check_fresh_osm: bool, c
             logging.info(f"Running {' '.join(cmd)}")
             result = run_in(cmd, clone_dir)
             logging.info(f"Run output: {result.stdout}")
-            logging.info("Successfully ran build-country-polygon.py")
+            logging.info("Successfully ran build-all-perspectives.py")
         return None
     except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to run build-country-polygon.py: {e}")
+        logging.error(f"Failed to run build-all-perspectives.py: {e}")
         logging.error(f"STDOUT: {e.stdout}")
         logging.error(f"STDERR: {e.stderr}")
         on_failure('ScriptExecutionError', e.stderr or str(e))
-        return make_error(f'Failed to run build-country-polygon.py: {e.stderr}')
+        return make_error(f'Failed to run build-all-perspectives.py: {e.stderr}')
     except ValueError as e:
         logging.error(f"{e}")
         on_failure('ScriptValidationError', str(e))
