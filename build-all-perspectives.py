@@ -60,6 +60,7 @@ class Claim:
 
     def relationship(self, other:Claim) -> Relationship:
         """ Return description of DE-9IM relationship between geometries """
+        assert self.geometry is not None and other.geometry is not None
         pattern = self.geometry.relate(other.geometry)
         if re.match(r"^F.2...2.2$", pattern):
             return Relationship.NO_OVERLAP
@@ -163,12 +164,14 @@ class TestCase (unittest.TestCase):
         self.assertEqual(merged_conflict["interior-points"]["base"], [[1.0, 2.0], [9.9, 9.9]])
 
     def test_config3_concatenation(self) -> None:
+        assert self.config is not None
         # test-config3.yaml introduces TWN country
         self.assertIn("TWN", self.config)
         # CHN claims TWN from CHN perspective (perspectives.CHN merged from test-config3)
-        self.assertIn("CHN", self.config["CHN"]["perspectives"])
+        chn_config = self.config["CHN"]
+        self.assertIn("CHN", chn_config["perspectives"])
         # test-config3 adds one op to CHN.perspectives.CHN, merged list has 1 entry
-        self.assertEqual(len(self.config["CHN"]["perspectives"]["CHN"]), 1)
+        self.assertEqual(len(chn_config["perspectives"]["CHN"]), 1)
 
     @staticmethod
     def _load_borders():
@@ -252,13 +255,13 @@ class TestCase (unittest.TestCase):
         # A point along the fake Trans-Karakoram Tract border
         # CHN and PAK agree it's their border: stable for CHN, PAK
         # IND sees the IND-PAK border here (where PAK-held territory meets IND-claimed territory): stable for IND
-        # RUS/UKR/NPL see this as disputed (counterintuitive: they don't recognize India up here)
+        # RUS/UKR/NPL don't see India up here, but they all recognize that a border exists for someone
         self.assertTrue(self.stable_for("CHN").Contains(make_point(3, 3.7)))
         self.assertTrue(self.stable_for("PAK").Contains(make_point(3, 3.7)))
         self.assertTrue(self.stable_for("IND").Contains(make_point(3, 3.7)))
-        self.assertTrue(self.disputed_for("RUS").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
-        self.assertTrue(self.disputed_for("UKR").Contains(make_point(3, 3.7)), "Counterintuitive because RUS/UKR don't see India up here")
-        self.assertTrue(self.disputed_for("NPL").Contains(make_point(3, 3.7)), "Counterintuitive because NPL doesn't see India up here")
+        self.assertTrue(self.stable_for("RUS").Contains(make_point(3, 3.7)))
+        self.assertTrue(self.stable_for("UKR").Contains(make_point(3, 3.7)))
+        self.assertTrue(self.stable_for("NPL").Contains(make_point(3, 3.7)))
 
     def test_boundaries_ukr_rus(self):
         # A point along the border of fake Crimea and fake Russia
@@ -426,6 +429,57 @@ def merge_country_config(base: dict[str, typing.Any], addition: dict[str, typing
             merged[key] = merged_key
     return merged
 
+VALID_ENTRY_KEYS = {"base", "perspectives", "interior-points", "exterior-points"}
+VALID_DIRECTIONS = {"plus", "minus"}
+VALID_EL_TYPES = {"relation", "way"}
+ISO3_RE = re.compile(r"^[A-Z]{3}$")
+
+
+def validate_op(op: typing.Any, path: str) -> None:
+    if not isinstance(op, list) or len(op) != 3:
+        raise ValueError(f"{path}: operation must be a list of 3 elements, got {op!r}")
+    direction, el_type, osm_id = op
+    if direction not in VALID_DIRECTIONS:
+        raise ValueError(f"{path}: direction must be one of {VALID_DIRECTIONS}, got {direction!r}")
+    if el_type not in VALID_EL_TYPES:
+        raise ValueError(f"{path}: element type must be one of {VALID_EL_TYPES}, got {el_type!r}")
+    if not isinstance(osm_id, (int, str)):
+        raise ValueError(f"{path}: OSM id must be an integer or string, got {osm_id!r}")
+
+
+def validate_point(pt: typing.Any, path: str) -> None:
+    if not isinstance(pt, list) or len(pt) != 2 or not all(isinstance(v, (int, float)) for v in pt):
+        raise ValueError(f"{path}: point must be a list of 2 numbers, got {pt!r}")
+
+
+def validate_entry(iso3: str, entry: typing.Any, path: str) -> None:
+    if not ISO3_RE.match(iso3):
+        raise ValueError(f"{path}: country key must be a 3-letter uppercase ISO3 code, got {iso3!r}")
+    if not isinstance(entry, dict):
+        raise ValueError(f"{path}/{iso3}: entry must be a dict, got {entry!r}")
+    unknown = set(entry.keys()) - VALID_ENTRY_KEYS
+    if unknown:
+        raise ValueError(f"{path}/{iso3}: unexpected keys {unknown!r}, expected subset of {VALID_ENTRY_KEYS!r}")
+    for op in (entry.get("base") or []):
+        validate_op(op, f"{path}/{iso3}/base")
+    for key in ("perspectives", "interior-points", "exterior-points"):
+        if key not in entry:
+            continue
+        if not isinstance(entry[key], dict):
+            raise ValueError(f"{path}/{iso3}/{key}: must be a dict")
+        for sub_key, items in entry[key].items():
+            if sub_key != BASE and not ISO3_RE.match(sub_key):
+                raise ValueError(f"{path}/{iso3}/{key}: sub-key must be 'base' or ISO3, got {sub_key!r}")
+            if not isinstance(items, list):
+                raise ValueError(f"{path}/{iso3}/{key}/{sub_key}: must be a list")
+            if key == "perspectives":
+                for op in items:
+                    validate_op(op, f"{path}/{iso3}/{key}/{sub_key}")
+            else:
+                for pt in items:
+                    validate_point(pt, f"{path}/{iso3}/{key}/{sub_key}")
+
+
 def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str, typing.Any]]:
     config: dict[str, dict[str, typing.Any]] = {}
     for path in paths:
@@ -433,10 +487,14 @@ def load_configs(paths: list[str], iso3s: set[str] | None) -> dict[str, dict[str
             continue
         with open(path, "r") as file:
             for iso3, entry in yaml.safe_load(file).items():
+                validate_entry(iso3, entry, path)
                 if iso3 in config:
                     config[iso3] = merge_country_config(config[iso3], entry)
                 else:
                     config[iso3] = entry
+    for iso3, entry in config.items():
+        if "base" not in entry:
+            raise ValueError(f"{iso3}: missing required 'base' key (not found in any config file)")
 
     if iso3s is None:
         return config
@@ -485,9 +543,13 @@ def clean_linestring(g: shapely.geometry.base.BaseGeometry) -> shapely.geometry.
         return shapely.line_merge(g)
     return shapely.wkt.loads('LINESTRING EMPTY')
 
-def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
+def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     local_path = os.path.join("data/sources", el_type, f"{osm_id}.osm.xml.gz")
-    if cache_base_url and not check_fresh_osm and not os.path.exists(local_path):
+    if check_fresh_osm is False:
+        # Local data only: raise immediately if file is missing, no network access
+        if not os.path.exists(local_path):
+            raise FileNotFoundError(f"Local data file not found (--local-data-only): {local_path}")
+    elif cache_base_url and not os.path.exists(local_path):
         cache_url = urllib.parse.urljoin(cache_base_url, f"/cache/{el_type}/{osm_id}.osm.xml.gz")
         try:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -498,7 +560,7 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_
     for delay in (10, 20, None):
         newly_downloaded = False
         try:
-            if check_fresh_osm or not os.path.exists(local_path):
+            if check_fresh_osm is True or not os.path.exists(local_path):
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 with gzip.open(local_path, "wb", compresslevel=9) as file:
                     url = f"https://api.openstreetmap.org/api/0.6/{el_type}/{osm_id}/full"
@@ -510,7 +572,7 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_
             lyr = ds.GetLayer("multipolygons")
             geometries = [feat.GetGeometryRef().Clone() for feat in lyr]
         except Exception:
-            if (newly_downloaded or check_fresh_osm) and delay is not None:
+            if (newly_downloaded or check_fresh_osm is True) and delay is not None:
                 print("Must retry", url, file=sys.stderr)
                 time.sleep(delay)
             else:
@@ -519,11 +581,11 @@ def load_shape(el_type: str, osm_id: int|str, check_fresh_osm: bool, cache_base_
         else:
             return functools.reduce(lambda g1, g2: g1.Union(g2), geometries)
 
-def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
+def combine_shapes(shapes: list[tuple[str, str, int|str]], check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     assert len(shapes) == 0 or shapes[0][0] == "plus"
     return functools.reduce(lambda g, s: combine_pair(g, s, check_fresh_osm, cache_base_url), shapes, osgeo.ogr.CreateGeometryFromWkt('POLYGON EMPTY'))
 
-def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str], check_fresh_osm: bool, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
+def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str], check_fresh_osm: bool|None, cache_base_url: str|None = None) -> osgeo.ogr.Geometry:
     direction2, el_type2, osm_id2 = shape2
     geom2 = load_shape(el_type2, osm_id2, check_fresh_osm, cache_base_url)
     if direction2 == "plus" and geom1 is None:
@@ -537,7 +599,7 @@ def combine_pair(geom1: osgeo.ogr.Geometry, shape2: tuple[str, str, int|str, str
     return geom3
 
 def dump_wkt(shape: shapely.geometry.base.BaseGeometry) -> str:
-    return shapely.wkt.dumps(shape, rounding_precision=7)
+    return str(shapely.wkt.dumps(shape, rounding_precision=7))
 
 def shapely_geom_to_ogr(shape: shapely.geometry.base.BaseGeometry) -> osgeo.ogr.Geometry:
     return osgeo.ogr.CreateGeometryFromWkb(shapely.to_wkb(shape))
@@ -605,6 +667,13 @@ def write_country_boundaries(gpkg_path, configs):
         if len(boundary.claims1) == 1 and len(boundary.claims2) == 1:
             stable_believers = boundary.claims1[0][1] & boundary.claims2[0][1]
         else:
+            # Detect whether any non-condominium same-owner claim exists on both sides,
+            # which indicates genuine territorial overlap/dispute rather than just
+            # different-but-agreed borders meeting at this line.
+            has_contested_overlap = any(
+                iso3a == iso3b and D0 not in iso3a
+                for (iso3a, _), (iso3b, _) in itertools.product(boundary.claims1, boundary.claims2)
+            )
             neighbor_combos = itertools.product(boundary.claims1, boundary.claims2)
             for (iso3a, observers_a), (iso3b, observers_b) in neighbor_combos:
                 common_observers = observers_a & observers_b
@@ -626,7 +695,14 @@ def write_country_boundaries(gpkg_path, configs):
                         common_observers.remove(iso3b)
                         stable_believers.add(iso3b)
                     if common_observers:
-                        disputed_believers |= common_observers
+                        # Neutral observers see different owners on each side, which means
+                        # they all agree a border exists. Mark as stable unless there is
+                        # also a contested overlap at this boundary (same owner on both sides),
+                        # which would indicate genuine unresolved territorial dispute.
+                        if has_contested_overlap:
+                            disputed_believers |= common_observers
+                        else:
+                            stable_believers |= common_observers
         row = dict(stable=D2.join(stable_believers), disputed=D2.join(disputed_believers), nonexistent=D2.join(non_believers))
         print("Writing border", row, file=sys.stderr)
         data_rows.append({**row, "geometry": boundary.geometry})
@@ -686,7 +762,7 @@ def write_unique_perspectives(gpkg_path, configs):
     return gpkg_path
 
 
-def write_country_claims(gpkg_path, configs) -> str:
+def write_country_claims(gpkg_path: str, configs: dict) -> str:
     gdf = geopandas.read_file(gpkg_path, layer=AREAS_NAME)
 
     # Need to separately include partial overlaps and complete containments
@@ -706,7 +782,7 @@ def write_country_claims(gpkg_path, configs) -> str:
     for iso3s in networkx.connected_components(dispute_graph):
         print("Evaluating claims for", iso3s, 'with', len(dispute_graph.subgraph(iso3s).edges), "conflicts...", file=sys.stderr)
         gdf_sub = gdf[gdf.iso3.str.match(re.compile(f"({'|'.join(iso3s)})")) & gdf.perspectives]
-        out_claims = []
+        out_claims: list[Claim] = []
         for _, new_row in gdf_sub.iterrows():
             new_claimant: CLAIMANT = (new_row.iso3, set(new_row.perspectives.split(D2)))
             new_claim = Claim([new_claimant], new_row.geometry)
@@ -790,7 +866,7 @@ def write_country_claims(gpkg_path, configs) -> str:
     claims_gdf.to_file(gpkg_path, layer=CLAIMS_NAME, driver='GPKG')
     return gpkg_path
 
-def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_url: str|None = None) -> str:
+def write_country_areas(gpkg_path: str, configs: dict, check_fresh_osm: bool|None, cache_base_url: str|None = None) -> str:
     # Delete stale GPKG from previous runs before writing the first layer
     if os.path.exists(gpkg_path):
         os.remove(gpkg_path)
@@ -819,7 +895,7 @@ def write_country_areas(gpkg_path, configs, check_fresh_osm: bool, cache_base_ur
     gdf.to_file(gpkg_path, layer=AREAS_NAME, driver='GPKG')
     return gpkg_path
 
-def main(dirname, configs, check_fresh_osm: bool, cache_base_url: str|None = None):
+def main(dirname, configs, check_fresh_osm: bool|None, cache_base_url: str|None = None):
     gpkg_path = os.path.join(dirname, GPKG_NAME)
     write_country_areas(gpkg_path, configs, check_fresh_osm, cache_base_url)
     write_country_claims(gpkg_path, configs)
@@ -834,7 +910,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build country polygon data from OSM sources')
     parser.add_argument('-c', '--configs', nargs='*', help='Specific config files to process (e.g., config-UKR-RUS.yaml)')
     parser.add_argument('-i', '--iso3s', help='Comma-delimited list of ISO3 codes to filter on (e.g. "PLT,ESP,FRA,ITA")')
-    parser.add_argument('--check-fresh-osm', action='store_true', help='Ignore local files and download fresh OSM data')
+    osm_group = parser.add_mutually_exclusive_group()
+    osm_group.add_argument('--check-fresh-osm', dest='check_fresh_osm', action='store_const', const=True, default=None, help='Ignore local files and download fresh OSM data')
+    osm_group.add_argument('--local-data-only', dest='check_fresh_osm', action='store_const', const=False, help='Use only local data files, error if any are missing')
     parser.add_argument('--cache-base-url', help='Base URL for S3 OSM relation cache (e.g. https://mybucket.s3.us-east-1.amazonaws.com)')
     args = parser.parse_args()
 
