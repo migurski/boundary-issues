@@ -304,19 +304,17 @@ class TestCase (unittest.TestCase):
     def test_unique_perspectives_grouping(self):
         gpkg_path = os.path.join(TestCase.tempdir, GPKG_NAME)
         df = geopandas.read_file(gpkg_path, layer=UNIQUE_PERSPECTIVES_NAME)
-        groups = df.groupby('perspective_id')['iso3'].apply(list)
-        iso3_to_group_size = {}
-        for pid, iso3_list in groups.items():
-            for iso3 in iso3_list:
-                iso3_to_group_size[iso3] = len(iso3_list)
-        # Countries with unique perspectives each have their own perspective_id
-        for iso3 in ('IND', 'PAK', 'CHN', 'RUS', 'UKR'):
-            if iso3 in iso3_to_group_size:
-                self.assertEqual(iso3_to_group_size[iso3], 1, f"{iso3} should have a unique perspective_id")
-        # Countries with no defined perspectives share a perspective_id
-        neutral_iso3s = [iso3 for iso3 in ('NPL', 'ESP', 'FRA') if iso3 in iso3_to_group_size]
-        if neutral_iso3s:
-            self.assertGreater(iso3_to_group_size[neutral_iso3s[0]], 1, f"{neutral_iso3s[0]} should share a perspective_id with others")
+        iso3_to_pid = dict(zip(df['iso3'], df['perspective_id']))
+        # Each disputant must have its own unique perspective_id
+        for iso3 in ('CHN', 'IND', 'PAK', 'RUS', 'SRB', 'TWN', 'UKR', 'XKK'):
+            self.assertIn(iso3, iso3_to_pid, f"{iso3} should be in the perspectives table")
+            pid = iso3_to_pid[iso3]
+            peers = [k for k, v in iso3_to_pid.items() if v == pid]
+            self.assertEqual(peers, [iso3], f"{iso3} should have a unique perspective_id, got peers {peers}")
+        # Others (NPL, ESP, FRA) share one perspective_id
+        others = [iso3 for iso3 in ('NPL', 'ESP', 'FRA') if iso3 in iso3_to_pid]
+        if len(others) > 1:
+            self.assertEqual(len(set(iso3_to_pid[iso3] for iso3 in others)), 1, f"Others {others} should share a perspective_id")
         # Union of all ISO3s in the table equals the full set of config keys
         self.assertEqual(set(df['iso3']), set(self.config.keys()))
 
@@ -713,30 +711,49 @@ def write_country_boundaries(gpkg_path, configs):
     return gpkg_path
 
 def write_unique_perspectives(gpkg_path, configs):
-    gdf = geopandas.read_file(gpkg_path, layer=BOUNDARIES_NAME)
+    gdf_boundaries = geopandas.read_file(gpkg_path, layer=BOUNDARIES_NAME)
 
-    # For each ISO3 code, collect which columns it appears in (fingerprint)
+    # For each ISO3 code, collect which columns it appears in (fingerprint from boundaries)
     iso3s: dict[str, list[str]] = {}
-    for _, row in gdf.iterrows():
+    for _, row in gdf_boundaries.iterrows():
         for col in ('stable', 'disputed', 'nonexistent'):
             for code in str(row[col]).split(D2):
                 code = code.strip()
                 if code:
                     iso3s.setdefault(code, []).append(col)
 
-    # Group codes by their pattern fingerprint
-    patterns: dict[tuple[str, ...], list[str]] = {}
+    # Build minority bitfield from claims: for each claim token with a restricted observer set,
+    # record which countries are in that observer set. A country's claims fingerprint is the
+    # ordered tuple of booleans indicating minority membership across all such claim tokens.
+    all_iso3s = set(configs.keys())
+    gdf_claims = geopandas.read_file(gpkg_path, layer=CLAIMS_NAME)
+    minority_sets: list[frozenset[str]] = []
+    for _, row in gdf_claims.iterrows():
+        for token in str(row['claimants']).split():
+            if D1 not in token:
+                continue
+            observers = frozenset(token.split(D1)[1].split(D2))
+            # A minority observer set is one that excludes at least one config country
+            if observers < all_iso3s:
+                minority_sets.append(observers)
+
+    # For each config country, compute its claims fingerprint as a tuple of booleans
+    claims_fingerprints: dict[str, tuple[bool, ...]] = {
+        iso3: tuple(iso3 in obs for obs in minority_sets)
+        for iso3 in all_iso3s
+    }
+
+    # Combine boundary fingerprint with claims fingerprint
+    patterns: dict[tuple, list[str]] = {}
     for code, appearances in iso3s.items():
-        key = tuple(appearances)
+        key = (tuple(appearances), claims_fingerprints.get(code, ()))
         patterns.setdefault(key, []).append(code)
 
-    # Countries with no defined perspectives (not in any boundary column) share a neutral fingerprint
-    all_iso3s = set(configs.keys())
+    # Countries not in any boundary column share a fingerprint based only on claims
     boundary_iso3s = set(iso3s.keys())
-    neutral_iso3s = sorted(all_iso3s - boundary_iso3s)
-    if neutral_iso3s:
-        neutral_key = ()
-        patterns.setdefault(neutral_key, []).extend(neutral_iso3s)
+    for iso3 in sorted(all_iso3s - boundary_iso3s):
+        key = ((), claims_fingerprints.get(iso3, ()))
+        patterns.setdefault(key, []).append(iso3)
 
     # Assign perspective_id sorted for determinism; sort groups by their sorted codes
     rows = []

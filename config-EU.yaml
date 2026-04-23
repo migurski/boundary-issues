@@ -121,9 +121,26 @@ SWE:
 CYP:
   base:
     - [plus, relation, 307787] # Cyprus
+  perspectives:
+    TUR:
+      - [minus, relation, 2514541] # Northern Cyprus
+    ZZU:
+      - [minus, relation, 2514541] # Northern Cyprus
   interior-points:
     base:
       - [33.3638783, 35.1746503] # Nicosia
+ZZU:
+  base:
+  perspectives:
+    ZZU:
+      - [plus, relation, 2514541] # Northern Cyprus
+    TUR:
+      - [plus, relation, 2514541] # Northern Cyprus
+  interior-points:
+    ZZU:
+      - [33.36087, 35.17795] # Sarayönü Square
+    TUR:
+      - [33.36087, 35.17795] # Sarayönü Square
 CZE:
   base:
     - [plus, relation, 51684] # Czechia
